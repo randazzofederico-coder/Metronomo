@@ -76,7 +76,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
                     child: Stack(
                       children: [
                         ListView(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           children: [
                             _MacroCycleVisualizer(metronome: metronome),
                             const SizedBox(height: 8),
@@ -84,7 +84,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
                             // Dynamic Instances
                             ...metronome.instances.map((instance) {
                               return Padding(
-                                padding: const EdgeInsets.only(bottom: 24),
+                                padding: const EdgeInsets.only(bottom: 12),
                                 child: _buildMetronomeInstance(
                                   context: context,
                                   instance: instance,
@@ -112,14 +112,14 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.surfaceHighlight(context),
                                 foregroundColor: AppColors.textPrimary(context),
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(16),
                                   side: BorderSide(color: AppColors.border(context)),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 250), // Pad bottom for keyboard
+                            SizedBox(height: _activePatternIdForKeyboard != null ? 300 : 80), // Pad bottom for keyboard
                           ],
                         ),
                         
@@ -442,10 +442,10 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
     bool isEditing = _activePatternIdForKeyboard == instance.id;
 
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border(context)),
       ),
       child: Column(
@@ -470,44 +470,43 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
                    child: Container(
                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                      decoration: BoxDecoration(
-                         color: AppColors.background(context).withOpacity(0.5),
-                         border: Border.all(color: isEditing ? AppColors.accentCyan(context) : AppColors.border(context).withOpacity(0.5)),
+                         color: isEditing ? AppColors.accentCyan(context).withOpacity(0.1) : AppColors.background(context).withOpacity(0.5),
+                         border: Border.all(
+                           color: isEditing ? AppColors.accentCyan(context) : AppColors.border(context).withOpacity(0.5),
+                           width: isEditing ? 2.0 : 1.0,
+                         ),
                          borderRadius: BorderRadius.circular(4),
                      ),
-                     child: isEditing 
-                       ? SizedBox(
-                           height: 24,
-                           child: Row(
-                             children: [
-                               Icon(Icons.edit_note, color: AppColors.accentCyan(context), size: 18),
-                               const SizedBox(width: 8),
-                               Expanded(
-                                 child: TextField(
-                                     controller: _structureControllers[instance.id],
-                                     readOnly: true,
-                                     showCursor: true,
-                                     cursorColor: AppColors.accentCyan(context),
-                                     style: TextStyle(
-                                         color: AppColors.accentCyan(context),
-                                         fontWeight: FontWeight.bold,
-                                         fontSize: 16,
-                                         letterSpacing: 2.0,
-                                     ),
-                                     decoration: InputDecoration(
-                                         border: InputBorder.none,
-                                         isDense: true,
-                                         contentPadding: EdgeInsets.zero,
-                                         hintText: "Ej. 3+2",
-                                         hintStyle: TextStyle(
-                                             color: AppColors.textSecondary(context).withOpacity(0.5),
-                                         )
-                                     ),
-                                 ),
-                               ),
-                             ],
-                           ),
-                         )
-                       : _buildFormattedStructure(context, instance.structure),
+                      child: isEditing 
+                        ? SizedBox(
+                            height: 24,
+                            child: TextField(
+                              controller: _structureControllers[instance.id],
+                              readOnly: true,
+                              showCursor: true,
+                              cursorColor: AppColors.accentCyan(context),
+                              style: TextStyle(
+                                color: AppColors.accentCyan(context),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                letterSpacing: 2.0,
+                              ),
+                              decoration: InputDecoration(
+                                border: InputBorder.none,
+                                isDense: true,
+                                contentPadding: EdgeInsets.zero,
+                                hintText: "Ej. 3+2",
+                                hintStyle: TextStyle(
+                                  color: AppColors.textSecondary(context).withOpacity(0.5),
+                                ),
+                              ),
+                            ),
+                          )
+                       : FittedBox(
+                           fit: BoxFit.scaleDown,
+                           alignment: Alignment.centerLeft,
+                           child: _buildFormattedStructure(context, instance.structure),
+                         ),
                    ),
                  ),
                ),
@@ -527,7 +526,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
                )
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
           // Sequencer Cells (Responsive & Auto-Wrapping)
           LayoutBuilder(
             builder: (context, constraints) {
@@ -558,7 +557,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
                          flex: (pulse.durationRatio * 100).round().clamp(1, 10000),
                          child: Container(
                            margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                           height: rows == 1 ? 55 : 45, // Container total height
+                           height: rows == 1 ? 42 : 36, // Container total height
                            decoration: BoxDecoration(
                              border: Border.all(color: AppColors.border(context), width: 1.5),
                              borderRadius: BorderRadius.circular(8),
@@ -637,20 +636,54 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
                return Column(children: rowWidgets);
             }
           ),
-          const SizedBox(height: 20),
-          // Track Strip (Volume, Mute, Solo) now displayed at the bottom spanning across
-          Center(
-            child: _buildSettingsTrackStrip(
-                context: context,
-                label: 'VOL',
-                value: instance.volume,
-                onChanged: onVolChanged,
-                isMuted: instance.isMuted,
-                onMuteToggle: onMuteToggle,
-                isSolo: instance.isSolo,
-                onSoloToggle: onSoloToggle,
-                isActive: instance.volume > 0,
-            ),
+          const SizedBox(height: 6),
+          // Track Strip (Volume, Mute, Solo) — compact inline row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 36,
+                child: KnobControl(
+                  value: instance.volume,
+                  onChanged: onVolChanged,
+                  min: 0,
+                  max: 1,
+                  label: 'VOL',
+                  labelColor: instance.volume > 0 ? AppColors.accentGreen(context) : AppColors.accentRed(context),
+                  size: 28,
+                ),
+              ),
+              const SizedBox(width: 12),
+              GestureDetector(
+                onTap: onMuteToggle,
+                child: Container(
+                  width: 32,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: instance.isMuted ? AppColors.accentRed(context) : Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: AppColors.border(context)),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text('M', style: TextStyle(color: instance.isMuted ? Colors.white : Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+              ),
+              const SizedBox(width: 6),
+              GestureDetector(
+                onTap: onSoloToggle,
+                child: Container(
+                  width: 32,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: instance.isSolo ? AppColors.accentCyan(context) : Colors.grey.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: AppColors.border(context)),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text('S', style: TextStyle(color: instance.isSolo ? Colors.black : Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -753,30 +786,46 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
       required Function(String) onUpdateLive,
   }) {
       return Container(
-          padding: const EdgeInsets.only(top: 12, bottom: 24, left: 8, right: 8),
+          padding: const EdgeInsets.only(top: 6, bottom: 12, left: 4, right: 4),
           decoration: BoxDecoration(
               color: AppColors.surfaceHighlight(context),
-              border: Border(top: BorderSide(color: AppColors.border(context), width: 2)),
+              border: Border(top: BorderSide(color: AppColors.accentCyan(context), width: 2)),
               boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, -4))]
           ),
           child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                  Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                          Padding(
-                              padding: const EdgeInsets.only(left: 12, bottom: 8),
-                              child: Text("ESTRUCTURA MÉTRICA", style: TextStyle(color: AppColors.textSecondary(context), fontSize: 10, letterSpacing: 2)),
+                  // Text display row showing what's being typed
+                  Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                          color: AppColors.background(context),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: AppColors.accentCyan(context).withOpacity(0.5)),
+                      ),
+                      child: TextField(
+                          controller: controller,
+                          readOnly: true,
+                          showCursor: true,
+                          cursorColor: AppColors.accentCyan(context),
+                          style: TextStyle(
+                              color: AppColors.accentCyan(context),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              letterSpacing: 2.0,
                           ),
-                          GestureDetector(
-                               onTap: () => onSubmit(controller.text),
-                               child: Padding(
-                                   padding: const EdgeInsets.only(right: 12, bottom: 8),
-                                   child: Icon(Icons.keyboard_hide, color: AppColors.textSecondary(context), size: 20),
-                               ),
+                          decoration: InputDecoration(
+                              border: InputBorder.none,
+                              isDense: true,
+                              contentPadding: EdgeInsets.zero,
+                              hintText: "Ej. 3+2",
+                              hintStyle: TextStyle(
+                                  color: AppColors.textSecondary(context).withOpacity(0.5),
+                              ),
                           ),
-                      ],
+                      ),
                   ),
                   Row(
                       children: [
@@ -791,7 +840,6 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
                           Expanded(child: _buildKeyBtn("4", controller, onUpdateLive)),
                           Expanded(child: _buildKeyBtn("5", controller, onUpdateLive)),
                           Expanded(child: _buildKeyBtn("6", controller, onUpdateLive)),
-                          Expanded(child: _buildKeyBtn(":", controller, onUpdateLive, isControl: true, color: AppColors.accentGreen(context))),
                           Expanded(child: _buildKeyBtn("/", controller, onUpdateLive, isControl: true, color: AppColors.accentGreen(context))),
                       ],
                   ),
@@ -800,16 +848,14 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
                           Expanded(child: _buildKeyBtn("7", controller, onUpdateLive)),
                           Expanded(child: _buildKeyBtn("8", controller, onUpdateLive)),
                           Expanded(child: _buildKeyBtn("9", controller, onUpdateLive)),
-                          Expanded(
-                              flex: 1, 
-                              child: _buildKeyBtn("\u232b", controller, onUpdateLive, isControl: true, color: AppColors.accentRed(context), icon: Icons.backspace) // Backspace
-                          ),
+                          Expanded(child: _buildKeyBtn(":", controller, onUpdateLive, isControl: true, color: AppColors.accentGreen(context))),
                       ],
                   ),
                   Row(
                       children: [
-                          Expanded(flex: 1, child: _buildKeyBtn("0", controller, onUpdateLive)),
-                          Expanded(flex: 3, child: _buildKeyBtn("OK", controller, (v) => onSubmit(controller.text), isControl: true, color: AppColors.accentCyan(context))),
+                          Expanded(child: _buildKeyBtn("0", controller, onUpdateLive)),
+                          Expanded(child: _buildKeyBtn("OK", controller, (v) => onSubmit(controller.text), isControl: true, color: AppColors.accentCyan(context))),
+                          Expanded(child: _buildKeyBtn("\u232b", controller, onUpdateLive, isControl: true, color: AppColors.accentRed(context), icon: Icons.backspace)),
                       ],
                   ),
               ],
@@ -847,21 +893,21 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
               }
           },
           child: Container(
-              margin: const EdgeInsets.all(4),
-              height: 55,
+              margin: const EdgeInsets.all(2),
+              height: 36,
               decoration: BoxDecoration(
                   color: isControl ? (color ?? AppColors.surface(context)).withOpacity(0.2) : AppColors.surface(context),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: isControl ? (color ?? AppColors.border(context)) : AppColors.border(context)),
               ),
               alignment: Alignment.center,
               child: icon != null 
-                  ? Icon(icon, color: isControl ? (color ?? AppColors.textPrimary(context)) : AppColors.textPrimary(context), size: 24)
+                  ? Icon(icon, color: isControl ? (color ?? AppColors.textPrimary(context)) : AppColors.textPrimary(context), size: 18)
                   : Text(
                       keyData,
                       style: TextStyle(
                           color: isControl ? (color ?? AppColors.textPrimary(context)) : AppColors.textPrimary(context),
-                          fontSize: 24,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                       ),
                   ),
@@ -949,10 +995,10 @@ class _MacroCycleVisualizerState extends State<_MacroCycleVisualizer> with Singl
     int macroBeats = widget.metronome.macroCycleBeats;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border(context)),
       ),
       child: Column(

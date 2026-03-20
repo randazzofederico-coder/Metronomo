@@ -1,4 +1,4 @@
-package com.example.metronomo_standalone
+package com.Saroo.Metronomo
 
 import io.flutter.embedding.android.FlutterActivity
 

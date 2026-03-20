@@ -65,12 +65,17 @@ class HomeMetronomeInstance {
           
           if (count <= 0) count = 1;
           if (subdivision <= 0) subdivision = 1;
+          // Clamp to safe limits
+          count = count.clamp(1, 32);
+          subdivision = subdivision.clamp(1, 12);
+          if (ratio > 0) ratio = ratio.clamp(1, 64);
           
           // durationRatio per pulse: if ratio specified, each pulse = ratio/count beats
           // otherwise each pulse = 1 beat
           double pulseDuration = (ratio > 0) ? ratio / count : 1.0;
           
           for (int i = 0; i < count; i++) {
+              if (newPulses.length >= 64) break; // Total pulse cap
               List<int> subdivList = List.generate(subdivision, (s) => 3);
               if (i == 0) {
                   subdivList[0] = 1; // Primary pulse head
@@ -232,10 +237,15 @@ class MetronomeProvider with ChangeNotifier {
           
           if (count <= 0) count = 1;
           if (subdivision <= 0) subdivision = 1;
+          // Clamp to safe limits
+          count = count.clamp(1, 32);
+          subdivision = subdivision.clamp(1, 12);
+          if (ratio > 0) ratio = ratio.clamp(1, 64);
 
           double pulseDuration = (ratio > 0) ? ratio / count : 1.0;
 
           for (int i = 0; i < count; i++) {
+              if (newPulses.length >= 64) break; // Total pulse cap
               List<int> subdivList = List.generate(subdivision, (s) => 3);
               if (i == 0) {
                   subdivList[0] = 1;
@@ -392,7 +402,7 @@ class MetronomeProvider with ChangeNotifier {
     if (_instances.isEmpty) return 4;
     // Cycle duration per instance is always integer (sum of ratio values from parser)
     List<int> cycleLengths = _instances.map((i) => _cycleDurationBeats(i).round()).toList();
-    return cycleLengths.fold(cycleLengths.first, (a, b) => _lcm(a, b));
+    return cycleLengths.fold(cycleLengths.first, (a, b) => _lcm(a, b)).clamp(1, 256);
   }
 
   double get currentMacroProgress {

@@ -883,8 +883,34 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
                   }
               } else {
                   final int pos = controller.selection.baseOffset;
+                  final String text = controller.text;
+                  
+                  // Limit digits: max 2 consecutive digits per numeric slot
+                  if (RegExp(r'[0-9]').hasMatch(keyData)) {
+                      final int insertPos = pos >= 0 ? pos : text.length;
+                      // Count consecutive digits before insert position
+                      int digitsBefore = 0;
+                      for (int i = insertPos - 1; i >= 0; i--) {
+                          if (RegExp(r'[0-9]').hasMatch(text[i])) {
+                              digitsBefore++;
+                          } else {
+                              break;
+                          }
+                      }
+                      // Count consecutive digits after insert position
+                      int digitsAfter = 0;
+                      for (int i = insertPos; i < text.length; i++) {
+                          if (RegExp(r'[0-9]').hasMatch(text[i])) {
+                              digitsAfter++;
+                          } else {
+                              break;
+                          }
+                      }
+                      if (digitsBefore + digitsAfter >= 2) return; // Block input
+                  }
+                  
                   if (pos >= 0) {
-                      controller.text = controller.text.substring(0, pos) + keyData + controller.text.substring(pos);
+                      controller.text = text.substring(0, pos) + keyData + text.substring(pos);
                       controller.selection = TextSelection.collapsed(offset: pos + keyData.length);
                   } else {
                       controller.text += keyData;

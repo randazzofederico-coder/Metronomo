@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
 import 'package:metronomo_standalone/providers/settings_provider.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
+import 'package:metronomo_standalone/providers/session_provider.dart';
 import 'package:metronomo_standalone/screens/metronome_screen.dart';
 
 void main() async {
@@ -34,6 +35,11 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) {
           final provider = PatternEditorProvider();
           provider.loadPatterns();
+          return provider;
+        }),
+        ChangeNotifierProvider(create: (_) {
+          final provider = SessionProvider();
+          provider.loadSessions();
           return provider;
         }),
       ],

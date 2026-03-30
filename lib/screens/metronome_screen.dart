@@ -1,12 +1,16 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:uuid/uuid.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
 import 'package:metronomo_standalone/screens/settings_screen.dart';
 import 'package:metronomo_standalone/widgets/knob_control.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:metronomo_standalone/providers/settings_provider.dart';
+import 'package:metronomo_standalone/providers/session_provider.dart';
+import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
+import 'package:metronomo_standalone/models/pattern_model.dart';
 
 class MetronomeScreen extends StatefulWidget {
   const MetronomeScreen({super.key});
@@ -16,9 +20,9 @@ class MetronomeScreen extends StatefulWidget {
 }
 
 class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObserver {
-  // Focus management for custom keyboard
   int? _activePatternIdForKeyboard;
   final Map<int, TextEditingController> _structureControllers = {};
+  final Map<int, TextEditingController> _titleControllers = {};
   bool _wasPlayingBeforeBackground = false;
   
   // Map Slider Value [0.0, 1.0] to BPM [1, 999]
@@ -77,7 +81,275 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     for (var controller in _structureControllers.values) {
       controller.dispose();
     }
+    for (var controller in _titleControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
+  }
+
+  void _closeAllKeyboards() {
+    FocusScope.of(context).unfocus();
+    if (_activePatternIdForKeyboard != null) {
+      setState(() {
+        _activePatternIdForKeyboard = null;
+      });
+    }
+  }
+
+  void _showQuickSaveDialog(BuildContext context, MetronomeProvider metronome, SettingsProvider settings) {
+    _closeAllKeyboards();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceHighlight(ctx),
+        title: Text("Guardar Cambios", style: TextStyle(color: AppColors.textPrimary(ctx))),
+        content: Text("¿Deseas sobrescribir la sesión actual '${metronome.activeSessionName}' o guardar como una nueva sesión?", style: TextStyle(color: AppColors.textSecondary(ctx))),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("CANCELAR", style: TextStyle(color: AppColors.textSecondary(ctx))),
+          ),
+          TextButton(
+            onPressed: () {
+               Navigator.pop(ctx);
+               _showSaveSessionDialog(context, metronome, settings);
+            },
+            child: Text("GUARDAR COMO...", style: TextStyle(color: AppColors.accentCyan(ctx))),
+          ),
+          TextButton(
+            onPressed: () async {
+               final patProvider = context.read<PatternEditorProvider>();
+               final sessionProvider = context.read<SessionProvider>();
+               final sessionName = metronome.activeSessionName ?? "Sesión";
+               
+               final session = await metronome.createSession(
+                 sessionName,
+                 "",
+                 settings,
+                 ensurePatternSaved: (instance) async {
+                   final pat = metronome.createPatternFromInstance(instance.id, name: instance.title);
+                   if (instance.originalPatternId != null) {
+                       await patProvider.updatePattern(pat);
+                   } else {
+                       await patProvider.addPattern(pat);
+                   }
+                   metronome.markInstanceClean(instance.id, pat.id);
+                   return pat.id;
+                 }
+               );
+               
+               // Reuse the active session ID
+               final updatedSession = session.copyWith(id: metronome.activeSessionId);
+               await sessionProvider.updateSession(updatedSession);
+               metronome.markSessionClean(updatedSession.id, updatedSession.name);
+               
+               if (ctx.mounted) {
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Sesión sobrescrita', style: TextStyle(color: AppColors.textPrimary(ctx))), backgroundColor: AppColors.surfaceHighlight(ctx)));
+               }
+            },
+            child: Text("SOBRESCRIBIR", style: TextStyle(color: AppColors.accentGreen(ctx), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      )
+    );
+  }
+
+  void _showSaveSessionDialog(BuildContext context, MetronomeProvider metronome, SettingsProvider settings) {
+    _closeAllKeyboards();
+    final nameController = TextEditingController();
+    final descController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceHighlight(ctx),
+        title: Text("Guardar Sesión", style: TextStyle(color: AppColors.textPrimary(ctx))),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              autofocus: true,
+              style: TextStyle(color: AppColors.textPrimary(ctx)),
+              decoration: InputDecoration(
+                labelText: "Nombre de la Sesión",
+                labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.border(ctx))),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.accentCyan(ctx))),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: descController,
+              style: TextStyle(color: AppColors.textPrimary(ctx)),
+              decoration: InputDecoration(
+                labelText: "Descripción (opcional)",
+                labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.border(ctx))),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.accentCyan(ctx))),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text("CANCELAR", style: TextStyle(color: AppColors.textSecondary(ctx))),
+          ),
+          TextButton(
+            onPressed: () async {
+              if (nameController.text.trim().isEmpty) return;
+              
+              final patProvider = context.read<PatternEditorProvider>();
+              final sessionProvider = context.read<SessionProvider>();
+
+              final session = await metronome.createSession(
+                nameController.text.trim(),
+                descController.text.trim(),
+                settings,
+                ensurePatternSaved: (instance) async {
+                  final pat = metronome.createPatternFromInstance(instance.id, name: instance.title);
+                  if (instance.originalPatternId != null) {
+                      await patProvider.updatePattern(pat);
+                  } else {
+                      await patProvider.addPattern(pat);
+                  }
+                  metronome.markInstanceClean(instance.id, pat.id);
+                  return pat.id;
+                }
+              );
+
+              // Clear ID to force a new creation in case we are "Save As"ing
+              final newSession = session.copyWith(id: Uuid().v4());
+              await sessionProvider.addSession(newSession);
+              metronome.markSessionClean(newSession.id, newSession.name);
+
+              if (ctx.mounted) {
+                 Navigator.pop(ctx);
+                 ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Sesión guardada', style: TextStyle(color: AppColors.textPrimary(ctx))), backgroundColor: AppColors.surfaceHighlight(ctx)));
+              }
+            },
+            child: Text("GUARDAR", style: TextStyle(color: AppColors.accentCyan(ctx), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLoadSessionDialog(BuildContext context, MetronomeProvider metronome, SettingsProvider settings) {
+    _closeAllKeyboards();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface(context),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return Consumer<SessionProvider>(
+          builder: (context, sessionProvider, child) {
+            final sessions = sessionProvider.sessions;
+            
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                   Padding(
+                     padding: const EdgeInsets.all(16.0),
+                     child: Text("Cargar Sesión", style: TextStyle(color: AppColors.textPrimary(ctx), fontSize: 18, fontWeight: FontWeight.bold)),
+                   ),
+                   if (sessions.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(32.0),
+                        child: Text("No hay sesiones guardadas.", style: TextStyle(color: AppColors.textSecondary(ctx))),
+                      )
+                   else
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: sessions.length,
+                          itemBuilder: (context, index) {
+                            final session = sessions[index];
+                            return ListTile(
+                              title: Text(session.name, style: TextStyle(color: AppColors.textPrimary(ctx), fontWeight: FontWeight.bold)),
+                              subtitle: Text("${session.globalBpm} BPM • ${session.patternsConfig.length} pistas", style: TextStyle(color: AppColors.textSecondary(ctx))),
+                              trailing: IconButton(
+                                icon: Icon(Icons.delete_outline, color: AppColors.accentRed(ctx)),
+                                onPressed: () {
+                                  sessionProvider.deleteSession(session.id);
+                                },
+                              ),
+                              onTap: () async {
+                                final patProvider = context.read<PatternEditorProvider>();
+                                await metronome.loadSession(session, settings, getPatternById: (id) async {
+                                  await patProvider.ensureLoaded;
+                                  return patProvider.getPatternById(id);
+                                });
+                                if (ctx.mounted) Navigator.pop(ctx);
+                              },
+                            );
+                          },
+                        ),
+                      )
+                ],
+              ),
+            );
+          }
+        );
+      }
+    );
+  }
+
+  void _showLoadPatternDialog(BuildContext context, MetronomeProvider metronome) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface(context),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return Consumer<PatternEditorProvider>(
+          builder: (context, patProvider, child) {
+            final patterns = patProvider.patterns;
+            
+            return SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                   Padding(
+                     padding: const EdgeInsets.all(16.0),
+                     child: Text("Cargar Patrón", style: TextStyle(color: AppColors.textPrimary(ctx), fontSize: 18, fontWeight: FontWeight.bold)),
+                   ),
+                   if (patterns.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.all(32.0),
+                        child: Text("No hay patrones en la librería.", style: TextStyle(color: AppColors.textSecondary(ctx))),
+                      )
+                   else
+                      Expanded(
+                        child: ListView.builder(
+                          itemCount: patterns.length,
+                          itemBuilder: (context, index) {
+                            final pat = patterns[index];
+                            return ListTile(
+                              title: Text(pat.name, style: TextStyle(color: AppColors.textPrimary(ctx), fontWeight: FontWeight.bold)),
+                              subtitle: Text("Estructura: ${pat.structure}", style: TextStyle(color: AppColors.textSecondary(ctx))),
+                              trailing: IconButton(
+                                icon: Icon(Icons.delete_outline, color: AppColors.accentRed(ctx)),
+                                onPressed: () {
+                                  patProvider.deletePattern(pat.id);
+                                },
+                              ),
+                              onTap: () async {
+                                metronome.loadPattern(pat);
+                                if (ctx.mounted) Navigator.pop(ctx);
+                              },
+                            );
+                          },
+                        ),
+                      )
+                ],
+              ),
+            );
+          }
+        );
+      }
+    );
   }
 
   @override
@@ -85,11 +357,51 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     return Scaffold(
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
-        title: const Text('METRÓNOMO', style: TextStyle(letterSpacing: 2.0)),
+        title: Consumer<MetronomeProvider>(
+          builder: (context, metronome, child) {
+            final String titleText;
+            if (metronome.activeSessionName != null) {
+              titleText = "${metronome.activeSessionName}${metronome.isSessionDirty ? '*' : ''}";
+            } else if (metronome.isSessionDirty) {
+              titleText = "Sin Título *";
+            } else {
+              titleText = "METRÓNOMO";
+            }
+            return Text(
+              titleText, 
+              style: TextStyle(
+                letterSpacing: 2.0, 
+                fontStyle: metronome.isSessionDirty ? FontStyle.italic : FontStyle.normal,
+              )
+            );
+          }
+        ),
         backgroundColor: AppColors.surface(context),
         centerTitle: true,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: Icon(Icons.folder_open_rounded, color: AppColors.textSecondary(context)),
+            onPressed: () {
+              final metronome = context.read<MetronomeProvider>();
+              final settings = context.read<SettingsProvider>();
+              _showLoadSessionDialog(context, metronome, settings);
+            },
+            tooltip: "Cargar Sesión",
+          ),
+          IconButton(
+            icon: Icon(Icons.save_rounded, color: AppColors.textSecondary(context)),
+            onPressed: () {
+              final metronome = context.read<MetronomeProvider>();
+              final settings = context.read<SettingsProvider>();
+              if (metronome.activeSessionId != null && metronome.isSessionDirty) {
+                _showQuickSaveDialog(context, metronome, settings);
+              } else {
+                _showSaveSessionDialog(context, metronome, settings);
+              }
+            },
+            tooltip: "Guardar Sesión",
+          ),
           IconButton(
             icon: Icon(Icons.settings_rounded, color: AppColors.textSecondary(context)),
             onPressed: () {
@@ -128,48 +440,78 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                             ...metronome.instances.map((instance) {
                               return Padding(
                                 padding: const EdgeInsets.only(bottom: 12),
-                                child: _buildMetronomeInstance(
-                                  context: context,
-                                  instance: instance,
-                                  onStructureChange: (newStructure) => metronome.updateInstanceStructure(instance.id, newStructure),
-                                  onPulseSubdivisionChange: (pulseIndex, subIndex, newType) {
-                                      final newPulses = List<HomeMetronomePulse>.from(instance.pulses);
-                                      newPulses[pulseIndex].subdivisions[subIndex] = newType;
-                                      metronome.updateInstancePulses(instance.id, newPulses);
-                                  },
-                                  onVolChanged: (val) => metronome.updateInstanceVolume(instance.id, val),
-                                  onMuteToggle: () => metronome.toggleInstanceMute(instance.id),
-                                  onSoloToggle: () => metronome.toggleInstanceSolo(instance.id),
-                                   onRemove: () {
-                                     // STRICT RULE: Close keyboard if deleting the active pattern
-                                     if (_activePatternIdForKeyboard == instance.id) {
-                                       setState(() {
-                                         _activePatternIdForKeyboard = null;
-                                       });
-                                     }
-                                     _structureControllers.remove(instance.id);
-                                     metronome.removeInstance(instance.id);
-                                   },
+                                child: Builder(
+                                  builder: (instanceContext) {
+                                    return _buildMetronomeInstance(
+                                      context: context,
+                                      instanceContext: instanceContext,
+                                      instance: instance,
+                                      onStructureChange: (newStructure) => metronome.updateInstanceStructure(instance.id, newStructure),
+                                      onPulseSubdivisionChange: (pulseIndex, subIndex, newType) {
+                                          final newPulses = List<HomeMetronomePulse>.from(instance.pulses);
+                                          newPulses[pulseIndex].subdivisions[subIndex] = newType;
+                                          metronome.updateInstancePulses(instance.id, newPulses);
+                                      },
+                                      onVolChanged: (val) => metronome.updateInstanceVolume(instance.id, val),
+                                      onMuteToggle: () => metronome.toggleInstanceMute(instance.id),
+                                      onSoloToggle: () => metronome.toggleInstanceSolo(instance.id),
+                                       onRemove: () {
+                                         if (_activePatternIdForKeyboard == instance.id) {
+                                           setState(() {
+                                             _activePatternIdForKeyboard = null;
+                                           });
+                                         }
+                                         _structureControllers.remove(instance.id);
+                                         metronome.removeInstance(instance.id);
+                                       },
+                                    );
+                                  }
                                 ),
                               );
                             }).toList(),
                             
-                            // Add Pattern Button
-                            ElevatedButton.icon(
-                              onPressed: () {
-                                metronome.addInstance(title: "Patrón ${metronome.instances.length + 1}");
-                              },
-                              icon: const Icon(Icons.add),
-                              label: const Text("AÑADIR PATRÓN"),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.surfaceHighlight(context),
-                                foregroundColor: AppColors.textPrimary(context),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(16),
-                                  side: BorderSide(color: AppColors.border(context)),
+                            // Add / Load Pattern Buttons
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () {
+                                      metronome.addInstance(title: "Patrón ${metronome.instances.length + 1}");
+                                    },
+                                    icon: const Icon(Icons.add),
+                                    label: const Text("AÑADIR"),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.surfaceHighlight(context),
+                                      foregroundColor: AppColors.textPrimary(context),
+                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        side: BorderSide(color: AppColors.border(context)),
+                                      ),
+                                    ),
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: ElevatedButton.icon(
+                                    onPressed: () {
+                                      _showLoadPatternDialog(context, metronome);
+                                    },
+                                    icon: const Icon(Icons.library_music),
+                                    label: const Text("LIBRERÍA"),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.surfaceHighlight(context),
+                                      foregroundColor: AppColors.textPrimary(context),
+                                      padding: const EdgeInsets.symmetric(vertical: 10),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                        side: BorderSide(color: AppColors.border(context)),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                             SizedBox(height: _activePatternIdForKeyboard != null ? 300 : 80), // Pad bottom for keyboard
                           ],
@@ -476,6 +818,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
 
   Widget _buildMetronomeInstance({
     required BuildContext context,
+    required BuildContext instanceContext,
     required HomeMetronomeInstance instance,
     required Function(String) onStructureChange,
     required Function(int pulseIndex, int subIndex, int type) onPulseSubdivisionChange,
@@ -508,15 +851,60 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
             children: [
                Expanded(
                  flex: 2,
-                 child: Text(instance.title, style: TextStyle(color: AppColors.textPrimary(context), fontWeight: FontWeight.bold, letterSpacing: 1.5), overflow: TextOverflow.ellipsis),
+                 child: Row(
+                   mainAxisSize: MainAxisSize.min,
+                   children: [
+                     Flexible(
+                       child: IntrinsicWidth(
+                         child: TextField(
+                           controller: _titleControllers.putIfAbsent(instance.id, () => TextEditingController(text: instance.title)),
+                           style: TextStyle(
+                               color: AppColors.textPrimary(context), 
+                               fontWeight: FontWeight.bold, 
+                               letterSpacing: 1.5,
+                               fontStyle: instance.isDirty ? FontStyle.italic : FontStyle.normal,
+                           ),
+                           decoration: const InputDecoration(
+                               border: InputBorder.none, 
+                               isDense: true, 
+                               contentPadding: EdgeInsets.zero,
+                           ),
+                           onTap: () {
+                               if (_activePatternIdForKeyboard != null) {
+                                 setState(() {
+                                   _activePatternIdForKeyboard = null;
+                                 });
+                               }
+                               Future.delayed(const Duration(milliseconds: 300), () {
+                                 if (context.mounted) Scrollable.ensureVisible(instanceContext, curve: Curves.easeInOut, duration: const Duration(milliseconds: 300));
+                               });
+                           },
+                           onChanged: (val) {
+                               context.read<MetronomeProvider>().renameInstance(instance.id, val);
+                           },
+                         ),
+                       ),
+                     ),
+                     if (instance.isDirty)
+                       Padding(
+                         padding: const EdgeInsets.only(left: 4.0),
+                         child: Text("*", style: TextStyle(color: AppColors.textPrimary(context), fontWeight: FontWeight.bold, fontSize: 18)),
+                       ),
+                     const SizedBox(width: 8),
+                   ],
+                 )
                ),
                // Grouping Text Field / Formatted Structure Display
                Expanded(
                  flex: 3,
                  child: GestureDetector(
                    onTap: () {
+                       FocusScope.of(context).unfocus(); // Close Android keyboard
                        setState(() {
                            _activePatternIdForKeyboard = instance.id;
+                       });
+                       Future.delayed(const Duration(milliseconds: 100), () {
+                           if (context.mounted) Scrollable.ensureVisible(instanceContext, curve: Curves.easeInOut, duration: const Duration(milliseconds: 300));
                        });
                    },
                    child: Container(
@@ -563,18 +951,54 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                  ),
                ),
                const SizedBox(width: 8),
-               Container(
-                 width: 36,
-                 height: 36,
-                 decoration: BoxDecoration(
-                   color: AppColors.background(context).withOpacity(0.5),
-                   borderRadius: BorderRadius.circular(4),
-                 ),
-                 child: IconButton(
-                   padding: EdgeInsets.zero,
-                   icon: Icon(Icons.close, color: AppColors.accentRed(context).withOpacity(0.7), size: 18),
-                   onPressed: onRemove,
-                 ),
+               // Botones de acciones de la instancia
+               Row(
+                 mainAxisSize: MainAxisSize.min,
+                 children: [
+                   Container(
+                     width: 36,
+                     height: 36,
+                     decoration: BoxDecoration(
+                       color: AppColors.background(context).withOpacity(0.5),
+                       borderRadius: BorderRadius.circular(4),
+                     ),
+                     child: IconButton(
+                       padding: EdgeInsets.zero,
+                       icon: Icon(Icons.save, color: AppColors.accentGreen(context).withOpacity(0.8), size: 18),
+                       onPressed: () async {
+                          final patProvider = context.read<PatternEditorProvider>();
+                          final metronome = context.read<MetronomeProvider>();
+                          final pat = metronome.createPatternFromInstance(instance.id, name: instance.title);
+                          
+                          if (instance.originalPatternId != null) {
+                              await patProvider.updatePattern(pat);
+                          } else {
+                              await patProvider.addPattern(pat);
+                          }
+                          
+                          metronome.markInstanceClean(instance.id, pat.id);
+
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Patrón guardado', style: TextStyle(color: AppColors.textPrimary(context))), backgroundColor: AppColors.surfaceHighlight(context), duration: const Duration(seconds: 1)));
+                          }
+                       },
+                     ),
+                   ),
+                   const SizedBox(width: 4),
+                   Container(
+                     width: 36,
+                     height: 36,
+                     decoration: BoxDecoration(
+                       color: AppColors.background(context).withOpacity(0.5),
+                       borderRadius: BorderRadius.circular(4),
+                     ),
+                     child: IconButton(
+                       padding: EdgeInsets.zero,
+                       icon: Icon(Icons.close, color: AppColors.accentRed(context).withOpacity(0.7), size: 18),
+                       onPressed: onRemove,
+                     ),
+                   ),
+                 ],
                )
             ],
           ),

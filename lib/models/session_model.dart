@@ -118,6 +118,8 @@ class Session {
   final String description;
   final int globalBpm;
   final List<SessionPatternConfig> patternsConfig;
+  final String soundSet;
+  final double randomSilencePercentage;
   final bool isTrainingEnabled;
   final TrainingConfig trainingConfig;
   final DateTime createdAt;
@@ -129,6 +131,8 @@ class Session {
     this.description = '',
     required this.globalBpm,
     required this.patternsConfig,
+    this.soundSet = 'Default',
+    this.randomSilencePercentage = 0.0,
     this.isTrainingEnabled = false,
     TrainingConfig? trainingConfig,
     DateTime? createdAt,
@@ -144,6 +148,8 @@ class Session {
     String? description,
     int? globalBpm,
     List<SessionPatternConfig>? patternsConfig,
+    String? soundSet,
+    double? randomSilencePercentage,
     bool? isTrainingEnabled,
     TrainingConfig? trainingConfig,
     DateTime? createdAt,
@@ -156,6 +162,8 @@ class Session {
       globalBpm: globalBpm ?? this.globalBpm,
       patternsConfig: patternsConfig ??
           this.patternsConfig.map((p) => p.copyWith()).toList(),
+      soundSet: soundSet ?? this.soundSet,
+      randomSilencePercentage: randomSilencePercentage ?? this.randomSilencePercentage,
       isTrainingEnabled: isTrainingEnabled ?? this.isTrainingEnabled,
       trainingConfig: trainingConfig ?? this.trainingConfig.copyWith(),
       createdAt: createdAt ?? this.createdAt,
@@ -169,6 +177,8 @@ class Session {
     'description': description,
     'globalBpm': globalBpm,
     'patternsConfig': patternsConfig.map((p) => p.toJson()).toList(),
+    'soundSet': soundSet,
+    'randomSilencePercentage': randomSilencePercentage,
     'isTrainingEnabled': isTrainingEnabled,
     'trainingConfig': trainingConfig.toJson(),
     'createdAt': createdAt.toIso8601String(),
@@ -184,6 +194,8 @@ class Session {
       patternsConfig: (json['patternsConfig'] as List)
           .map((p) => SessionPatternConfig.fromJson(p as Map<String, dynamic>))
           .toList(),
+      soundSet: json['soundSet'] as String? ?? 'Default',
+      randomSilencePercentage: (json['randomSilencePercentage'] as num?)?.toDouble() ?? 0.0,
       isTrainingEnabled: json['isTrainingEnabled'] as bool? ?? false,
       trainingConfig: json['trainingConfig'] != null
           ? TrainingConfig.fromJson(json['trainingConfig'] as Map<String, dynamic>)

@@ -46,6 +46,14 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Mantener Pantalla Encendida** — Integración nativa con `wakelock_plus` para evitar bloqueos del dispositivo durante ensayos y prácticas
 - **Storage persistente** — Guardado automático de configuraciones, sets y patrones vía `shared_preferences`
 
+### 💾 Gestión de Estado y Flujo de Trabajo
+- **Seguimiento 'Dirty State'** — Detección automática y profunda de alteraciones en vivo (BPM, estructuras, faders, mute/solo). La UI reacciona orgánicamente a los cambios pendientes marcando las sesiones y patrones en cursiva con un asterisco (`*`).
+- **Edición Dinámica de Patrones** — Renombrado in-situ de pistas con cajas delimitadas dinámicamente (`IntrinsicWidth`) y tracking visual milimétrico del asterisco de edición.
+- **Guardado Inteligente** — Discriminación contextual en la App Bar: sistema de guardado rápido para sobrescribir (pisar) datos modificados, o "Guardar Como..." (`Uuid().v4()`) para versionado de bibliotecas limpias.
+- **Aislamiento de Periféricos (Gestos y Foco)** —
+  - **Foco Seguro**: Prevención estricta de superposición de teclados (Android Nativo vs Numérico Métrico) purgando la jerarquía de foco antes de despachar diálogos modales. Visibilidad garantizada vía `Scrollable.ensureVisible`.
+  - **Arena de Gestos de Alta Precisión**: Controladores The perillas (Knobs) con monopolio asertivo sobre los arreglos `onVerticalDragUpdate` y `onHorizontalDragUpdate`. Esto neutraliza el reconocedor nativo del `ListView`, inhibiendo el scroll inercial padre mientras se manipulan los parámetros de mezcla.
+
 ## 📐 Arquitectura
 
 ```

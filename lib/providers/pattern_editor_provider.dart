@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/pattern_model.dart';
 import '../services/pattern_repository.dart';
@@ -14,6 +15,9 @@ class PatternEditorProvider extends ChangeNotifier {
 
   List<Pattern> _patterns = [];
   List<Pattern> get patterns => List.unmodifiable(_patterns);
+
+  final Completer<void> _loadCompleter = Completer<void>();
+  Future<void> get ensureLoaded => _loadCompleter.future;
 
   String? _activeEditingPatternId;
   String? get activeEditingPatternId => _activeEditingPatternId;
@@ -38,6 +42,37 @@ class PatternEditorProvider extends ChangeNotifier {
   /// Loads patterns from persistent storage.
   Future<void> loadPatterns() async {
     _patterns = List<Pattern>.from(await _repository.loadPatterns());
+    
+    // Add default Chacarera patterns if library is entirely empty
+    if (_patterns.isEmpty) {
+      final p1 = Pattern(
+        id: "default-chacarera-3-4",
+        name: "3/4",
+        structure: "3/2",
+        pulses: [
+          HomeMetronomePulse([0, 0]),
+          HomeMetronomePulse([2, 0]),
+          HomeMetronomePulse([2, 0]),
+        ],
+      );
+      final p2 = Pattern(
+        id: "default-chacarera-6-8",
+        name: "6/8",
+        structure: "2:3/3",
+        pulses: [
+          HomeMetronomePulse([1, 0, 0], 1.5),
+          HomeMetronomePulse([1, 0, 0], 1.5),
+        ],
+      );
+      _patterns.add(p1);
+      _patterns.add(p2);
+      await _repository.addPattern(p1);
+      await _repository.addPattern(p2);
+    }
+
+    if (!_loadCompleter.isCompleted) {
+      _loadCompleter.complete();
+    }
     notifyListeners();
   }
 

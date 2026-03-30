@@ -41,12 +41,13 @@ class _KnobControlState extends State<KnobControl> {
 
   double get _effectiveValue => _isDragging ? (_dragValue ?? widget.value) : widget.value;
 
-  void _handlePanUpdate(DragUpdateDetails details) {
+  void _handleDragUpdate(double dx, double dy) {
     // Increased sensitivity (x3) for better Desktop/Windows UX
     double sensitivity = 0.015 * (widget.max - widget.min); 
     if (sensitivity == 0) sensitivity = 0.01;
     
-    double delta = (details.delta.dx - details.delta.dy) * sensitivity;
+    // Combine X (right = positive) and Y (up = negative dy = positive addition)
+    double delta = (dx - dy) * sensitivity;
     double currentVal = _isDragging ? (_dragValue ?? widget.value) : widget.value;
     double newValue = (currentVal + delta).clamp(widget.min, widget.max);
     
@@ -56,7 +57,7 @@ class _KnobControlState extends State<KnobControl> {
     widget.onChanged(newValue); // Update audio engine
   }
 
-  void _handlePanEnd(DragEndDetails details) {
+  void _handleDragEnd() {
     final finalVal = _dragValue ?? widget.value;
     _isDragging = false;
     _dragValue = null;
@@ -84,8 +85,12 @@ class _KnobControlState extends State<KnobControl> {
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onPanUpdate: _handlePanUpdate,
-      onPanEnd: _handlePanEnd,
+      onVerticalDragStart: (_) => setState(() => _isDragging = true),
+      onVerticalDragUpdate: (details) => _handleDragUpdate(0, details.delta.dy),
+      onVerticalDragEnd: (_) => _handleDragEnd(),
+      onHorizontalDragStart: (_) => setState(() => _isDragging = true),
+      onHorizontalDragUpdate: (details) => _handleDragUpdate(details.delta.dx, 0),
+      onHorizontalDragEnd: (_) => _handleDragEnd(),
       onDoubleTap: () {
         double resetValue = widget.zeroAtCenter ? (widget.min + widget.max) / 2 : widget.min;
         widget.onChanged(resetValue);

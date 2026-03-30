@@ -1,58 +1,43 @@
 import 'package:uuid/uuid.dart';
 
-/// Represents a single subdivision configuration within a beat.
-class SubdivisionConfig {
-  final int count;
-  final int accentLevel; // 0=silent, 1=primary, 2=secondary, 3=ghost
+/// Represents a single pulse (subdivisions and duration) in a pattern.
+class HomeMetronomePulse {
+  List<int> subdivisions;
+  double durationRatio;
 
-  const SubdivisionConfig({
-    this.count = 1,
-    this.accentLevel = 3,
-  });
-
-  SubdivisionConfig copyWith({int? count, int? accentLevel}) {
-    return SubdivisionConfig(
-      count: count ?? this.count,
-      accentLevel: accentLevel ?? this.accentLevel,
-    );
-  }
+  HomeMetronomePulse([List<int>? subdivisions, this.durationRatio = 1.0])
+      : subdivisions = subdivisions ?? [0];
 
   Map<String, dynamic> toJson() => {
-    'count': count,
-    'accentLevel': accentLevel,
-  };
+        'subdivisions': subdivisions,
+        'durationRatio': durationRatio,
+      };
 
-  factory SubdivisionConfig.fromJson(Map<String, dynamic> json) {
-    return SubdivisionConfig(
-      count: json['count'] as int? ?? 1,
-      accentLevel: json['accentLevel'] as int? ?? 3,
+  factory HomeMetronomePulse.fromJson(Map<String, dynamic> json) {
+    return HomeMetronomePulse(
+      List<int>.from(json['subdivisions'] ?? [0]),
+      (json['durationRatio'] as num?)?.toDouble() ?? 1.0,
     );
   }
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is SubdivisionConfig &&
-          runtimeType == other.runtimeType &&
-          count == other.count &&
-          accentLevel == other.accentLevel;
-
-  @override
-  int get hashCode => count.hashCode ^ accentLevel.hashCode;
+  HomeMetronomePulse copyWith({List<int>? subdivisions, double? durationRatio}) {
+    return HomeMetronomePulse(
+      subdivisions ?? List<int>.from(this.subdivisions),
+      durationRatio ?? this.durationRatio,
+    );
+  }
 }
 
 /// Represents a rhythmic pattern that can be saved in the global Pattern Library.
 ///
-/// Each pattern defines a time signature, a sequence of beat steps (accent levels),
-/// optional subdivision configurations, and visual/organizational metadata.
+/// Each pattern defines its structure, a sequence of pulses, 
+/// and visual/organizational metadata.
 class Pattern {
   final String id;
   final String name;
   final String description;
-  final int beats;
-  final List<int> steps; // accent levels per beat: 0=silent, 1=primary, 2=secondary, 3=ghost
-  final String timeSignature; // e.g. "4/4", "3/4", "6/8"
-  final List<SubdivisionConfig> subdivisions;
+  final String structure; // e.g. "4", "3/2", "2:3/3"
+  final List<HomeMetronomePulse> pulses;
   final String colorHex; // UI color for visual identification
   final List<String> tags; // user tags for filtering/search
   final DateTime createdAt;
@@ -62,16 +47,14 @@ class Pattern {
     String? id,
     required this.name,
     this.description = '',
-    required this.beats,
-    required this.steps,
-    this.timeSignature = '4/4',
-    List<SubdivisionConfig>? subdivisions,
+    this.structure = "4",
+    List<HomeMetronomePulse>? pulses,
     this.colorHex = '#F98533',
     List<String>? tags,
     DateTime? createdAt,
     DateTime? updatedAt,
   })  : id = id ?? const Uuid().v4(),
-        subdivisions = subdivisions ?? [],
+        pulses = pulses ?? [],
         tags = tags ?? [],
         createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
@@ -80,10 +63,8 @@ class Pattern {
     String? id,
     String? name,
     String? description,
-    int? beats,
-    List<int>? steps,
-    String? timeSignature,
-    List<SubdivisionConfig>? subdivisions,
+    String? structure,
+    List<HomeMetronomePulse>? pulses,
     String? colorHex,
     List<String>? tags,
     DateTime? createdAt,
@@ -93,10 +74,8 @@ class Pattern {
       id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
-      beats: beats ?? this.beats,
-      steps: steps ?? List<int>.from(this.steps),
-      timeSignature: timeSignature ?? this.timeSignature,
-      subdivisions: subdivisions ?? this.subdivisions.map((s) => s.copyWith()).toList(),
+      structure: structure ?? this.structure,
+      pulses: pulses ?? this.pulses.map((p) => p.copyWith()).toList(),
       colorHex: colorHex ?? this.colorHex,
       tags: tags ?? List<String>.from(this.tags),
       createdAt: createdAt ?? this.createdAt,
@@ -105,29 +84,25 @@ class Pattern {
   }
 
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'description': description,
-    'beats': beats,
-    'steps': steps,
-    'timeSignature': timeSignature,
-    'subdivisions': subdivisions.map((s) => s.toJson()).toList(),
-    'colorHex': colorHex,
-    'tags': tags,
-    'createdAt': createdAt.toIso8601String(),
-    'updatedAt': updatedAt.toIso8601String(),
-  };
+        'id': id,
+        'name': name,
+        'description': description,
+        'structure': structure,
+        'pulses': pulses.map((p) => p.toJson()).toList(),
+        'colorHex': colorHex,
+        'tags': tags,
+        'createdAt': createdAt.toIso8601String(),
+        'updatedAt': updatedAt.toIso8601String(),
+      };
 
   factory Pattern.fromJson(Map<String, dynamic> json) {
     return Pattern(
       id: json['id'] as String,
       name: json['name'] as String,
       description: json['description'] as String? ?? '',
-      beats: json['beats'] as int,
-      steps: List<int>.from(json['steps']),
-      timeSignature: json['timeSignature'] as String? ?? '4/4',
-      subdivisions: (json['subdivisions'] as List<dynamic>?)
-              ?.map((s) => SubdivisionConfig.fromJson(s as Map<String, dynamic>))
+      structure: json['structure'] as String? ?? '4',
+      pulses: (json['pulses'] as List<dynamic>?)
+              ?.map((p) => HomeMetronomePulse.fromJson(p as Map<String, dynamic>))
               .toList() ??
           [],
       colorHex: json['colorHex'] as String? ?? '#F98533',
@@ -150,5 +125,5 @@ class Pattern {
   int get hashCode => id.hashCode;
 
   @override
-  String toString() => 'Pattern(id: $id, name: $name, beats: $beats, timeSignature: $timeSignature)';
+  String toString() => 'Pattern(id: $id, name: $name, structure: $structure)';
 }

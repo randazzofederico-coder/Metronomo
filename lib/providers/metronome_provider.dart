@@ -4,14 +4,14 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:native_audio_engine/live_mixer.dart';
 
-class HomeMetronomePulse {
-  List<int> subdivisions;
-  double durationRatio;
-  HomeMetronomePulse([List<int>? subdivisions, this.durationRatio = 1.0]) : subdivisions = subdivisions ?? [0];
-}
+import '../models/pattern_model.dart';
+import '../models/session_model.dart';
+import '../providers/settings_provider.dart';
 
 class HomeMetronomeInstance {
   final int id;
+  String? originalPatternId;
+  bool isDirty;
   List<HomeMetronomePulse> pulses;
   double volume;
   bool isMuted;
@@ -27,6 +27,8 @@ class HomeMetronomeInstance {
     this.volume = 0.8,
     this.isMuted = false,
     this.isSolo = false,
+    this.originalPatternId,
+    this.isDirty = false,
   }) : pulses = pulses ?? _parseStructureInitial(structure); 
 
   static List<HomeMetronomePulse> _parseStructureInitial(String struct) {
@@ -105,6 +107,18 @@ class MetronomeProvider with ChangeNotifier {
 
   final List<DateTime> _tapTimes = [];
 
+  String? activeSessionId;
+  String? activeSessionName;
+  bool _isSessionDirty = false;
+  bool get isSessionDirty => _isSessionDirty;
+
+  void markSessionDirty() {
+    if (!_isSessionDirty) {
+      _isSessionDirty = true;
+      notifyListeners();
+    }
+  }
+
   MetronomeProvider() {
     _initEngine();
   }
@@ -125,33 +139,17 @@ class MetronomeProvider with ChangeNotifier {
     _liveMixer.setMasterVolume(1.0);
     _liveMixer.setMetronomePreviewMode(true); // Always isolated preview mode
     _liveMixer.setRandomSilencePercent(0.0);
-    
-    // Add defaults: Birritmia (3/4 vs 6/8)
-    // Patrón 1: 3/2 — 3 pulses, each subdivided in 2 = [0,0, 2,0, 2,0]
-    addInstance(
-      title: "3/4",
-      structure: "3/2",
-      pulses: [
-        HomeMetronomePulse([0, 0]),  // Beat 1: silent
-        HomeMetronomePulse([2, 0]),  // Beat 2: secondary accent + silent
-        HomeMetronomePulse([2, 0]),  // Beat 3: secondary accent + silent
-      ],
-    );
-    // Patrón 2: 2:3/3 — 2 pulses in time of 3, each subdivided in 3 = [1,0,0, 1,0,0]
-    addInstance(
-      title: "6/8",
-      structure: "2:3/3",
-      pulses: [
-        HomeMetronomePulse([1, 0, 0], 1.5),  // Beat 1: primary accent + 2 silent (spans 1.5 beats)
-        HomeMetronomePulse([1, 0, 0], 1.5),  // Beat 2: primary accent + 2 silent (spans 1.5 beats)
-      ],
-    );
   }
   
-  void addInstance({required String title, String structure = "4", List<HomeMetronomePulse>? pulses}) {
-    final instance = HomeMetronomeInstance(id: _nextId++, title: title, structure: structure, pulses: pulses);
+  void addInstance({required String title, String structure = "4", List<HomeMetronomePulse>? pulses, String? originalPatternId, bool isDirty = false}) {
+    final instance = HomeMetronomeInstance(id: _nextId++, title: title, structure: structure, pulses: pulses, originalPatternId: originalPatternId, isDirty: isDirty);
     _instances.add(instance);
-    
+    _addInstanceToEngine(instance);
+    markSessionDirty(); // Session mixture changed
+    notifyListeners();
+  }
+  
+  void _addInstanceToEngine(HomeMetronomeInstance instance) {
     final flatPattern = <int>[];
     final subdivisions = <int>[];
     final durationRatios = <double>[];
@@ -170,26 +168,30 @@ class MetronomeProvider with ChangeNotifier {
         instance.isMuted, 
         instance.isSolo
     );
-    notifyListeners();
   }
   
   void removeInstance(int id) {
     _instances.removeWhere((i) => i.id == id);
     _liveMixer.removeMetronomePattern(id);
+    markSessionDirty(); // Session composition changed
     notifyListeners();
   }
   
   void updateInstancePulses(int id, List<HomeMetronomePulse> pulses) {
      final instance = _instances.firstWhere((i) => i.id == id);
      instance.pulses = pulses;
+     instance.isDirty = true;
      _syncInstanceToEngine(instance);
+     markSessionDirty();
      notifyListeners();
   }
 
   void addPulse(int id) {
      final instance = _instances.firstWhere((i) => i.id == id);
      instance.pulses.add(HomeMetronomePulse([0])); // Add empty beat
+     instance.isDirty = true;
      _syncInstanceToEngine(instance);
+     markSessionDirty();
      notifyListeners();
   }
 
@@ -197,7 +199,9 @@ class MetronomeProvider with ChangeNotifier {
      final instance = _instances.firstWhere((i) => i.id == id);
      if (instance.pulses.length > 1) {
          instance.pulses.removeLast();
+         instance.isDirty = true;
          _syncInstanceToEngine(instance);
+         markSessionDirty();
          notifyListeners();
      }
   }
@@ -260,21 +264,44 @@ class MetronomeProvider with ChangeNotifier {
       final instance = _instances.firstWhere((i) => i.id == id);
       instance.structure = cleaned;
       instance.pulses = newPulses;
+      instance.isDirty = true;
       _syncInstanceToEngine(instance);
+      markSessionDirty();
       notifyListeners();
+  }
+
+  void renameInstance(int id, String newTitle) {
+    final instance = _instances.firstWhere((i) => i.id == id);
+    if (instance.title != newTitle) {
+        instance.title = newTitle;
+        instance.isDirty = true;
+        markSessionDirty();
+        notifyListeners();
+    }
+  }
+
+  void markInstanceClean(int id, String newOriginalPatternId) {
+    final instance = _instances.firstWhere((i) => i.id == id);
+    instance.isDirty = false;
+    instance.originalPatternId = newOriginalPatternId;
+    notifyListeners();
   }
   
   void updateInstanceVolume(int id, double volume) {
      final instance = _instances.firstWhere((i) => i.id == id);
-     instance.volume = volume;
-     _syncInstanceToEngine(instance);
-     notifyListeners();
+     if (instance.volume != volume) {
+         instance.volume = volume;
+         _syncInstanceToEngine(instance);
+         markSessionDirty();
+         notifyListeners();
+     }
   }
   
   void toggleInstanceMute(int id) {
      final instance = _instances.firstWhere((i) => i.id == id);
      instance.isMuted = !instance.isMuted;
      _syncInstanceToEngine(instance);
+     markSessionDirty();
      notifyListeners();
   }
   
@@ -282,6 +309,7 @@ class MetronomeProvider with ChangeNotifier {
      final instance = _instances.firstWhere((i) => i.id == id);
      instance.isSolo = !instance.isSolo;
      _syncInstanceToEngine(instance);
+     markSessionDirty();
      notifyListeners();
   }
   
@@ -308,12 +336,16 @@ class MetronomeProvider with ChangeNotifier {
 
   void setRandomSilencePercent(double percent) {
     _liveMixer.setRandomSilencePercent(percent);
+    markSessionDirty();
   }
 
   void updateBPM(int newBpm) {
-    _bpm = newBpm.clamp(1, 999);
-    _liveMixer.setMetronomeConfig(_bpm);
-    notifyListeners();
+    if (_bpm != newBpm) {
+        _bpm = newBpm.clamp(1, 999);
+        _liveMixer.setMetronomeConfig(_bpm);
+        markSessionDirty();
+        notifyListeners();
+    }
   }
 
   void tapTempo() {
@@ -470,6 +502,125 @@ class MetronomeProvider with ChangeNotifier {
     double progress = (currentBeatInTotal % macroBeats) / macroBeats;
     
     return progress;
+  }
+
+  // ─────────────────────────────────────────────────────
+  //  SESSION AND PATTERN EXPORT / IMPORT
+  // ─────────────────────────────────────────────────────
+
+  /// Loads a Pattern into the metronome as a new instance.
+  void loadPattern(Pattern pattern) {
+    int newId = _nextId++;
+    final instance = HomeMetronomeInstance(
+        id: newId, 
+        title: pattern.name, 
+        structure: pattern.structure, 
+        pulses: pattern.pulses.map((p) => p.copyWith()).toList(),
+        originalPatternId: pattern.id,
+        isDirty: false,
+    );
+    _instances.add(instance);
+    _addInstanceToEngine(instance);
+    markSessionDirty();
+    notifyListeners();
+  }
+
+  /// Creates a Pattern model from an existing instance to be saved.
+  Pattern createPatternFromInstance(int id, {required String name, String description = ''}) {
+    final instance = _instances.firstWhere((i) => i.id == id);
+    return Pattern(
+        id: instance.originalPatternId, // Re-use the existing ID to overwrite if available
+        name: name,
+        description: description,
+        structure: instance.structure,
+        pulses: instance.pulses.map((p) => p.copyWith()).toList(),
+    );
+  }
+
+  void markSessionClean(String sessionId, String sessionName) {
+    activeSessionId = sessionId;
+    activeSessionName = sessionName;
+    _isSessionDirty = false;
+    notifyListeners();
+  }
+
+  /// Clears current metronome and loads a full Session.
+  Future<void> loadSession(
+    Session session, 
+    SettingsProvider settings, {
+    required Future<Pattern?> Function(String patternId) getPatternById
+  }) async {
+    stop();
+    // clear all instances efficiently without triggering listeners inside the loop
+    for (var inst in _instances) {
+        _liveMixer.removeMetronomePattern(inst.id);
+    }
+    _instances.clear();
+    
+    activeSessionId = session.id;
+    activeSessionName = session.name;
+    _isSessionDirty = false;
+    
+    updateBPM(session.globalBpm);
+    settings.updateSound(session.soundSet);
+    settings.updateSilence(session.randomSilencePercentage);
+    updateSoundSet(session.soundSet);
+    
+    // Sort configurations by orderIndex
+    final configs = List<SessionPatternConfig>.from(session.patternsConfig)
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+      
+    for (var config in configs) {
+       Pattern? pattern = await getPatternById(config.patternId);
+       if (pattern != null) {
+          int newId = _nextId++;
+          final instance = HomeMetronomeInstance(
+              id: newId, 
+              title: pattern.name, 
+              structure: pattern.structure, 
+              pulses: pattern.pulses.map((p) => p.copyWith()).toList(),
+              volume: config.volume,
+              isMuted: config.isMuted,
+              isSolo: config.isSolo,
+              originalPatternId: config.patternId,
+              isDirty: false,
+          );
+          _instances.add(instance);
+          _addInstanceToEngine(instance);
+       }
+    }
+    // We intentionally do not markSessionDirty here since we just loaded a clean session
+    notifyListeners();
+  }
+
+  /// Creates a Session model capturing the current state.
+  Future<Session> createSession(
+    String name, 
+    String description, 
+    SettingsProvider settings, {
+    required Future<String> Function(HomeMetronomeInstance instance) ensurePatternSaved
+  }) async {
+     List<SessionPatternConfig> patternsConfig = [];
+     for (int i = 0; i < _instances.length; i++) {
+        final instance = _instances[i];
+        String patternId = await ensurePatternSaved(instance);
+        patternsConfig.add(SessionPatternConfig(
+           patternId: patternId,
+           volume: instance.volume,
+           isMuted: instance.isMuted,
+           isSolo: instance.isSolo,
+           orderIndex: i,
+        ));
+     }
+     
+     return Session(
+         name: name,
+         description: description,
+         globalBpm: _bpm,
+         patternsConfig: patternsConfig,
+         soundSet: settings.selectedSound,
+         randomSilencePercentage: settings.randomSilencePercentage,
+     );
   }
 
   @override

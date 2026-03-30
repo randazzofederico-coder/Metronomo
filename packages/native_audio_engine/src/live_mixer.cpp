@@ -696,6 +696,11 @@ void LiveMixer::setMetronomePreviewMode(bool enabled) {
     _metronomePreviewMode = enabled;
 }
 
+void LiveMixer::setRandomSilencePercent(float percent) {
+    std::lock_guard<std::mutex> lock(_mutex);
+    _randomSilencePercent = percent;
+}
+
 // Internal mixing logic (Raw audio from tracks)
 void LiveMixer::_mixInternal(float* outputBuffer, int numFrames) {
     // Assumes mutex is ALREADY LOCKED by caller (process)
@@ -906,6 +911,13 @@ void LiveMixer::_mixInternal(float* outputBuffer, int numFrames) {
                     
                     // Trigger on pulse/subdivision change
                     if (currPulse != prevPulse || currSub != prevSub) {
+                        // Random silence: skip beat with configured probability
+                        if (_randomSilencePercent > 0.0f) {
+                            std::uniform_real_distribution<float> dist(0.0f, 100.0f);
+                            if (dist(_rng) < _randomSilencePercent) {
+                                goto skipTrigger;
+                            }
+                        }
                         int m = (int)track.pulses[currPulse].subdivisions.size();
                         if (m > 0) {
                             int type = track.pulses[currPulse].subdivisions[currSub];
@@ -917,6 +929,7 @@ void LiveMixer::_mixInternal(float* outputBuffer, int numFrames) {
                 }
             }
             
+            skipTrigger:;
             if (volHigh > 0.0f && !_clickHigh.data.empty()) {
                 _clickHigh.currentPointer = 0;
                 _clickHigh.currentVolume = volHigh;
@@ -1158,6 +1171,12 @@ EXPORT void live_mixer_set_master_mute(void* mixer, bool muted) {
 EXPORT void live_mixer_set_master_solo(void* mixer, bool solo) {
     if (mixer) {
         static_cast<LiveMixer*>(mixer)->setMasterSolo(solo);
+    }
+}
+
+EXPORT void live_mixer_set_random_silence_percent(void* mixer, float percent) {
+    if (mixer) {
+        static_cast<LiveMixer*>(mixer)->setRandomSilencePercent(percent);
     }
 }
 

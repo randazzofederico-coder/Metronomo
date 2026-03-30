@@ -124,6 +124,7 @@ class MetronomeProvider with ChangeNotifier {
     _liveMixer.setMetronomeConfig(_bpm);
     _liveMixer.setMasterVolume(1.0);
     _liveMixer.setMetronomePreviewMode(true); // Always isolated preview mode
+    _liveMixer.setRandomSilencePercent(0.0);
     
     // Add defaults: Birritmia (3/4 vs 6/8)
     // Patrón 1: 3/2 — 3 pulses, each subdivided in 2 = [0,0, 2,0, 2,0]
@@ -305,6 +306,10 @@ class MetronomeProvider with ChangeNotifier {
       );
   }
 
+  void setRandomSilencePercent(double percent) {
+    _liveMixer.setRandomSilencePercent(percent);
+  }
+
   void updateBPM(int newBpm) {
     _bpm = newBpm.clamp(1, 999);
     _liveMixer.setMetronomeConfig(_bpm);
@@ -361,6 +366,22 @@ class MetronomeProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void updateSoundSet(String setName) {
+    if (setName == "Woodblock") {
+      _liveMixer.setMetronomeSound(0, _generateWoodblockSound(1200.0));
+      _liveMixer.setMetronomeSound(1, _generateWoodblockSound(800.0));
+      _liveMixer.setMetronomeSound(2, _generateWoodblockSound(1000.0));
+    } else if (setName == "Digital") {
+      _liveMixer.setMetronomeSound(0, _generateDigitalSound(1500.0));
+      _liveMixer.setMetronomeSound(1, _generateDigitalSound(800.0));
+      _liveMixer.setMetronomeSound(2, _generateDigitalSound(1200.0));
+    } else {
+      _liveMixer.setMetronomeSound(0, _generateClickSound(1000.0));
+      _liveMixer.setMetronomeSound(1, _generateClickSound(600.0));
+      _liveMixer.setMetronomeSound(2, _generateClickSound(800.0));
+    }
+  }
+
   Float32List _generateClickSound(double freq) {
       final int sampleRate = 44100;
       final double durationFreq = 0.05; // 50ms click
@@ -371,6 +392,39 @@ class MetronomeProvider with ChangeNotifier {
           final double t = i / sampleRate;
           final double envelope = exp(-i / (samples * 0.2)); 
           buffer[i] = (sin(2 * pi * freq * t) * envelope * 0.5); 
+      }
+      return buffer;
+  }
+
+  Float32List _generateWoodblockSound(double freq) {
+      final int sampleRate = 44100;
+      final double durationFreq = 0.08; 
+      final int samples = (sampleRate * durationFreq).toInt();
+      final Float32List buffer = Float32List(samples);
+      
+      for (int i = 0; i < samples; i++) {
+          final double t = i / sampleRate;
+          // Fast decay for woodblock transient
+          final double envelope = exp(-t * 80.0); 
+          // Carrier + Modulator
+          double val = sin(2 * pi * freq * t + 0.5 * sin(2 * pi * (freq * 1.5) * t));
+          buffer[i] = val * envelope * 0.8; 
+      }
+      return buffer;
+  }
+
+  Float32List _generateDigitalSound(double freq) {
+      final int sampleRate = 44100;
+      final double durationFreq = 0.05; 
+      final int samples = (sampleRate * durationFreq).toInt();
+      final Float32List buffer = Float32List(samples);
+      
+      for (int i = 0; i < samples; i++) {
+          final double t = i / sampleRate;
+          final double envelope = exp(-i / (samples * 0.2)); 
+          // Square wave logic for "Digital" sound
+          double val = sin(2 * pi * freq * t) > 0 ? 0.5 : -0.5;
+          buffer[i] = val * envelope * 0.5; 
       }
       return buffer;
   }

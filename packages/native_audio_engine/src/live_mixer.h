@@ -8,6 +8,7 @@
 #include <cstring>
 #include <cmath>
 #include <atomic>
+#include <random>
 
 #include "miniaudio.h"
 
@@ -67,6 +68,7 @@ public:
     void removeMetronomePattern(int id);
     void clearMetronomePatterns();
     void setMetronomePreviewMode(bool enabled);
+    void setRandomSilencePercent(float percent);
     // Audio Processing
     // mix into outputBuffer (interleaved stereo)
     // returns number of frames filled (should match numFrames unless EOS and not looping)
@@ -109,6 +111,8 @@ private:
    int _bpm = 0;
    int _lastEighth = -1;
    bool _metronomePreviewMode = false;
+   float _randomSilencePercent = 0.0f;
+   std::mt19937 _rng{std::random_device{}()};
 
    struct MetronomePulse {
        std::vector<int> subdivisions;
@@ -179,6 +183,7 @@ extern "C" {
     EXPORT void live_mixer_remove_metronome_pattern(void* mixer, int id);
     EXPORT void live_mixer_clear_metronome_patterns(void* mixer);
     EXPORT void live_mixer_set_metronome_preview_mode(void* mixer, bool enabled);
+    EXPORT void live_mixer_set_random_silence_percent(void* mixer, float percent);
 
     // --- ZERO-COPY AND DECODER ---
     EXPORT LiveMixer::WaveformData* live_mixer_add_track(void* mixer, const char* id, const char* filePath);

@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
+import 'package:metronomo_standalone/screens/settings_screen.dart';
 import 'package:metronomo_standalone/widgets/knob_control.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:metronomo_standalone/providers/settings_provider.dart';
 
 class MetronomeScreen extends StatefulWidget {
   const MetronomeScreen({super.key});
@@ -13,10 +15,11 @@ class MetronomeScreen extends StatefulWidget {
   State<MetronomeScreen> createState() => _MetronomeScreenState();
 }
 
-class _MetronomeScreenState extends State<MetronomeScreen> {
+class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObserver {
   // Focus management for custom keyboard
   int? _activePatternIdForKeyboard;
   final Map<int, TextEditingController> _structureControllers = {};
+  bool _wasPlayingBeforeBackground = false;
   
   // Map Slider Value [0.0, 1.0] to BPM [1, 999]
   int _sliderToBpm(double val) {
@@ -41,7 +44,36 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!mounted) return;
+    
+    final metronome = context.read<MetronomeProvider>();
+    final settings = context.read<SettingsProvider>();
+
+    if (state == AppLifecycleState.paused) {
+      // App going to background
+      if (!settings.backgroundPlayback && metronome.isPlaying) {
+        _wasPlayingBeforeBackground = true;
+        metronome.stop();
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      // App returning to foreground
+      if (_wasPlayingBeforeBackground) {
+        _wasPlayingBeforeBackground = false;
+        metronome.play();
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     for (var controller in _structureControllers.values) {
       controller.dispose();
     }
@@ -57,6 +89,17 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
         backgroundColor: AppColors.surface(context),
         centerTitle: true,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: Icon(Icons.settings_rounded, color: AppColors.textSecondary(context)),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              );
+            },
+          ),
+        ],
       ),
       body: SafeArea(
         child: GestureDetector(
@@ -97,7 +140,16 @@ class _MetronomeScreenState extends State<MetronomeScreen> {
                                   onVolChanged: (val) => metronome.updateInstanceVolume(instance.id, val),
                                   onMuteToggle: () => metronome.toggleInstanceMute(instance.id),
                                   onSoloToggle: () => metronome.toggleInstanceSolo(instance.id),
-                                  onRemove: () => metronome.removeInstance(instance.id),
+                                   onRemove: () {
+                                     // STRICT RULE: Close keyboard if deleting the active pattern
+                                     if (_activePatternIdForKeyboard == instance.id) {
+                                       setState(() {
+                                         _activePatternIdForKeyboard = null;
+                                       });
+                                     }
+                                     _structureControllers.remove(instance.id);
+                                     metronome.removeInstance(instance.id);
+                                   },
                                 ),
                               );
                             }).toList(),

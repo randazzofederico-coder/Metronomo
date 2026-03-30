@@ -170,6 +170,11 @@ class LiveMixer {
      _bindings.setSoundTouchSetting(_handle, settingId, value);
   }
 
+  void setRandomSilencePercent(double percent) {
+     if (_isDisposed) return;
+     _bindings.setRandomSilencePercent(_handle, percent);
+  }
+
   // --- METRONOME ---
   void setMetronomeConfig(int bpm) {
      if (_isDisposed) return;

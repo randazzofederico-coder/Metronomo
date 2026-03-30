@@ -53,6 +53,9 @@ typedef LiveMixerProcessC = Int32 Function(Pointer<Void>, Pointer<Float>, Int32)
 typedef LiveMixerProcessDart = int Function(Pointer<Void>, Pointer<Float>, int);
 
 // --- METRONOME ---
+typedef LiveMixerSetRandomSilencePercentC = Void Function(Pointer<Void>, Float);
+typedef LiveMixerSetRandomSilencePercentDart = void Function(Pointer<Void>, double);
+
 typedef LiveMixerSetMetronomeConfigC = Void Function(Pointer<Void>, Int32);
 typedef LiveMixerSetMetronomeConfigDart = void Function(Pointer<Void>, int);
 
@@ -245,6 +248,7 @@ class LiveMixerBindings {
   late final _setSoundTouchSetting = _lib.lookupFunction<Void Function(Pointer<Void>, Int32, Int32), void Function(Pointer<Void>, int, int)>('live_mixer_set_soundtouch_setting');
   
   // Method caches for metronome
+  late final _setRandomSilencePercent = _lib.lookupFunction<LiveMixerSetRandomSilencePercentC, LiveMixerSetRandomSilencePercentDart>('live_mixer_set_random_silence_percent');
   late final _setMetronomeConfig = _lib.lookupFunction<LiveMixerSetMetronomeConfigC, LiveMixerSetMetronomeConfigDart>('live_mixer_set_metronome_config');
   late final _setMetronomeSound = _lib.lookupFunction<LiveMixerSetMetronomeSoundC, LiveMixerSetMetronomeSoundDart>('live_mixer_set_metronome_sound');
   late final _addMetronomePattern = _lib.lookupFunction<LiveMixerAddMetronomePatternC, LiveMixerAddMetronomePatternDart>('live_mixer_add_metronome_pattern');
@@ -259,6 +263,7 @@ class LiveMixerBindings {
   void setSpeed(Pointer<Void> mixer, double speed) => _setSpeed(mixer, speed);
   void setSoundTouchSetting(Pointer<Void> mixer, int settingId, int value) => _setSoundTouchSetting(mixer, settingId, value);
 
+  void setRandomSilencePercent(Pointer<Void> mixer, double percent) => _setRandomSilencePercent(mixer, percent);
   void setMetronomeConfig(Pointer<Void> mixer, int bpm) => _setMetronomeConfig(mixer, bpm);
   
   void setMetronomeSound(Pointer<Void> mixer, int type, Float32List data) {

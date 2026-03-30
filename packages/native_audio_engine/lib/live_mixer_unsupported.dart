@@ -84,6 +84,10 @@ class LiveMixer {
     throw UnsupportedError('Native audio engine is not supported on this platform.');
   }
 
+  void setRandomSilencePercent(double percent) {
+    throw UnimplementedError();
+  }
+
   void setMetronomeConfig(int bpm) {
     throw UnsupportedError('Native audio engine is not supported on this platform.');
   }

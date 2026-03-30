@@ -2,7 +2,7 @@ name: metronomo_standalone
 description: "Metrónomo profesional con motor de audio nativo C++, subdivisiones, acentos, birritmia y control preciso de tempo."
 publish_to: 'none'
 
-version: 1.0.0+2
+version: 1.0.0+3
 
 environment:
   sdk: ^3.10.4
@@ -19,6 +19,9 @@ dependencies:
 
   cupertino_icons: ^1.0.8
   provider: ^6.1.5
+  shared_preferences: ^2.3.4
+  uuid: ^4.5.1
+  wakelock_plus: ^1.2.8
   native_audio_engine:
     path: packages/native_audio_engine
 

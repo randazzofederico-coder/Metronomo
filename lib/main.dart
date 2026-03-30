@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
+import 'package:metronomo_standalone/providers/settings_provider.dart';
+import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
 import 'package:metronomo_standalone/screens/metronome_screen.dart';
 
 void main() async {
@@ -24,6 +26,16 @@ class MyApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => MetronomeProvider()),
+        ChangeNotifierProvider(create: (_) {
+          final provider = SettingsProvider();
+          provider.loadSettings();
+          return provider;
+        }),
+        ChangeNotifierProvider(create: (_) {
+          final provider = PatternEditorProvider();
+          provider.loadPatterns();
+          return provider;
+        }),
       ],
       child: MaterialApp(
         title: 'Metrónomo',
@@ -48,8 +60,8 @@ class MyApp extends StatelessWidget {
             elevation: 0,
             centerTitle: true,
             titleTextStyle: TextStyle(
-              color: Color(0xFFF2EBE5), 
-              fontSize: 18, 
+              color: Color(0xFFF2EBE5),
+              fontSize: 18,
               fontWeight: FontWeight.bold,
               letterSpacing: 1.0,
             ),

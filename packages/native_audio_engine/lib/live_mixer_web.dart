@@ -369,6 +369,10 @@ class LiveMixer {
      _postCmd(msg);
   }
 
+  void setRandomSilencePercent(double percent) {
+     // Web: handled in JS audioWorklet or ignored
+  }
+
   void setMetronomeConfig(int bpm) {
      if (_isDisposed || !isReady) return;
      final msg = JSObject();

@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../services/pwa_install_service.dart';
 import '../providers/settings_provider.dart';
 import '../providers/metronome_provider.dart';
 import '../constants/app_colors.dart';
@@ -185,6 +187,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
 
           const SizedBox(height: 24),
+
+          // ── PWA Install (only on web) ──
+          if (kIsWeb) ...[
+            _buildPwaInstallSection(context),
+            const SizedBox(height: 24),
+          ],
         ],
       ),
     );
@@ -320,6 +328,143 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final parsed = int.tryParse(val);
         if (parsed != null) onChanged(parsed);
       },
+    );
+  }
+
+  Widget _buildPwaInstallSection(BuildContext context) {
+    final pwaService = PwaInstallService();
+
+    return _buildSectionCard(
+      context,
+      icon: Icons.install_mobile_rounded,
+      title: 'Instalar Aplicación',
+      subtitle: 'Instalá el metrónomo en tu dispositivo',
+      child: ValueListenableBuilder<bool>(
+        valueListenable: pwaService.isInstalled,
+        builder: (context, isInstalled, _) {
+          if (isInstalled) {
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.accentGreen(context).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.accentGreen(context).withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle, color: AppColors.accentGreen(context), size: 28),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'App Instalada',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.accentGreen(context),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Estás usando la versión instalada del Metrónomo.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return ValueListenableBuilder<bool>(
+            valueListenable: pwaService.canInstall,
+            builder: (context, canInstall, _) {
+              if (canInstall) {
+                return Column(
+                  children: [
+                    Text(
+                      'Instalá el Metrónomo en tu dispositivo para acceso rápido y uso sin conexión.',
+                      style: TextStyle(fontSize: 13, color: AppColors.textSecondary(context)),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () async {
+                          await pwaService.promptInstall();
+                        },
+                        icon: const Icon(Icons.download_rounded),
+                        label: const Text('Instalar', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary(context),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              }
+
+              // Manual install instructions
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Podés instalar esta app desde el menú de tu navegador:',
+                    style: TextStyle(fontSize: 13, color: AppColors.textSecondary(context)),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildInstallStep(context, Icons.phone_android, 'Chrome (Android)',
+                      'Menú ⋮ → "Instalar aplicación" o "Añadir a pantalla de inicio"'),
+                  _buildInstallStep(context, Icons.desktop_windows, 'Chrome (PC)',
+                      'Icono de instalación en la barra de direcciones o Menú ⋮ → "Instalar app"'),
+                  _buildInstallStep(context, Icons.phone_iphone, 'Safari (iOS)',
+                      'Tocar el botón Compartir → "Agregar a pantalla de inicio"'),
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildInstallStep(BuildContext context, IconData icon, String label, String detail) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 18, color: AppColors.textSecondary(context)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: const TextStyle(fontSize: 12),
+                children: [
+                  TextSpan(
+                    text: '$label: ',
+                    style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.textPrimary(context)),
+                  ),
+                  TextSpan(
+                    text: detail,
+                    style: TextStyle(color: AppColors.textSecondary(context)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

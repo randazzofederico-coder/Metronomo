@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
   <!--
     If you are serving your web app in a path other than the root, change the
@@ -18,21 +18,35 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="description" content="Metrónomo profesional con motor de audio nativo, subdivisiones, acentos, birritmia y control preciso de tempo.">
 
-  <!-- iOS meta tags & icons -->
+  <!-- PWA meta tags -->
+  <meta name="theme-color" content="#1E1A17">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="metronomo_standalone">
+
+  <!-- iOS PWA support -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Metrónomo">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>metronomo_standalone</title>
+  <title>Metrónomo Musical</title>
   <link rel="manifest" href="manifest.json">
+  <script src="live_mixer.js"></script>
 </head>
 <body>
+  <script>
+    // PWA Install bridge for Flutter
+    function _flutterPwaPrompt(event) {
+      if (event && event.prompt) {
+        event.prompt();
+      }
+    }
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

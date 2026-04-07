@@ -46,6 +46,16 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Mantener Pantalla Encendida** — Integración nativa con `wakelock_plus` para evitar bloqueos del dispositivo durante ensayos y prácticas
 - **Storage persistente** — Guardado automático de configuraciones, sets y patrones vía `shared_preferences`
 
+### ☁️ Cloud & Autenticación
+- **Firebase Auth** — Sistema de autenticación integrado con Google Sign-In y Email/Password.
+- **Sincronización Multiplataforma** — Los usuarios comparten la misma cuenta en las versiones Web, Android y iOS.
+- **Control de Acceso** — Verificación de permisos basada en Firestore.
+
+### 🌐 Web & PWA
+- **Soporte Web Completo** — La aplicación es accesible desde cualquier navegador moderno.
+- **WebAssembly (WASM)** — El motor de audio C++ está compilado a WASM usando Emscripten para correr de forma nativa en la web con mínima latencia y soporte de Web Audio API.
+- **Progressive Web App (PWA)** — Instalable desde el navegador con un botón dedicado en configuración, con soporte para uso offline.
+
 ### 💾 Gestión de Estado y Flujo de Trabajo
 - **Seguimiento 'Dirty State'** — Detección automática y profunda de alteraciones en vivo (BPM, estructuras, faders, mute/solo). La UI reacciona orgánicamente a los cambios pendientes marcando las sesiones y patrones en cursiva con un asterisco (`*`).
 - **Edición Dinámica de Patrones** — Renombrado in-situ de pistas con cajas delimitadas dinámicamente (`IntrinsicWidth`) y tracking visual milimétrico del asterisco de edición.
@@ -110,12 +120,14 @@ packages/native_audio_engine/
 |-----------|------------|
 | Framework | Flutter 3.10+ (Material3) |
 | Estado | Provider (ChangeNotifier) |
-| Audio Engine | C++ con miniaudio (callback-based) |
+| Audio Engine | C++ con miniaudio (callback-based) / WASM |
 | DSP | SoundTouch (pitch/tempo shifting) |
 | FFT | KissFFT (procesamiento espectral) |
 | FFI | dart:ffi (nativo) / Web Audio API (web) |
+| Backend y Auth | Firebase Auth, Cloud Firestore |
+| Web Build | Emscripten, JS Interop |
 | Rendering | CustomPainter (knobs), Ticker (animaciones) |
-| Plataformas | Android, iOS, Windows, Web |
+| Plataformas | Android, iOS, Windows, Web (PWA) |
 
 ## 🚀 Build
 

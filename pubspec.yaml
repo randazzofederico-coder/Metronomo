@@ -2,7 +2,7 @@ name: metronomo_standalone
 description: "Metrónomo profesional con motor de audio nativo C++, subdivisiones, acentos, birritmia y control preciso de tempo."
 publish_to: 'none'
 
-version: 1.0.0+3
+version: 1.1.0+4
 
 environment:
   sdk: ^3.10.4
@@ -25,6 +25,13 @@ dependencies:
   native_audio_engine:
     path: packages/native_audio_engine
 
+  # Firebase
+  firebase_core: ^3.12.1
+  firebase_auth: ^5.5.1
+  cloud_firestore: ^5.6.5
+  google_sign_in: ^6.2.2
+  url_launcher: ^6.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -33,8 +40,8 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-
-
+  assets:
+    - assets/Icon/Metronomo.png
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
 

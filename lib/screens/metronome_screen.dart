@@ -381,6 +381,23 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
         elevation: 0,
         actions: [
           IconButton(
+            icon: Icon(Icons.add_circle_outline, color: AppColors.textSecondary(context)),
+            onPressed: () {
+              final metronome = context.read<MetronomeProvider>();
+              if (metronome.instances.isNotEmpty) {
+                 metronome.clearSession();
+                 ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Sesión nueva', style: TextStyle(color: AppColors.textPrimary(context))),
+                      backgroundColor: AppColors.surfaceHighlight(context),
+                      duration: const Duration(seconds: 1),
+                    )
+                 );
+              }
+            },
+            tooltip: "Nueva Sesión",
+          ),
+          IconButton(
             icon: Icon(Icons.folder_open_rounded, color: AppColors.textSecondary(context)),
             onPressed: () {
               final metronome = context.read<MetronomeProvider>();

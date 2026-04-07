@@ -544,6 +544,18 @@ class MetronomeProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void clearSession() {
+    stop();
+    for (var inst in _instances) {
+        _liveMixer.removeMetronomePattern(inst.id);
+    }
+    _instances.clear();
+    activeSessionId = null;
+    activeSessionName = null;
+    _isSessionDirty = false;
+    notifyListeners();
+  }
+
   /// Clears current metronome and loads a full Session.
   Future<void> loadSession(
     Session session, 

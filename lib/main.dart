@@ -1,20 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
 
+import 'package:metronomo_standalone/firebase_options.dart';
+import 'package:metronomo_standalone/services/pwa_install_service.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
 import 'package:metronomo_standalone/providers/settings_provider.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
 import 'package:metronomo_standalone/providers/session_provider.dart';
-import 'package:metronomo_standalone/screens/metronome_screen.dart';
+import 'package:metronomo_standalone/screens/auth_gate.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+  // Initialize Firebase
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // Initialize PWA install prompt capture (web only, no-op on other platforms)
+  PwaInstallService().initialize();
+
+  // Lock orientation to portrait on mobile only (not supported on web)
+  if (!kIsWeb) {
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+  }
 
   runApp(const MyApp());
 }
@@ -73,7 +88,7 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        home: const MetronomeScreen(),
+        home: const AuthGate(),
         debugShowCheckedModeBanner: false,
       ),
     );

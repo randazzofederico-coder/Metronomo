@@ -1,13 +1,16 @@
 {
-    "name": "metronomo_standalone",
-    "short_name": "metronomo_standalone",
-    "start_url": ".",
+    "name": "Metrónomo Musical",
+    "short_name": "Metrónomo",
+    "start_url": "/metronomo/",
+    "scope": "/metronomo/",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#1E1A17",
+    "theme_color": "#1E1A17",
+    "description": "Metrónomo profesional con motor de audio nativo, subdivisiones, acentos, birritmia y control preciso de tempo.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
+    "categories": ["music", "utilities", "education"],
+    "lang": "es",
     "icons": [
         {
             "src": "icons/Icon-192.png",

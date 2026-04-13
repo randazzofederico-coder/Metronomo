@@ -10,7 +10,7 @@ class LiveMixer {
   bool _isDisposed = false;
 
   LiveMixer() {
-    _handle = _bindings.create();
+    _handle = _bindings.create(44100);
   }
 
   void dispose() {

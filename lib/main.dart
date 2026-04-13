@@ -90,6 +90,16 @@ class MyApp extends StatelessWidget {
         ),
         home: const AuthGate(),
         debugShowCheckedModeBanner: false,
+        builder: (context, child) {
+          final settings = context.watch<SettingsProvider>();
+          final data = MediaQuery.of(context);
+          return MediaQuery(
+            data: data.copyWith(
+              textScaler: TextScaler.linear(settings.uiScale),
+            ),
+            child: child!,
+          );
+        },
       ),
     );
   }

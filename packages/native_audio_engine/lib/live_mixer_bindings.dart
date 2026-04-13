@@ -4,8 +4,8 @@ import 'dart:io';
 import 'package:ffi/ffi.dart';
 
 // Type definitions
-typedef LiveMixerCreateC = Pointer<Void> Function();
-typedef LiveMixerCreateDart = Pointer<Void> Function();
+typedef LiveMixerCreateC = Pointer<Void> Function(Int32);
+typedef LiveMixerCreateDart = Pointer<Void> Function(int);
 
 typedef LiveMixerDestroyC = Void Function(Pointer<Void>);
 typedef LiveMixerDestroyDart = void Function(Pointer<Void>);
@@ -152,7 +152,7 @@ class LiveMixerBindings {
       func(dataPtr);
   }
 
-  Pointer<Void> create() => _create();
+  Pointer<Void> create(int sampleRate) => _create(sampleRate);
   void destroy(Pointer<Void> handle) => _destroy(handle);
   
   Pointer<WaveformData> addTrack(Pointer<Void> mixer, String id, String filePath) {

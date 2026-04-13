@@ -159,6 +159,9 @@ class LiveMixerWorkletProcessor extends AudioWorkletProcessor {
             case 'setMetronomeConfig':
                 m._live_mixer_set_metronome_config(handle, data.bpm);
                 break;
+            case 'setRandomSilencePercent':
+                m._live_mixer_set_random_silence_percent(handle, data.percent);
+                break;
             case 'setMetronomeSound': {
                 const soundData = data.data; // Float32Array
                 const ptr = m._malloc(soundData.byteLength);

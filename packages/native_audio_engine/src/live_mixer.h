@@ -20,7 +20,7 @@
 
 class LiveMixer {
 public:
-    LiveMixer();
+    LiveMixer(int sampleRate);
     ~LiveMixer();
 
     // Track Management
@@ -109,6 +109,7 @@ private:
 
    // Metronome state
    int _bpm = 0;
+   int _engineSampleRate = 44100;
    int _lastEighth = -1;
    bool _metronomePreviewMode = false;
    float _randomSilencePercent = 0.0f;

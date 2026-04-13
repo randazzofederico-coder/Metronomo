@@ -370,7 +370,11 @@ class LiveMixer {
   }
 
   void setRandomSilencePercent(double percent) {
-     // Web: handled in JS audioWorklet or ignored
+     if (_isDisposed || !isReady) return;
+     final msg = JSObject();
+     msg.setProperty('cmd'.toJS, 'setRandomSilencePercent'.toJS);
+     msg.setProperty('percent'.toJS, percent.toJS);
+     _postCmd(msg);
   }
 
   void setMetronomeConfig(int bpm) {

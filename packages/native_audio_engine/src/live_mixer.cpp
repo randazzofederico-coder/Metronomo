@@ -111,10 +111,10 @@ void data_callback_wrapper(ma_device* pDevice, void* pOutput, const void* pInput
     }
 }
 
-LiveMixer::LiveMixer() {
+LiveMixer::LiveMixer(int sampleRate) : _engineSampleRate(sampleRate) {
     // Initialize SoundTouch
     _soundTouch = soundtouch_create();
-    soundtouch_setSampleRate(_soundTouch, 44100);
+    soundtouch_setSampleRate(_soundTouch, _engineSampleRate);
     soundtouch_setChannels(_soundTouch, 2);
     soundtouch_setTempo(_soundTouch, 1.0f);
     
@@ -125,7 +125,7 @@ LiveMixer::LiveMixer() {
     ma_device_config config = ma_device_config_init(ma_device_type_playback);
     config.playback.format   = ma_format_f32;
     config.playback.channels = 2; // Stereo
-    config.sampleRate        = 44100; // Fixed for now
+    config.sampleRate        = _engineSampleRate;
     
     // NATIVE BUFFER TUNING FOR ANDROID UNDERRUNS
     config.periodSizeInMilliseconds = 20; 
@@ -743,7 +743,7 @@ void LiveMixer::_mixInternal(float* outputBuffer, int numFrames) {
         if (_metronomePreviewMode) {
             playTracks = false;
         }
-        float envelopeStep = 1.0f / (44100.0f * 0.02f); // 20ms fade
+        float envelopeStep = 1.0f / ((float)_engineSampleRate * 0.02f); // 20ms fade
         
         // 1. MIX TRACK BUS
         if (playTracks) {
@@ -837,7 +837,7 @@ void LiveMixer::_mixInternal(float* outputBuffer, int numFrames) {
         
         // Handle Metronome Trigger (Stateless Analytical Polyrhythm Engine)
         if (_bpm > 0 && !_metronomeTracks.empty()) {
-            double framesPerBeat = (44100.0 * 60.0) / _bpm;
+            double framesPerBeat = ((double)_engineSampleRate * 60.0) / _bpm;
             
             float volHigh = 0.0f;
             float volLow = 0.0f;
@@ -1048,8 +1048,8 @@ int LiveMixer::process(float* outputBuffer, int numFrames) {
 extern "C" {
     // C Binding Wrappers
     
-    EXPORT void* live_mixer_create() {
-        return new LiveMixer();
+    EXPORT void* live_mixer_create(int sampleRate) {
+        return new LiveMixer(sampleRate);
     }
     
     EXPORT void live_mixer_destroy(void* mixer) {

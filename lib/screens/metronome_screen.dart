@@ -60,7 +60,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     final metronome = context.read<MetronomeProvider>();
     final settings = context.read<SettingsProvider>();
 
-    if (state == AppLifecycleState.paused) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden || state == AppLifecycleState.inactive) {
       // App going to background
       if (!settings.backgroundPlayback && metronome.isPlaying) {
         _wasPlayingBeforeBackground = true;
@@ -578,7 +578,9 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     final bool isPlaying = metronome.isPlaying;
     final currentBpm = metronome.bpm;
     
-    return Container(
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+      child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
@@ -752,6 +754,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
           )
         ],
       ),
+    ),
     );
   }
 
@@ -853,7 +856,9 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
 
     bool isEditing = _activePatternIdForKeyboard == instance.id;
 
-    return Container(
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+      child: Container(
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
@@ -1180,6 +1185,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -1278,7 +1284,9 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
       required Function(String) onSubmit,
       required Function(String) onUpdateLive,
   }) {
-      return Container(
+      return MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+        child: Container(
           padding: const EdgeInsets.only(top: 6, bottom: 12, left: 4, right: 4),
           decoration: BoxDecoration(
               color: AppColors.surfaceHighlight(context),
@@ -1353,6 +1361,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                   ),
               ],
           ),
+        ),
       );
   }
 
@@ -1513,7 +1522,9 @@ class _MacroCycleVisualizerState extends State<_MacroCycleVisualizer> with Singl
 
     int macroBeats = widget.metronome.macroCycleBeats;
 
-    return Container(
+    return MediaQuery(
+      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+      child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.surface(context),
@@ -1628,6 +1639,7 @@ class _MacroCycleVisualizerState extends State<_MacroCycleVisualizer> with Singl
           ),
         ],
       ),
+    ),
     );
   }
 }

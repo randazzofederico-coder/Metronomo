@@ -40,10 +40,10 @@ class SettingsProvider extends ChangeNotifier {
   double _randomSilencePercentage = 0.0;
   double get randomSilencePercentage => _randomSilencePercentage;
 
-  bool _backgroundPlayback = false;
+  bool _backgroundPlayback = true;
   bool get backgroundPlayback => _backgroundPlayback;
 
-  bool _keepScreenOn = false;
+  bool _keepScreenOn = true;
   bool get keepScreenOn => _keepScreenOn;
 
   int _timerDurationMinutes = 0;
@@ -81,8 +81,8 @@ class SettingsProvider extends ChangeNotifier {
     final savedSound = prefs.getString(_prefKeySound) ?? 'Default';
     _selectedSound = availableSounds.contains(savedSound) ? savedSound : 'Default';
     _randomSilencePercentage = prefs.getDouble(_prefKeySilence) ?? 0.0;
-    _backgroundPlayback = prefs.getBool(_prefKeyBackground) ?? false;
-    _keepScreenOn = prefs.getBool(_prefKeyScreenOn) ?? false;
+    _backgroundPlayback = prefs.getBool(_prefKeyBackground) ?? true;
+    _keepScreenOn = prefs.getBool(_prefKeyScreenOn) ?? true;
     _timerDurationMinutes = prefs.getInt(_prefKeyTimer) ?? 0;
     _isTrainingSessionActive = prefs.getBool(_prefKeyTrainingActive) ?? false;
     _trainingStartBpm = prefs.getInt(_prefKeyTrainingStartBpm) ?? 60;

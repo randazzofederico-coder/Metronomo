@@ -6,8 +6,9 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 
 ### 🔊 Motor de Audio
 - **Engine nativo C++** — Timing ultra-preciso con [miniaudio](https://miniaud.io/) y procesamiento DSP con [SoundTouch](https://www.surina.net/soundtouch/)
+- **Sample Rate Dinámico** — El engine detecta y adopta automáticamente la frecuencia de muestreo del dispositivo (44.1kHz, 48kHz, etc.) garantizando sincronización perfecta en cualquier hardware, tanto en nativo (vía miniaudio) como en PWA (vía AudioWorklet `sampleRate`)
 - **Sets de Sonidos Sintéticos** — Generación procedural en Dart de clicks clásicos, Woodblock (FM synthesis) y Digital (Square waves)
-- **Silencios al Azar** — Simulación interna en el loop de renderizado C++ con RNG hardware-level (`std::mt19937`) para entrenar el timing interno
+- **Silencios al Azar** — Simulación interna en el loop de renderizado C++ con RNG hardware-level (`std::mt19937`) para entrenar el timing interno. Funcional en todas las plataformas incluyendo PWA (exportado a WASM via `_live_mixer_set_random_silence_percent`)
 - **Pipeline de audio atómica** — Posición de reproducción sincronizada con `std::atomic` para visualización sin latencia
 
 ### 🎼 Patrones Rítmicos
@@ -38,12 +39,12 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Tema oscuro premium** — Paleta cálida con fondo `#1E1A17` y acento naranja `#F98533`
 - **Soporte dual tema** — Colores adaptativos para dark y light mode
 - **Knob rotativo custom** — `CustomPainter` con indicador de posición, reset por doble tap y sensibilidad ajustada
-- **Escala de UI ajustable** — Soporte para zoom manual in/out desde la configuración (80% al 150%)
+- **Escala de UI ajustable** — Zoom manual desde configuración (80% al 150%). Los controles de precisión (secuenciador, barra BPM, teclado métrico, knobs, macro ciclo) mantienen tamaño fijo vía `TextScaler.noScaling` para evitar desborde, mientras que títulos, diálogos y ajustes escalan normalmente
 - **Orientación fija** — Solo portrait para UX optimizada
 
 ### ⚙️ Configuración y Persistencia
-- **Reproducción en Segundo Plano** — Gestión inteligente del ciclo de vida (`WidgetsBindingObserver`) que permite que la app continúe sonando al minimizarla o apagarse (si el usuario así lo decide)
-- **Mantener Pantalla Encendida** — Integración nativa con `wakelock_plus` para evitar bloqueos del dispositivo durante ensayos y prácticas
+- **Reproducción en Segundo Plano** — Activada por defecto. Gestión inteligente del ciclo de vida (`WidgetsBindingObserver` con `paused`/`hidden`/`inactive`) que permite que la app continúe sonando al minimizarla. Si el usuario desactiva la opción, el metrónomo se detiene automáticamente al perder foco
+- **Mantener Pantalla Encendida** — Activada por defecto. Integración nativa con `wakelock_plus` para evitar bloqueos del dispositivo durante ensayos y prácticas
 - **Storage persistente** — Guardado automático de configuraciones, sets y patrones vía `shared_preferences`
 
 ### ☁️ Cloud & Autenticación
@@ -55,6 +56,7 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Soporte Web Completo** — La aplicación es accesible desde cualquier navegador moderno.
 - **WebAssembly (WASM)** — El motor de audio C++ está compilado a WASM usando Emscripten para correr de forma nativa en la web con mínima latencia y soporte de Web Audio API.
 - **Progressive Web App (PWA)** — Instalable desde el navegador con un botón dedicado en configuración, con soporte para uso offline.
+- **AudioWorklet Bridge** — Comunicación completa Dart → JS → WASM para todas las funciones del engine (metrónomo, silencios al azar, sound sets, patterns) vía `postMessage` comandos tipados
 
 ### 💾 Gestión de Estado y Flujo de Trabajo
 - **Seguimiento 'Dirty State'** — Detección automática y profunda de alteraciones en vivo (BPM, estructuras, faders, mute/solo). La UI reacciona orgánicamente a los cambios pendientes marcando las sesiones y patrones en cursiva con un asterisco (`*`).
@@ -81,14 +83,14 @@ lib/
 packages/native_audio_engine/
 ├── lib/
 │   ├── live_mixer.dart                # API pública (export condicional por plataforma)
-│   ├── live_mixer_native.dart         # Implementación FFI (Android/iOS/Windows)
-│   ├── live_mixer_web.dart            # Implementación Web Audio API
-│   ├── live_mixer_bindings.dart       # Bindings FFI generados para C++
+│   ├── live_mixer_native.dart         # Implementación FFI (Android/iOS/Windows) — sampleRate fijo 44100
+│   ├── live_mixer_web.dart            # Implementación Web Audio API — sampleRate dinámico del AudioContext
+│   ├── live_mixer_bindings.dart       # Bindings FFI generados para C++ (acepta sampleRate)
 │   ├── soundtouch_bindings.dart       # Bindings FFI para SoundTouch
 │   └── soundtouch_processor.dart      # Wrapper Dart para pitch shifting
 └── src/
-    ├── live_mixer.cpp                 # Engine C++ (~44KB): scheduling, mixing, metrónomo
-    ├── live_mixer.h                   # Header con API C exportada
+    ├── live_mixer.cpp                 # Engine C++ (~44KB): scheduling, mixing, metrónomo (sampleRate paramétrico)
+    ├── live_mixer.h                   # Header con API C exportada (_engineSampleRate)
     ├── miniaudio.h                    # Librería de audio multiplataforma
     ├── soundtouch_wrapper.cpp         # Wrapper C para SoundTouch
     ├── Vocoder.cpp/h                  # Procesador vocoder con KissFFT

@@ -52,6 +52,14 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Sincronización Multiplataforma** — Los usuarios comparten la misma cuenta en las versiones Web, Android y iOS.
 - **Control de Acceso** — Verificación de permisos basada en Firestore.
 
+### 🔗 Compartir Sesiones y Patrones (Deep Links)
+- **Compartir via Deep Link** — Sesiones y patrones se comparten con URLs limpias tipo `federicorandazzo.com.ar/metronomo/?share=xk9mp2nq&name=chacarera` respaldadas por Firestore
+- **Exportación inteligente** — Al compartir una sesión, se empaquetan automáticamente todos los patrones referenciados como un bundle completo
+- **Importación automática** — Al abrir un link compartido, la app detecta el parámetro `?share=`, descarga los datos de Firestore, genera IDs nuevos (para evitar colisiones) y los guarda en la biblioteca local
+- **Limpieza de URL** — Después de importar, el parámetro `?share=` se elimina de la barra de direcciones con `history.replaceState` para evitar re-importaciones al refrescar
+- **Share nativo** — Integración con la Web Share API / share sheet nativo del OS con fallback a clipboard
+- **Firestore como backend de links** — Colección `shared_links` con lectura pública y escritura autenticada
+
 ### 🌐 Web & PWA
 - **Soporte Web Completo** — La aplicación es accesible desde cualquier navegador moderno.
 - **WebAssembly (WASM)** — El motor de audio C++ está compilado a WASM usando Emscripten para correr de forma nativa en la web con mínima latencia y soporte de Web Audio API.
@@ -73,10 +81,29 @@ lib/
 ├── main.dart                          # Entry point, tema Material3 y Provider
 ├── constants/
 │   └── app_colors.dart                # Paleta de colores adaptativa dark/light
+├── models/
+│   ├── pattern_model.dart             # Modelo de patrón rítmico (estructura, pulsos, subdivisiones)
+│   └── session_model.dart             # Modelo de sesión (patrones, BPM, configuración de mezcla)
 ├── providers/
-│   └── metronome_provider.dart        # Estado global, parser de estructuras, tap tempo, macro ciclo
+│   ├── metronome_provider.dart        # Estado global, parser de estructuras, tap tempo, macro ciclo
+│   ├── settings_provider.dart         # Configuración persistente (sonido, silencio, UI scale)
+│   ├── pattern_editor_provider.dart   # CRUD de la biblioteca de patrones
+│   └── session_provider.dart          # CRUD de la biblioteca de sesiones
 ├── screens/
-│   └── metronome_screen.dart          # UI: secuenciador, controles, visualizador, teclado custom
+│   ├── metronome_screen.dart          # UI: secuenciador, controles, visualizador, teclado custom
+│   ├── auth_gate.dart                 # Gate de autenticación y verificación de permisos
+│   ├── login_screen.dart              # Pantalla de login (Google/Email)
+│   ├── onboarding_screen.dart         # Onboarding para nuevos usuarios
+│   └── settings_screen.dart           # Pantalla de configuración
+├── services/
+│   ├── deep_link_service.dart         # Compartir via deep links (Firestore + Web Share API)
+│   ├── deep_link_web.dart             # JS interop: lectura/limpieza de URL (?share=)
+│   ├── deep_link_stub.dart            # Stub para plataformas no-web
+│   ├── pwa_install_service.dart       # Servicio de instalación PWA
+│   ├── pwa_install_web.dart           # JS interop: beforeinstallprompt
+│   ├── pwa_install_stub.dart          # Stub para plataformas no-web
+│   ├── pattern_repository.dart        # Persistencia de patrones (SharedPreferences)
+│   └── session_repository.dart        # Persistencia de sesiones (SharedPreferences)
 └── widgets/
     └── knob_control.dart              # Control rotativo con CustomPainter
 

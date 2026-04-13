@@ -40,8 +40,48 @@
   <title>Metrónomo Musical</title>
   <link rel="manifest" href="manifest.json">
   <script src="live_mixer.js"></script>
+  <style>
+    body {
+      background-color: #1E1A17;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+    }
+    .app-icon {
+      width: 90px;
+      height: 90px;
+      border-radius: 20px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+    .loader {
+      border: 3px solid rgba(249, 133, 51, 0.15);
+      border-left-color: #F98533;
+      border-radius: 50%;
+      width: 36px;
+      height: 36px;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
 </head>
 <body>
+  <div class="loading-container" id="flutter-loader">
+    <img src="icons/Icon-192.png" alt="Metrónomo" class="app-icon" />
+    <div class="loader"></div>
+  </div>
   <script>
     // PWA Install bridge for Flutter
     function _flutterPwaPrompt(event) {
@@ -49,6 +89,14 @@
         event.prompt();
       }
     }
+  </script>
+  <script>
+    window.addEventListener('flutter-first-frame', function() {
+      var loader = document.getElementById('flutter-loader');
+      if (loader) {
+        loader.style.display = 'none';
+      }
+    });
   </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>

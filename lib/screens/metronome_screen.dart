@@ -11,6 +11,8 @@ import 'package:metronomo_standalone/providers/settings_provider.dart';
 import 'package:metronomo_standalone/providers/session_provider.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
 import 'package:metronomo_standalone/models/pattern_model.dart';
+import 'package:metronomo_standalone/models/session_model.dart';
+import 'package:metronomo_standalone/services/deep_link_service.dart';
 
 class MetronomeScreen extends StatefulWidget {
   const MetronomeScreen({super.key});
@@ -51,6 +53,147 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Check for incoming shared links after the first frame
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForSharedLink();
+    });
+  }
+
+  Future<void> _checkForSharedLink() async {
+    final service = DeepLinkService();
+    final shareId = service.checkForShareParam();
+    if (shareId == null) return;
+
+    // Clean URL immediately to prevent re-import on refresh
+    service.cleanUrl();
+
+    if (!mounted) return;
+    // Show loading indicator
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 20, height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: AppColors.textPrimary(context),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text('Importando...', style: TextStyle(color: AppColors.textPrimary(context))),
+          ],
+        ),
+        backgroundColor: AppColors.surfaceHighlight(context),
+        duration: const Duration(seconds: 15),
+      ),
+    );
+
+    final data = await service.fetchSharedData(shareId);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+    if (data == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('El enlace compartido no es válido o ha expirado.',
+              style: TextStyle(color: AppColors.textPrimary(context))),
+          backgroundColor: AppColors.accentRed(context),
+        ),
+      );
+      return;
+    }
+
+    final type = data['type'] as String?;
+    if (type == 'pattern') {
+      await _importSharedPattern(data);
+    } else if (type == 'session') {
+      await _importSharedSession(data);
+    }
+  }
+
+  Future<void> _importSharedPattern(Map<String, dynamic> data) async {
+    try {
+      final patternJson = data['data'] as Map<String, dynamic>;
+      final pattern = Pattern.fromJson(patternJson);
+      // Generate a new ID to avoid collisions with local library
+      final newPattern = pattern.copyWith(id: const Uuid().v4());
+
+      final patProvider = context.read<PatternEditorProvider>();
+      await patProvider.addPattern(newPattern);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Patrón "${pattern.name}" añadido a tu librería ✓',
+                style: TextStyle(color: AppColors.textPrimary(context))),
+            backgroundColor: AppColors.surfaceHighlight(context),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al importar patrón: $e'),
+            backgroundColor: AppColors.accentRed(context),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _importSharedSession(Map<String, dynamic> data) async {
+    try {
+      final patProvider = context.read<PatternEditorProvider>();
+      final sessionProvider = context.read<SessionProvider>();
+
+      // Import all bundled patterns with fresh IDs
+      final patternsJson = data['patterns'] as List<dynamic>? ?? [];
+      final Map<String, String> idMapping = {};
+
+      for (var pJson in patternsJson) {
+        final pattern = Pattern.fromJson(pJson as Map<String, dynamic>);
+        final newId = const Uuid().v4();
+        idMapping[pattern.id] = newId;
+        final newPattern = pattern.copyWith(id: newId);
+        await patProvider.addPattern(newPattern);
+      }
+
+      // Import session with remapped pattern references
+      final sessionJson = data['data'] as Map<String, dynamic>;
+      final session = Session.fromJson(sessionJson);
+      final updatedConfigs = session.patternsConfig.map((config) {
+        return config.copyWith(
+          patternId: idMapping[config.patternId] ?? config.patternId,
+        );
+      }).toList();
+      final newSession = session.copyWith(
+        id: const Uuid().v4(),
+        patternsConfig: updatedConfigs,
+      );
+      await sessionProvider.addSession(newSession);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Sesión "${session.name}" importada con ${patternsJson.length} patrones ✓',
+                style: TextStyle(color: AppColors.textPrimary(context))),
+            backgroundColor: AppColors.surfaceHighlight(context),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al importar sesión: $e'),
+            backgroundColor: AppColors.accentRed(context),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -270,11 +413,40 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                             return ListTile(
                               title: Text(session.name, style: TextStyle(color: AppColors.textPrimary(ctx), fontWeight: FontWeight.bold)),
                               subtitle: Text("${session.globalBpm} BPM • ${session.patternsConfig.length} pistas", style: TextStyle(color: AppColors.textSecondary(ctx))),
-                              trailing: IconButton(
-                                icon: Icon(Icons.delete_outline, color: AppColors.accentRed(ctx)),
-                                onPressed: () {
-                                  sessionProvider.deleteSession(session.id);
-                                },
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: Icon(Icons.share_outlined, color: AppColors.textSecondary(ctx)),
+                                    onPressed: () async {
+                                      try {
+                                        if (ctx.mounted) Navigator.pop(ctx);
+
+                                        // Resolve all patterns referenced by this session
+                                        final patProvider = context.read<PatternEditorProvider>();
+                                        await patProvider.ensureLoaded;
+                                        final patterns = <Pattern>[];
+                                        for (var config in session.patternsConfig) {
+                                          final pat = patProvider.getPatternById(config.patternId);
+                                          if (pat != null) patterns.add(pat);
+                                        }
+
+                                        await DeepLinkService().shareSession(session, patterns);
+                                      } catch (e) {
+                                        if (ctx.mounted) {
+                                           ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Error al compartir: $e')));
+                                        }
+                                      }
+                                    },
+                                  ),
+                                  const SizedBox(width: 4),
+                                  IconButton(
+                                    icon: Icon(Icons.delete_outline, color: AppColors.accentRed(ctx)),
+                                    onPressed: () {
+                                      sessionProvider.deleteSession(session.id);
+                                    },
+                                  ),
+                                ],
                               ),
                               onTap: () async {
                                 final patProvider = context.read<PatternEditorProvider>();
@@ -329,11 +501,30 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                             return ListTile(
                               title: Text(pat.name, style: TextStyle(color: AppColors.textPrimary(ctx), fontWeight: FontWeight.bold)),
                               subtitle: Text("Estructura: ${pat.structure}", style: TextStyle(color: AppColors.textSecondary(ctx))),
-                              trailing: IconButton(
-                                icon: Icon(Icons.delete_outline, color: AppColors.accentRed(ctx)),
-                                onPressed: () {
-                                  patProvider.deletePattern(pat.id);
-                                },
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: Icon(Icons.share_outlined, color: AppColors.textSecondary(ctx)),
+                                    onPressed: () async {
+                                      try {
+                                        if (ctx.mounted) Navigator.pop(ctx);
+                                        await DeepLinkService().sharePattern(pat);
+                                      } catch (e) {
+                                        if (ctx.mounted) {
+                                           ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Error al compartir: $e')));
+                                        }
+                                      }
+                                    },
+                                  ),
+                                  const SizedBox(width: 4),
+                                  IconButton(
+                                    icon: Icon(Icons.delete_outline, color: AppColors.accentRed(ctx)),
+                                    onPressed: () {
+                                      patProvider.deletePattern(pat.id);
+                                    },
+                                  ),
+                                ],
                               ),
                               onTap: () async {
                                 metronome.loadPattern(pat);

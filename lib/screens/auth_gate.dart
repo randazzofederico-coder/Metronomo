@@ -14,14 +14,8 @@ class AuthGate extends StatelessWidget {
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
-        // Loading state
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(
-            backgroundColor: Color(0xFF1E1A17),
-            body: Center(
-              child: CircularProgressIndicator(color: Color(0xFFF98533)),
-            ),
-          );
+          return const MetronomeScreen();
         }
 
         // No user → Login
@@ -136,22 +130,7 @@ class _PermissionCheckerState extends State<_PermissionChecker> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF1E1A17),
-        body: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              CircularProgressIndicator(color: Color(0xFFF98533)),
-              SizedBox(height: 16),
-              Text(
-                "Verificando acceso...",
-                style: TextStyle(color: Color(0xFFBCAAA4), fontSize: 14),
-              ),
-            ],
-          ),
-        ),
-      );
+      return const MetronomeScreen();
     }
 
     // No profile → Onboarding

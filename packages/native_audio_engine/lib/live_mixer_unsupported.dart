@@ -75,6 +75,10 @@ class LiveMixer {
   int getAtomicPosition() {
     throw UnsupportedError('Native audio engine is not supported on this platform.');
   }
+
+  int getSampleRate() {
+    throw UnsupportedError('Native audio engine is not supported on this platform.');
+  }
   
   void setSpeed(double speed) {
     throw UnsupportedError('Native audio engine is not supported on this platform.');

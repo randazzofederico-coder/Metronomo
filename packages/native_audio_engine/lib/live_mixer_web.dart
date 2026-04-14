@@ -351,6 +351,14 @@ class LiveMixer {
   int getAtomicPosition() {
      return _currentAtomicPos;
   }
+
+  int getSampleRate() {
+    if (_audioContext != null) {
+      final sr = (_audioContext!.getProperty('sampleRate'.toJS) as JSNumber?)?.toDartDouble.toInt();
+      return sr ?? 44100;
+    }
+    return 44100;
+  }
   
   void setSpeed(double speed) {
      if (_isDisposed || !isReady) return;

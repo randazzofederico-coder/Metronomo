@@ -56,9 +56,11 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Compartir via Deep Link** — Sesiones y patrones se comparten con URLs limpias tipo `federicorandazzo.com.ar/metronomo/?share=xk9mp2nq&name=chacarera` respaldadas por Firestore
 - **Exportación inteligente** — Al compartir una sesión, se empaquetan automáticamente todos los patrones referenciados como un bundle completo
 - **Importación automática** — Al abrir un link compartido, la app detecta el parámetro `?share=`, descarga los datos de Firestore, genera IDs nuevos (para evitar colisiones) y los guarda en la biblioteca local
+- **Android App Links** — Verificación de dominio via `assetlinks.json` con prioridad: app nativa (Play Store) → PWA instalada → versión web. Intent filter con `autoVerify="true"` y soporte para cold start (captura temprana en `main.dart`) y warm resume (stream listener)
 - **Limpieza de URL** — Después de importar, el parámetro `?share=` se elimina de la barra de direcciones con `history.replaceState` para evitar re-importaciones al refrescar
 - **Share nativo** — Integración con la Web Share API / share sheet nativo del OS con fallback a clipboard
 - **Firestore como backend de links** — Colección `shared_links` con lectura pública y escritura autenticada
+- **TTL client-side (30 días)** — Cada documento incluye un campo `expiresAt` que se renueva con cada descarga. Links sin actividad por 30 días se eliminan automáticamente al ser accedidos o al crear nuevos links (limpieza lazy en batch de hasta 10 docs)
 
 ### 🌐 Web & PWA
 - **Soporte Web Completo** — La aplicación es accesible desde cualquier navegador moderno.

@@ -104,6 +104,7 @@ class PatternEditorProvider extends ChangeNotifier {
 
   /// Adds a new pattern to the library.
   Future<void> addPattern(Pattern pattern) async {
+    await _loadCompleter.future;
     _patterns.add(pattern);
     await _repository.addPattern(pattern);
     notifyListeners();
@@ -111,6 +112,7 @@ class PatternEditorProvider extends ChangeNotifier {
 
   /// Updates an existing pattern in the library.
   Future<void> updatePattern(Pattern updated) async {
+    await _loadCompleter.future;
     final index = _patterns.indexWhere((p) => p.id == updated.id);
     if (index != -1) {
       _patterns[index] = updated.copyWith(updatedAt: DateTime.now());
@@ -125,6 +127,7 @@ class PatternEditorProvider extends ChangeNotifier {
   /// edited (activeEditingPatternId), the keyboard is automatically closed
   /// and the active state resets to null.
   Future<void> deletePattern(String patternId) async {
+    await _loadCompleter.future;
     _patterns.removeWhere((p) => p.id == patternId);
     await _repository.deletePattern(patternId);
 
@@ -149,6 +152,7 @@ class PatternEditorProvider extends ChangeNotifier {
 
   /// Reorders patterns in the library (e.g., drag-and-drop).
   Future<void> reorderPatterns(int oldIndex, int newIndex) async {
+    await _loadCompleter.future;
     if (oldIndex < newIndex) newIndex -= 1;
     final item = _patterns.removeAt(oldIndex);
     _patterns.insert(newIndex, item);

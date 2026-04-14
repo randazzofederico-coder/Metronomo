@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../models/session_model.dart';
 import '../services/session_repository.dart';
@@ -11,6 +12,9 @@ class SessionProvider extends ChangeNotifier {
 
   List<Session> _sessions = [];
   List<Session> get sessions => List.unmodifiable(_sessions);
+
+  final Completer<void> _loadCompleter = Completer<void>();
+  Future<void> get ensureLoaded => _loadCompleter.future;
 
   /// Loads sessions from persistent storage.
   Future<void> loadSessions() async {
@@ -31,12 +35,16 @@ class SessionProvider extends ChangeNotifier {
       _sessions.add(chacareraSession);
       await _repository.addSession(chacareraSession);
     }
-    
+
+    if (!_loadCompleter.isCompleted) {
+      _loadCompleter.complete();
+    }
     notifyListeners();
   }
 
   /// Adds a new session to the library.
   Future<void> addSession(Session session) async {
+    await _loadCompleter.future;
     _sessions.add(session);
     await _repository.addSession(session);
     notifyListeners();
@@ -44,6 +52,7 @@ class SessionProvider extends ChangeNotifier {
 
   /// Updates an existing session in the library.
   Future<void> updateSession(Session updated) async {
+    await _loadCompleter.future;
     final index = _sessions.indexWhere((s) => s.id == updated.id);
     if (index != -1) {
       _sessions[index] = updated.copyWith(updatedAt: DateTime.now());
@@ -54,6 +63,7 @@ class SessionProvider extends ChangeNotifier {
 
   /// Deletes a session from the library.
   Future<void> deleteSession(String sessionId) async {
+    await _loadCompleter.future;
     _sessions.removeWhere((s) => s.id == sessionId);
     await _repository.deleteSession(sessionId);
     notifyListeners();

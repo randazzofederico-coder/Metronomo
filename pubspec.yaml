@@ -2,7 +2,7 @@ name: metronomo_standalone
 description: "Metrónomo profesional con motor de audio nativo C++, subdivisiones, acentos, birritmia y control preciso de tempo."
 publish_to: 'none'
 
-version: 1.1.0+4
+version: 1.2.0+6
 
 environment:
   sdk: ^3.10.4
@@ -32,6 +32,7 @@ dependencies:
   google_sign_in: ^6.2.2
   url_launcher: ^6.3.1
   share_plus: ^12.0.2
+  app_links: ^7.0.0
 
 dev_dependencies:
   flutter_test:

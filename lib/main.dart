@@ -6,6 +6,7 @@ import 'package:firebase_core/firebase_core.dart';
 
 import 'package:metronomo_standalone/firebase_options.dart';
 import 'package:metronomo_standalone/services/pwa_install_service.dart';
+import 'package:metronomo_standalone/services/deep_link_service.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
 import 'package:metronomo_standalone/providers/settings_provider.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
@@ -22,6 +23,9 @@ void main() async {
 
   // Initialize PWA install prompt capture (web only, no-op on other platforms)
   PwaInstallService().initialize();
+
+  // Capture initial deep link BEFORE runApp to avoid timing issues with auth gate
+  await DeepLinkService().captureInitialLink();
 
   // Lock orientation to portrait on mobile only (not supported on web)
   if (!kIsWeb) {

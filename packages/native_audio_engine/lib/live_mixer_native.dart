@@ -159,6 +159,10 @@ class LiveMixer {
      if (_isDisposed) return 0;
      return _bindings.getAtomicPosition(_handle).toInt();
   }
+
+  int getSampleRate() {
+    return 44100;
+  }
   
   void setSpeed(double speed) {
      if (_isDisposed) return;

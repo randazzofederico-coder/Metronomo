@@ -56,17 +56,35 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     // Check for incoming shared links after the first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForSharedLink();
+      // Native (Android/iOS): listen for runtime App Links (app already open)
+      DeepLinkService().initNativeLinks(
+        onShareReceived: (shareId) => _handleShareId(shareId),
+      );
     });
   }
 
   Future<void> _checkForSharedLink() async {
     final service = DeepLinkService();
+
+    // 1. Check for native deep link captured in main.dart (cold start)
+    final pendingId = service.consumePendingShareId();
+    if (pendingId != null && pendingId.isNotEmpty) {
+      await _handleShareId(pendingId);
+      return;
+    }
+
+    // 2. Web: check URL query params
     final shareId = service.checkForShareParam();
     if (shareId == null) return;
 
     // Clean URL immediately to prevent re-import on refresh
     service.cleanUrl();
 
+    await _handleShareId(shareId);
+  }
+
+  /// Shared import logic for both Web (URL param) and Native (App Links).
+  Future<void> _handleShareId(String shareId) async {
     if (!mounted) return;
     // Show loading indicator
     ScaffoldMessenger.of(context).showSnackBar(
@@ -89,7 +107,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
       ),
     );
 
-    final data = await service.fetchSharedData(shareId);
+    final data = await DeepLinkService().fetchSharedData(shareId);
     if (!mounted) return;
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
 

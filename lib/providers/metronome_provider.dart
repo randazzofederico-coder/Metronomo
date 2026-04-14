@@ -494,7 +494,8 @@ class MetronomeProvider with ChangeNotifier {
   double get currentMacroProgress {
     if (!_isPlaying && _liveMixer.getAtomicPosition() == 0) return 0.0;
     
-    double framesPerBeat = (44100.0 * 60.0) / _bpm;
+    final int sampleRate = _liveMixer.getSampleRate();
+    double framesPerBeat = (sampleRate.toDouble() * 60.0) / _bpm;
     int pos = _liveMixer.getAtomicPosition();
     double currentBeatInTotal = pos / framesPerBeat;
     

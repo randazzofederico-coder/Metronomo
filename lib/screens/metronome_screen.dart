@@ -12,7 +12,10 @@ import 'package:metronomo_standalone/providers/session_provider.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
 import 'package:metronomo_standalone/models/pattern_model.dart';
 import 'package:metronomo_standalone/models/session_model.dart';
+import 'package:metronomo_standalone/models/playlist_model.dart';
 import 'package:metronomo_standalone/services/deep_link_service.dart';
+import 'package:metronomo_standalone/providers/playlist_provider.dart';
+import 'package:metronomo_standalone/screens/playlists_screen.dart';
 
 class MetronomeScreen extends StatefulWidget {
   const MetronomeScreen({super.key});
@@ -127,6 +130,8 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
       await _importSharedPattern(data);
     } else if (type == 'session') {
       await _importSharedSession(data);
+    } else if (type == 'playlist') {
+      await _importSharedPlaylist(data);
     }
   }
 
@@ -207,6 +212,69 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Error al importar sesión: $e'),
+            backgroundColor: AppColors.accentRed(context),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _importSharedPlaylist(Map<String, dynamic> data) async {
+    try {
+      final patProvider = context.read<PatternEditorProvider>();
+      final sessionProvider = context.read<SessionProvider>();
+      final playlistProvider = context.read<PlaylistProvider>();
+
+      // Import all bundled patterns with fresh IDs
+      final patternsJson = data['patterns'] as List<dynamic>? ?? [];
+      final Map<String, String> patternIdMapping = {};
+      for (var pJson in patternsJson) {
+        final pattern = Pattern.fromJson(pJson as Map<String, dynamic>);
+        final newId = const Uuid().v4();
+        patternIdMapping[pattern.id] = newId;
+        await patProvider.addPattern(pattern.copyWith(id: newId));
+      }
+
+      // Import all bundled sessions with fresh IDs and remapped pattern refs
+      final sessionsJson = data['sessions'] as List<dynamic>? ?? [];
+      final Map<String, String> sessionIdMapping = {};
+      for (var sJson in sessionsJson) {
+        final session = Session.fromJson(sJson as Map<String, dynamic>);
+        final newSessionId = const Uuid().v4();
+        sessionIdMapping[session.id] = newSessionId;
+        final updatedConfigs = session.patternsConfig.map((c) {
+          return c.copyWith(patternId: patternIdMapping[c.patternId] ?? c.patternId);
+        }).toList();
+        await sessionProvider.addSession(session.copyWith(id: newSessionId, patternsConfig: updatedConfigs));
+      }
+
+      // Import playlist with remapped session IDs
+      final playlistJson = data['data'] as Map<String, dynamic>;
+      final playlist = Playlist.fromJson(playlistJson);
+      final remappedSessionIds = playlist.sessionIds
+          .map((id) => sessionIdMapping[id] ?? id)
+          .toList();
+      await playlistProvider.addPlaylist(playlist.copyWith(
+        id: const Uuid().v4(),
+        sessionIds: remappedSessionIds,
+      ));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Playlist "${playlist.name}" importada con ${sessionsJson.length} sesiones \u2713',
+              style: TextStyle(color: AppColors.textPrimary(context)),
+            ),
+            backgroundColor: AppColors.surfaceHighlight(context),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error al importar playlist: $e'),
             backgroundColor: AppColors.accentRed(context),
           ),
         );
@@ -627,6 +695,16 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
               }
             },
             tooltip: "Guardar Sesión",
+          ),
+          IconButton(
+            icon: Icon(Icons.queue_music_rounded, color: AppColors.textSecondary(context)),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const PlaylistsScreen()),
+              );
+            },
+            tooltip: "Playlists",
           ),
           IconButton(
             icon: Icon(Icons.settings_rounded, color: AppColors.textSecondary(context)),

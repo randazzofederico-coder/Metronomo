@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'login_screen.dart';
 import 'onboarding_screen.dart';
 import 'metronome_screen.dart';
+import '../providers/settings_provider.dart';
 
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
@@ -48,6 +49,12 @@ class _PermissionCheckerState extends State<_PermissionChecker> {
   bool _trialExpired = false;
   bool _trialUsed = false;
 
+  // Offline state
+  bool _isOffline = false;
+  int _daysUntilExpiry = 30;
+  bool _needsInternet = false;
+  String _needsInternetReason = '';
+
   // Metronomo warm colors
   static const Color _accentOrange = Color(0xFFF98533);
   static const Color _accentDark = Color(0xFF1E1A17);
@@ -55,6 +62,8 @@ class _PermissionCheckerState extends State<_PermissionChecker> {
   static const Color _borderColor = Color(0xFF4A3F35);
   static const Color _textPrimary = Color(0xFFF2EBE5);
   static const Color _textSecondary = Color(0xFFBCAAA4);
+
+  final SettingsProvider _settings = SettingsProvider();
 
   @override
   void initState() {
@@ -64,16 +73,27 @@ class _PermissionCheckerState extends State<_PermissionChecker> {
 
   Future<void> _checkPermissions() async {
     try {
+      // --- ATTEMPT ONLINE CHECK (force server, no Firestore cache) ---
       final docSnap = await FirebaseFirestore.instance
           .collection('usuarios')
           .doc(widget.user.uid)
-          .get();
+          .get(const GetOptions(source: Source.server));
 
       if (!docSnap.exists) {
         // No profile → needs onboarding
+        await _settings.savePermissionCache(
+          hasAccess: false,
+          hasProfile: false,
+          rol: 'pendiente',
+          trialActive: false,
+          trialDaysLeft: 0,
+          trialExpired: false,
+          trialUsed: false,
+        );
         setState(() {
           _isLoading = false;
           _hasProfile = false;
+          _isOffline = false;
         });
         return;
       }
@@ -104,26 +124,105 @@ class _PermissionCheckerState extends State<_PermissionChecker> {
         }
       }
 
+      final hasAccess = hasMetronomo || rol == 'admin' || trialActive;
+
+      // --- CACHE THE RESULT ---
+      await _settings.savePermissionCache(
+        hasAccess: hasAccess,
+        hasProfile: true,
+        rol: rol,
+        trialActive: trialActive,
+        trialDaysLeft: trialDaysLeft,
+        trialExpired: trialExpired,
+        trialUsed: trialUsed,
+      );
+
       setState(() {
         _isLoading = false;
         _hasProfile = true;
-        _hasAccess = hasMetronomo || rol == 'admin' || trialActive;
+        _hasAccess = hasAccess;
         _rolStatus = rol;
         _trialActive = trialActive;
         _trialDaysLeft = trialDaysLeft;
         _trialExpired = trialExpired;
         _trialUsed = trialUsed;
+        _isOffline = false;
+        _daysUntilExpiry = 30; // Just verified
       });
     } catch (e) {
-      debugPrint("Error checking permissions: $e");
-      setState(() {
-        _isLoading = false;
-        _hasProfile = false;
-      });
+      // --- OFFLINE FALLBACK ---
+      debugPrint("Firestore check failed (offline?): $e");
+      await _handleOfflineFallback();
     }
   }
 
+  Future<void> _handleOfflineFallback() async {
+    final cache = await _settings.loadPermissionCacheAsync();
+
+    if (cache == null) {
+      // Never verified online → must connect
+      setState(() {
+        _isLoading = false;
+        _needsInternet = true;
+        _needsInternetReason =
+            'Necesitás conectarte a internet al menos una vez para verificar tu acceso.';
+      });
+      return;
+    }
+
+    if (cache.isExpired) {
+      // Cache too old → must reconnect
+      setState(() {
+        _isLoading = false;
+        _needsInternet = true;
+        _needsInternetReason =
+            'Han pasado más de 30 días desde tu última verificación. '
+            'Conectate a internet para revalidar tu acceso.';
+      });
+      return;
+    }
+
+    if (!cache.hasProfile) {
+      // Profile was never created
+      setState(() {
+        _isLoading = false;
+        _needsInternet = true;
+        _needsInternetReason =
+            'Tu perfil no fue creado todavía. '
+            'Conectate a internet para completar el registro.';
+      });
+      return;
+    }
+
+    if (!cache.hasAccess) {
+      // No access in last check
+      setState(() {
+        _isLoading = false;
+        _needsInternet = true;
+        _needsInternetReason =
+            'Tu acceso no estaba habilitado en la última verificación. '
+            'Conectate a internet para verificar si cambió tu estado.';
+      });
+      return;
+    }
+
+    // Cache valid + has access → enter offline mode
+    setState(() {
+      _isLoading = false;
+      _hasProfile = true;
+      _hasAccess = true;
+      _rolStatus = cache.rol;
+      _trialActive = cache.trialActive;
+      _trialDaysLeft = cache.trialDaysLeft;
+      _trialExpired = cache.trialExpired;
+      _trialUsed = cache.trialUsed;
+      _isOffline = true;
+      _daysUntilExpiry = cache.daysUntilExpiry;
+    });
+  }
+
   Future<void> _signOut() async {
+    await _settings.clearPermissionCache();
     await FirebaseAuth.instance.signOut();
   }
 
@@ -131,6 +230,21 @@ class _PermissionCheckerState extends State<_PermissionChecker> {
   Widget build(BuildContext context) {
     if (_isLoading) {
       return const MetronomeScreen();
+    }
+
+    // Needs internet (no cache, expired cache, or no access in cache)
+    if (_needsInternet) {
+      return _NeedsInternetScreen(
+        reason: _needsInternetReason,
+        onRetry: () {
+          setState(() {
+            _isLoading = true;
+            _needsInternet = false;
+          });
+          _checkPermissions();
+        },
+        onSignOut: _signOut,
+      );
     }
 
     // No profile → Onboarding
@@ -157,6 +271,13 @@ class _PermissionCheckerState extends State<_PermissionChecker> {
     }
 
     // Access granted → Metronome!
+    // Show offline warning banner if ≤5 days remain
+    if (_isOffline && _daysUntilExpiry <= 5) {
+      return _OfflineWarningWrapper(
+        daysLeft: _daysUntilExpiry,
+        child: const MetronomeScreen(),
+      );
+    }
     if (_trialActive) {
       return _TrialBannerWrapper(
         daysLeft: _trialDaysLeft,
@@ -164,6 +285,215 @@ class _PermissionCheckerState extends State<_PermissionChecker> {
       );
     }
     return const MetronomeScreen();
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Offline warning banner — shows when ≤5 days until revalidation required
+// ---------------------------------------------------------------------------
+class _OfflineWarningWrapper extends StatelessWidget {
+  final int daysLeft;
+  final Widget child;
+
+  const _OfflineWarningWrapper({required this.daysLeft, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final dayText = daysLeft == 1 ? 'día' : 'días';
+    final message = daysLeft == 0
+        ? 'Conectate a internet hoy para revalidar tu acceso'
+        : 'Conectate a internet para revalidar tu acceso · $daysLeft $dayText restantes';
+
+    return Column(
+      children: [
+        Material(
+          color: const Color(0xFF2C2621),
+          child: SafeArea(
+            bottom: false,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF4A3800), Color(0xFFF59E0B)],
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.wifi_off_rounded, color: Colors.white70, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      message,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Expanded(child: child),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Needs Internet Screen — shown when no cache or expired cache
+// ---------------------------------------------------------------------------
+class _NeedsInternetScreen extends StatelessWidget {
+  final String reason;
+  final VoidCallback onRetry;
+  final VoidCallback onSignOut;
+
+  const _NeedsInternetScreen({
+    required this.reason,
+    required this.onRetry,
+    required this.onSignOut,
+  });
+
+  // Metronomo warm colors
+  static const Color _accentOrange = Color(0xFFF98533);
+  static const Color _accentDark = Color(0xFF1E1A17);
+  static const Color _surfaceDark = Color(0xFF2C2621);
+  static const Color _borderColor = Color(0xFF4A3F35);
+  static const Color _textPrimary = Color(0xFFF2EBE5);
+  static const Color _textSecondary = Color(0xFFBCAAA4);
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: _accentDark,
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 440),
+            child: Container(
+              padding: const EdgeInsets.all(28),
+              decoration: BoxDecoration(
+                color: _surfaceDark,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: _borderColor),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.4),
+                    blurRadius: 30,
+                    offset: const Offset(0, 12),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Animated wifi_off icon
+                  TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.0, end: 1.0),
+                    duration: const Duration(milliseconds: 800),
+                    curve: Curves.elasticOut,
+                    builder: (context, value, child) {
+                      return Transform.scale(scale: value, child: child);
+                    },
+                    child: Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            const Color(0xFFF59E0B).withOpacity(0.15),
+                            const Color(0xFFEF4444).withOpacity(0.15),
+                          ],
+                        ),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.wifi_off_rounded,
+                        color: Color(0xFFF59E0B),
+                        size: 34,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  const Text(
+                    "Conexión necesaria",
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.bold,
+                      color: _textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  Text(
+                    reason,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: _textSecondary.withOpacity(0.7),
+                      height: 1.6,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 28),
+
+                  // Retry button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: ElevatedButton.icon(
+                      onPressed: onRetry,
+                      icon: const Icon(Icons.refresh_rounded, size: 20),
+                      label: const Text(
+                        "Reintentar",
+                        style: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _accentOrange,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Sign out
+                  SizedBox(
+                    width: double.infinity,
+                    height: 44,
+                    child: TextButton(
+                      onPressed: onSignOut,
+                      style: TextButton.styleFrom(
+                        foregroundColor: _textSecondary.withOpacity(0.5),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        "Cerrar sesión",
+                        style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

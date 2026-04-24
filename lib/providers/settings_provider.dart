@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import '../models/permission_cache.dart';
 
 /// Manages all application-level settings with automatic persistence.
 ///
@@ -188,5 +189,73 @@ class SettingsProvider extends ChangeNotifier {
     _uiScale = scale.clamp(0.8, 1.5);
     notifyListeners();
     _saveSettings();
+  }
+
+  // ─────────────────────────────────────────────────────
+  //  Permission Cache — Offline Access
+  // ─────────────────────────────────────────────────────
+
+  static const String _keyPermHasAccess = 'perm_has_access';
+  static const String _keyPermHasProfile = 'perm_has_profile';
+  static const String _keyPermRol = 'perm_rol';
+  static const String _keyPermTrialActive = 'perm_trial_active';
+  static const String _keyPermTrialDaysLeft = 'perm_trial_days_left';
+  static const String _keyPermTrialExpired = 'perm_trial_expired';
+  static const String _keyPermTrialUsed = 'perm_trial_used';
+  static const String _keyPermLastVerified = 'perm_last_verified';
+
+  /// Save the result of a successful Firestore permission check.
+  Future<void> savePermissionCache({
+    required bool hasAccess,
+    required bool hasProfile,
+    required String rol,
+    required bool trialActive,
+    required int trialDaysLeft,
+    required bool trialExpired,
+    required bool trialUsed,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyPermHasAccess, hasAccess);
+    await prefs.setBool(_keyPermHasProfile, hasProfile);
+    await prefs.setString(_keyPermRol, rol);
+    await prefs.setBool(_keyPermTrialActive, trialActive);
+    await prefs.setInt(_keyPermTrialDaysLeft, trialDaysLeft);
+    await prefs.setBool(_keyPermTrialExpired, trialExpired);
+    await prefs.setBool(_keyPermTrialUsed, trialUsed);
+    await prefs.setString(
+      _keyPermLastVerified,
+      DateTime.now().toIso8601String(),
+    );
+  }
+
+  /// Load the cached permission state. Returns null if no cache exists.
+  Future<PermissionCache?> loadPermissionCacheAsync() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastVerifiedStr = prefs.getString(_keyPermLastVerified);
+    if (lastVerifiedStr == null) return null;
+
+    return PermissionCache(
+      hasAccess: prefs.getBool(_keyPermHasAccess) ?? false,
+      hasProfile: prefs.getBool(_keyPermHasProfile) ?? false,
+      rol: prefs.getString(_keyPermRol) ?? 'pendiente',
+      trialActive: prefs.getBool(_keyPermTrialActive) ?? false,
+      trialDaysLeft: prefs.getInt(_keyPermTrialDaysLeft) ?? 0,
+      trialExpired: prefs.getBool(_keyPermTrialExpired) ?? false,
+      trialUsed: prefs.getBool(_keyPermTrialUsed) ?? false,
+      lastVerified: DateTime.parse(lastVerifiedStr),
+    );
+  }
+
+  /// Clear the permission cache (used on logout).
+  Future<void> clearPermissionCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyPermHasAccess);
+    await prefs.remove(_keyPermHasProfile);
+    await prefs.remove(_keyPermRol);
+    await prefs.remove(_keyPermTrialActive);
+    await prefs.remove(_keyPermTrialDaysLeft);
+    await prefs.remove(_keyPermTrialExpired);
+    await prefs.remove(_keyPermTrialUsed);
+    await prefs.remove(_keyPermLastVerified);
   }
 }

@@ -1,6 +1,6 @@
 # 🎵 Metrónomo
 
-Metrónomo profesional para músicos con motor de audio nativo C++, soporte para birritmia, tuplets, subdivisiones complejas y visualización en tiempo real.
+Metrónomo profesional para músicos con motor de audio nativo C++, soporte para birritmia, tuplets, subdivisiones complejas y visualización en tiempo real. Disponible como app nativa Android y como PWA instalable desde cualquier navegador moderno.
 
 ## ✨ Características
 
@@ -48,13 +48,25 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Storage persistente** — Guardado automático de configuraciones, sets y patrones vía `shared_preferences`
 
 ### ☁️ Cloud & Autenticación
-- **Firebase Auth** — Sistema de autenticación integrado con Google Sign-In y Email/Password.
-- **Sincronización Multiplataforma** — Los usuarios comparten la misma cuenta en las versiones Web, Android y iOS.
-- **Control de Acceso** — Verificación de permisos basada en Firestore.
+- **Firebase Auth** — Sistema de autenticación integrado con Google Sign-In y Email/Password
+- **Sincronización Multiplataforma** — Los usuarios comparten la misma cuenta en las versiones Web, Android e iOS
+- **Control de Acceso** — Verificación de permisos basada en Firestore con roles, trial y suscripciones
+- **Período de Prueba** — Trial de 30 días activable por el usuario. Notificación automática al admin vía `consultas_web`
+
+### 📴 Login Offline
+- **Cache local de permisos** — Después del primer login exitoso, el estado de permisos se cachea en `SharedPreferences` con validez de 30 días
+- **Acceso sin conexión** — Si no hay internet pero existe un cache válido, la app abre normalmente
+- **Revalidación forzada** — Si el cache tiene más de 30 días, se requiere conexión a internet para revalidar
+- **Banner de advertencia** — Cuando quedan ≤5 días para la expiración del cache, aparece un banner naranja gradiente con `wifi_off` indicando los días restantes
+- **Pantalla "Conexión necesaria"** — Sin cache o con cache expirado, se muestra una pantalla dedicada con botón de reintentar y cerrar sesión
+- **Lectura forzada del servidor** — `GetOptions(source: Source.server)` para evitar falsos positivos del cache interno de Firestore
+- **Detección de errores de red** — String matching en `login_screen.dart` (sin `dart:io`, compatible web) para mostrar mensajes claros cuando no hay internet
+- **Sección "Sesión" en Settings** — Fecha de última verificación online y contador de días restantes con indicadores de color (🟢 >5d, 🟠 ≤5d, 🔴 expirado)
+- **Logout limpia el cache** — Al cerrar sesión se borran todos los datos de permisos cacheados
 
 ### 🔗 Compartir Sesiones y Patrones (Deep Links)
-- **Compartir via Deep Link** — Sesiones y patrones se comparten con URLs limpias tipo `federicorandazzo.com.ar/metronomo/?share=xk9mp2nq&name=chacarera` respaldadas por Firestore
-- **Exportación inteligente** — Al compartir una sesión, se empaquetan automáticamente todos los patrones referenciados como un bundle completo
+- **Compartir via Deep Link** — Sesiones, patrones y playlists se comparten con URLs limpias tipo `federicorandazzo.com.ar/metronomo/?share=xk9mp2nq&name=chacarera` respaldadas por Firestore
+- **Exportación inteligente** — Al compartir una sesión, se empaquetan automáticamente todos los patrones referenciados como un bundle completo. Al compartir una playlist, se incluyen todas las sesiones y sus patrones
 - **Importación automática** — Al abrir un link compartido, la app detecta el parámetro `?share=`, descarga los datos de Firestore, genera IDs nuevos (para evitar colisiones) y los guarda en la biblioteca local
 - **Android App Links** — Verificación de dominio via `assetlinks.json` con prioridad: app nativa (Play Store) → PWA instalada → versión web. Intent filter con `autoVerify="true"` y soporte para cold start (captura temprana en `main.dart`) y warm resume (stream listener)
 - **Limpieza de URL** — Después de importar, el parámetro `?share=` se elimina de la barra de direcciones con `history.replaceState` para evitar re-importaciones al refrescar
@@ -62,41 +74,59 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Firestore como backend de links** — Colección `shared_links` con lectura pública y escritura autenticada
 - **TTL client-side (30 días)** — Cada documento incluye un campo `expiresAt` que se renueva con cada descarga. Links sin actividad por 30 días se eliminan automáticamente al ser accedidos o al crear nuevos links (limpieza lazy en batch de hasta 10 docs)
 
+### 🎶 Playlists (Listas de Reproducción)
+- **Gestión de Playlists** — Crear, renombrar, eliminar y duplicar listas de reproducción. Cada playlist contiene una lista ordenada de sesiones
+- **Edición de Contenido** — Agregar sesiones desde un bottom sheet con toda la biblioteca disponible, eliminar sesiones individuales, y reordenar con drag & drop (`ReorderableListView`)
+- **Reproducción Secuencial** — Al presionar Play se abre el player dedicado (`PlaylistPlayerScreen`) que carga y reproduce automáticamente la primera sesión
+- **Navegación por Swipe** — Deslizar horizontalmente (`PageView`) para avanzar/retroceder entre sesiones. Al cambiar de sesión, se detiene la anterior y se auto-reproduce la nueva
+- **Modo Solo Lectura** — Todo bloqueado por defecto: BPM (botones ±1/±5, slider), volumen (knob), mute, solo, estructura, nombre, añadir/eliminar patrones. Solo activos: Play/Stop, toggle de edición y swipe
+- **Toggle Modo Edición** — Switch en el AppBar que desbloquea todos los controles. Los controles bloqueados se muestran con opacidad reducida (50%) usando `IgnorePointer` + `Opacity`
+- **Dirty Tracking** — Misma lógica de sesiones: nombre en *itálica* con `*` cuando hay cambios pendientes
+- **Conservación de Estado** — Al entrar al player, se guarda el estado completo del metrónomo (sesión activa, BPM, instancias, volumen, mute/solo, dirty state). Al salir, se restaura íntegramente
+- **Indicador de Posición** — Dots animados que muestran la sesión actual dentro de la playlist
+- **Compartir Playlists** — Deep links que empaquetan la playlist + todas las sesiones + todos los patrones referenciados
+
 ### 🌐 Web & PWA
-- **Soporte Web Completo** — La aplicación es accesible desde cualquier navegador moderno.
-- **WebAssembly (WASM)** — El motor de audio C++ está compilado a WASM usando Emscripten para correr de forma nativa en la web con mínima latencia y soporte de Web Audio API.
-- **Progressive Web App (PWA)** — Instalable desde el navegador con un botón dedicado en configuración, con soporte para uso offline.
+- **Soporte Web Completo** — La aplicación es accesible desde cualquier navegador moderno
+- **WebAssembly (WASM)** — El motor de audio C++ está compilado a WASM usando Emscripten para correr de forma nativa en la web con mínima latencia y soporte de Web Audio API
+- **Progressive Web App (PWA)** — Instalable desde el navegador con un botón dedicado en configuración, con soporte para uso offline
 - **AudioWorklet Bridge** — Comunicación completa Dart → JS → WASM para todas las funciones del engine (metrónomo, silencios al azar, sound sets, patterns) vía `postMessage` comandos tipados
 
 ### 💾 Gestión de Estado y Flujo de Trabajo
-- **Seguimiento 'Dirty State'** — Detección automática y profunda de alteraciones en vivo (BPM, estructuras, faders, mute/solo). La UI reacciona orgánicamente a los cambios pendientes marcando las sesiones y patrones en cursiva con un asterisco (`*`).
-- **Edición Dinámica de Patrones** — Renombrado in-situ de pistas con cajas delimitadas dinámicamente (`IntrinsicWidth`) y tracking visual milimétrico del asterisco de edición.
-- **Guardado Inteligente** — Discriminación contextual en la App Bar: sistema de guardado rápido para sobrescribir (pisar) datos modificados, o "Guardar Como..." (`Uuid().v4()`) para versionado de bibliotecas limpias.
+- **Seguimiento 'Dirty State'** — Detección automática y profunda de alteraciones en vivo (BPM, estructuras, faders, mute/solo). La UI reacciona orgánicamente a los cambios pendientes marcando las sesiones y patrones en cursiva con un asterisco (`*`)
+- **Edición Dinámica de Patrones** — Renombrado in-situ de pistas con cajas delimitadas dinámicamente (`IntrinsicWidth`) y tracking visual milimétrico del asterisco de edición
+- **Guardado Inteligente** — Discriminación contextual en la App Bar: sistema de guardado rápido para sobrescribir (pisar) datos modificados, o "Guardar Como..." (`Uuid().v4()`) para versionado de bibliotecas limpias
 - **Aislamiento de Periféricos (Gestos y Foco)** —
-  - **Foco Seguro**: Prevención estricta de superposición de teclados (Android Nativo vs Numérico Métrico) purgando la jerarquía de foco antes de despachar diálogos modales. Visibilidad garantizada vía `Scrollable.ensureVisible`.
-  - **Arena de Gestos de Alta Precisión**: Controladores The perillas (Knobs) con monopolio asertivo sobre los arreglos `onVerticalDragUpdate` y `onHorizontalDragUpdate`. Esto neutraliza el reconocedor nativo del `ListView`, inhibiendo el scroll inercial padre mientras se manipulan los parámetros de mezcla.
+  - **Foco Seguro**: Prevención estricta de superposición de teclados (Android Nativo vs Numérico Métrico) purgando la jerarquía de foco antes de despachar diálogos modales. Visibilidad garantizada vía `Scrollable.ensureVisible`
+  - **Arena de Gestos de Alta Precisión**: Controladores de perillas (Knobs) con monopolio asertivo sobre los arreglos `onVerticalDragUpdate` y `onHorizontalDragUpdate`. Esto neutraliza el reconocedor nativo del `ListView`, inhibiendo el scroll inercial padre mientras se manipulan los parámetros de mezcla
 
 ## 📐 Arquitectura
 
 ```
 lib/
 ├── main.dart                          # Entry point, tema Material3 y Provider
+├── firebase_options.dart              # Configuración Firebase auto-generada
 ├── constants/
 │   └── app_colors.dart                # Paleta de colores adaptativa dark/light
 ├── models/
 │   ├── pattern_model.dart             # Modelo de patrón rítmico (estructura, pulsos, subdivisiones)
-│   └── session_model.dart             # Modelo de sesión (patrones, BPM, configuración de mezcla)
+│   ├── session_model.dart             # Modelo de sesión (patrones, BPM, configuración de mezcla)
+│   ├── playlist_model.dart            # Modelo de playlist (lista ordenada de session IDs)
+│   └── permission_cache.dart          # Cache de permisos para acceso offline (30 días TTL)
 ├── providers/
 │   ├── metronome_provider.dart        # Estado global, parser de estructuras, tap tempo, macro ciclo
-│   ├── settings_provider.dart         # Configuración persistente (sonido, silencio, UI scale)
+│   ├── settings_provider.dart         # Configuración persistente + cache de permisos offline
 │   ├── pattern_editor_provider.dart   # CRUD de la biblioteca de patrones
-│   └── session_provider.dart          # CRUD de la biblioteca de sesiones
+│   ├── session_provider.dart          # CRUD de la biblioteca de sesiones
+│   └── playlist_provider.dart         # CRUD de playlists + reordenar sesiones internas
 ├── screens/
 │   ├── metronome_screen.dart          # UI: secuenciador, controles, visualizador, teclado custom
-│   ├── auth_gate.dart                 # Gate de autenticación y verificación de permisos
-│   ├── login_screen.dart              # Pantalla de login (Google/Email)
+│   ├── playlists_screen.dart          # Gestión de playlists: crear, editar, eliminar, reordenar sesiones
+│   ├── playlist_player_screen.dart    # Reproductor: PageView, modo solo lectura, toggle edición
+│   ├── auth_gate.dart                 # Gate de autenticación, permisos y fallback offline
+│   ├── login_screen.dart              # Login (Google/Email) con detección de errores de red
 │   ├── onboarding_screen.dart         # Onboarding para nuevos usuarios
-│   └── settings_screen.dart           # Pantalla de configuración
+│   └── settings_screen.dart           # Configuración + sección sesión + logout
 ├── services/
 │   ├── deep_link_service.dart         # Compartir via deep links (Firestore + Web Share API)
 │   ├── deep_link_web.dart             # JS interop: lectura/limpieza de URL (?share=)
@@ -105,7 +135,8 @@ lib/
 │   ├── pwa_install_web.dart           # JS interop: beforeinstallprompt
 │   ├── pwa_install_stub.dart          # Stub para plataformas no-web
 │   ├── pattern_repository.dart        # Persistencia de patrones (SharedPreferences)
-│   └── session_repository.dart        # Persistencia de sesiones (SharedPreferences)
+│   ├── session_repository.dart        # Persistencia de sesiones (SharedPreferences)
+│   └── playlist_repository.dart       # Persistencia de playlists (SharedPreferences)
 └── widgets/
     └── knob_control.dart              # Control rotativo con CustomPainter
 
@@ -156,6 +187,7 @@ packages/native_audio_engine/
 | FFT | KissFFT (procesamiento espectral) |
 | FFI | dart:ffi (nativo) / Web Audio API (web) |
 | Backend y Auth | Firebase Auth, Cloud Firestore |
+| Persistencia local | SharedPreferences (settings, patrones, sesiones, playlists, cache offline) |
 | Web Build | Emscripten, JS Interop |
 | Rendering | CustomPainter (knobs), Ticker (animaciones) |
 | Plataformas | Android, iOS, Windows, Web (PWA) |

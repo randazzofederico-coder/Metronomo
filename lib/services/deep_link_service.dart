@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/pattern_model.dart';
+import '../models/playlist_model.dart';
 import '../models/session_model.dart';
 
 // Conditional import: web reads/cleans the browser URL, stub is a no-op.
@@ -158,6 +159,33 @@ class DeepLinkService {
     final url = '${_baseUrl}?share=$shareId&name=$slug';
 
     await _shareUrl(url, 'Sesión de Metrónomo: ${session.name}');
+  }
+
+  /// Shares a [Playlist] together with all its referenced [Session]s and [Pattern]s.
+  Future<void> sharePlaylist(
+    Playlist playlist,
+    List<Session> sessions,
+    List<Pattern> patterns,
+  ) async {
+    final shareId = _generateShortId();
+
+    final payload = _buildPayload(
+      type: 'playlist',
+      name: playlist.name,
+      data: playlist.toJson(),
+      patterns: patterns.map((p) => p.toJson()).toList(),
+    );
+    // Add sessions array to the payload
+    payload['sessions'] = sessions.map((s) => s.toJson()).toList();
+
+    await FirebaseFirestore.instance.collection(_collection).doc(shareId).set(payload);
+
+    _cleanupExpiredLinks();
+
+    final slug = _slugify(playlist.name);
+    final url = '${_baseUrl}?share=$shareId&name=$slug';
+
+    await _shareUrl(url, 'Playlist de Metrónomo: ${playlist.name}');
   }
 
   /// Invokes the platform share sheet, falling back to clipboard.

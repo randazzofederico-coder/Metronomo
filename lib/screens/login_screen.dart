@@ -22,6 +22,23 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   String? _errorMessage;
   String? _successMessage;
 
+  static const String _noInternetMsg =
+      'No hay conexión a internet.\n'
+      'Para iniciar sesión por primera vez necesitás estar conectado. '
+      'Una vez logueado, podrás usar el Metrónomo sin conexión.';
+
+  bool _isNetworkError(Object error) {
+    final msg = error.toString().toLowerCase();
+    return msg.contains('socketexception') ||
+        msg.contains('network') ||
+        msg.contains('failed host lookup') ||
+        msg.contains('connection refused') ||
+        msg.contains('no address associated') ||
+        msg.contains('unreachable') ||
+        msg.contains('errno = 7') ||
+        msg.contains('clientexception');
+  }
+
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
@@ -100,9 +117,17 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         await FirebaseAuth.instance.signInWithCredential(credential);
       }
     } on FirebaseAuthException catch (e) {
-      _showError("Error al conectar con Google: ${e.message}");
+      if (_isNetworkError(e)) {
+        _showError(_noInternetMsg);
+      } else {
+        _showError("Error al conectar con Google: ${e.message}");
+      }
     } catch (e) {
-      _showError("Error al conectar con Google: $e");
+      if (_isNetworkError(e)) {
+        _showError(_noInternetMsg);
+      } else {
+        _showError("Error al conectar con Google: $e");
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -159,10 +184,18 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
           password: password,
         );
       } on FirebaseAuthException catch (e) {
-        if (e.code == 'invalid-credential' || e.code == 'wrong-password' || e.code == 'user-not-found') {
+        if (_isNetworkError(e)) {
+          _showError(_noInternetMsg);
+        } else if (e.code == 'invalid-credential' || e.code == 'wrong-password' || e.code == 'user-not-found') {
           _showError("Credenciales incorrectas.");
         } else {
           _showError("Error al iniciar sesión: ${e.message}");
+        }
+      } catch (e) {
+        if (_isNetworkError(e)) {
+          _showError(_noInternetMsg);
+        } else {
+          _showError("Error al iniciar sesión: $e");
         }
       }
     }

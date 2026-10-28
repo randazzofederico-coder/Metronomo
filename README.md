@@ -35,7 +35,8 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Límites seguros** — Máximo 32 pulsos por grupo, 12 subdivisiones por pulso, 64 pulsos totales por patrón
 
 ### 🎛️ Controles
-- **Golpe actual resaltado** — Mientras suena, la celda del evento que está sonando se ilumina en cada patrón (y en el reproductor de playlists). Un único `Ticker` por pantalla (`widgets/playback_clock.dart`) publica la posición; cada grilla solo se redibuja cuando cambia el evento activo
+- **Indicador del golpe actual** — Mientras suena, una rayita debajo de la grilla marca la subdivisión que está sonando en cada patrón (y en el reproductor de playlists). Las celdas no cambian de color: su intensidad sigue representando el volumen. Un único `Ticker` por pantalla (`widgets/playback_clock.dart`) publica la posición; cada grilla solo se redibuja cuando cambia el evento activo
+- **Tarjetas de patrón compactas** — Título, estructura, mixer (volumen, M, S, sonido) y menú ⋮ en una sola fila sobre la grilla; si el ancho no alcanza, el mixer baja a su propia fila. Cada patrón tiene un **color de identidad** (franja lateral y título, paleta alejada de los colores de golpe) que se repite en su fila del ciclo macro
 - **Leyenda de golpes** — Debajo del ciclo macro: colores de Acento / Normal / Suave / Silencio y los gestos de edición de las celdas
 - **Tap Tempo** — Detecta el BPM tocando rítmicamente (promedio de últimos 4 taps, auto-reset a los 2s)
 - **Rango BPM amplio** — De 1 a 999 BPM con slider logarítmico de 3 zonas para precisión en rangos musicales
@@ -157,6 +158,7 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 ### 💾 Gestión de Estado y Flujo de Trabajo
 - **Seguimiento 'Dirty State'** — Detección automática y profunda de alteraciones en vivo (BPM, estructuras, faders, mute/solo). La UI reacciona orgánicamente a los cambios pendientes marcando las sesiones y patrones en cursiva con un asterisco (`*`)
 - **Edición Dinámica de Patrones** — Renombrado in-situ de pistas con cajas delimitadas dinámicamente (`IntrinsicWidth`) y tracking visual milimétrico del asterisco de edición
+- **Dos columnas en pantallas anchas** — Desde 840px, Tocar y el reproductor de playlists muestran los patrones a la izquierda y un panel lateral con el ciclo macro, la leyenda y el transporte. Biblioteca y Ajustes se limitan a un ancho legible
 - **Navegación** — Barra inferior con *Tocar*, *Biblioteca* y *Ajustes* (riel lateral en pantallas ≥900px). Las pestañas viven en un `IndexedStack`: Tocar conserva su estado. En Android, *atrás* desde otra pestaña vuelve a Tocar
 - **Biblioteca** — Sesiones, patrones de la librería y playlists en un solo lugar, con búsqueda por nombre y el mismo menú ⋮ en cada ítem. Sesiones: tocar = abrir en Tocar (protegiendo cambios sin guardar), compartir, duplicar, renombrar, eliminar (confirmación + DESHACER); la sesión abierta se marca *En Tocar*. Patrones: tocar = agregar a la sesión, compartir, renombrar, eliminar (DESHACER). Playlists: reproducir, editar, compartir, renombrar, eliminar
 - **Guardado simplificado** — 💾 sobrescribe la sesión activa directamente (snackbar con *DESHACER*); si la sesión no existe todavía pide un nombre. *Guardar como…*, *Nueva*, *Abrir*, *Compartir sesión*, *Playlists* y *Ajustes* están en el menú ⋮ de la App Bar

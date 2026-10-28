@@ -9,7 +9,8 @@ class AppColors {
   static Color surfaceHighlight(BuildContext context) => const Color(0xFF3F342D);
 
   // Accents
-  static Color accentCyan(BuildContext context) => const Color(0xFFF98533);
+  /// Main brand accent (orange). Formerly named `accentCyan`.
+  static Color primary(BuildContext context) => const Color(0xFFF98533);
   static Color accentRed(BuildContext context) => const Color(0xFFE55353);
   static Color waveformMaster(BuildContext context) => const Color(0xFFE08B6B);
   static Color accentGreen(BuildContext context) => const Color(0xFF4CAF50);
@@ -30,7 +31,6 @@ class AppColors {
   static Color warning(BuildContext context) => const Color(0xFFEF6C00);
 
   // Aliases for compatibility
-  static Color primary(BuildContext context) => accentCyan(context);
   static Color divider(BuildContext context) => border(context);
 
   /// Fill color for a sequencer event, scaled by its volume (0.0–1.5 = 0–150%).

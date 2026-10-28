@@ -60,7 +60,7 @@ class PatternKeypad extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.surfaceHighlight(context),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.accentCyan(context), width: 1.5),
+            border: Border.all(color: AppColors.primary(context), width: 1.5),
             boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 12, offset: const Offset(0, 4))],
           ),
           child: body,
@@ -72,7 +72,7 @@ class PatternKeypad extends StatelessWidget {
       padding: const EdgeInsets.only(top: 6, bottom: 12, left: 4, right: 4),
       decoration: BoxDecoration(
         color: AppColors.surfaceHighlight(context),
-        border: Border(top: BorderSide(color: AppColors.accentCyan(context), width: 2)),
+        border: Border(top: BorderSide(color: AppColors.primary(context), width: 2)),
         boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, -4))],
       ),
       child: Center(
@@ -125,7 +125,7 @@ class PatternKeypad extends StatelessWidget {
             child: _KeypadButton(
               label: 'OK',
               height: keyHeight,
-              color: AppColors.accentCyan(context),
+              color: AppColors.primary(context),
               enabled: canSubmit,
               onTap: onSubmit,
             ),

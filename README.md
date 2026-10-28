@@ -164,12 +164,12 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 
 ```
 lib/
-├── main.dart                          # Entry point, tema Material3 y Provider
+├── main.dart                          # Entry point y Providers
 ├── firebase_options.dart              # Configuración Firebase auto-generada
 ├── audio/
 │   └── click_synth.dart               # Sintetizador procedural de los 7 sets de sonidos (biquads RBJ, modal, 808)
 ├── constants/
-│   └── app_colors.dart                # Paleta de colores adaptativa dark/light + intensidad de eventos por volumen
+│   └── app_colors.dart                # Paleta de colores (solo tema oscuro) + intensidad de eventos por volumen
 ├── models/
 │   ├── pattern_model.dart             # Modelo de patrón rítmico (estructura, pulsos, subdivisiones, volumen por evento)
 │   ├── session_model.dart             # Modelo de sesión (patrones, BPM, configuración de mezcla, sonido por patrón)
@@ -189,6 +189,9 @@ lib/
 │   ├── login_screen.dart              # Login (Google/Email) con detección de errores de red
 │   ├── onboarding_screen.dart         # Onboarding para nuevos usuarios
 │   └── settings_screen.dart           # Configuración + sección sesión + logout
+├── theme/
+│   ├── app_theme.dart                 # ThemeData oscuro + component themes (diálogos, snackbars, bottom sheets)
+│   └── beat_colors.dart               # Colores por tipo de evento (silencio/acento/normal/suave)
 ├── services/
 │   ├── deep_link_service.dart         # Crear/leer links (Firestore, auth anónima, ID por contenido, captura y dedupe de links entrantes)
 │   ├── deep_link_web.dart             # JS interop: URL (?share=), Web Share API, launchQueue (PWA)
@@ -204,12 +207,19 @@ lib/
 │   ├── session_repository.dart        # Persistencia de sesiones (SharedPreferences)
 │   └── playlist_repository.dart       # Persistencia de playlists (SharedPreferences)
 ├── utils/
+│   ├── bpm_scale.dart                 # Mapeo no lineal slider ↔ BPM (1–999)
 │   ├── structure_input.dart           # Validación de estructuras (parcial/completa) + TextInputFormatter
 │   └── space_play_shortcut.dart       # Mixin: barra espaciadora → Play/Stop
 └── widgets/
+    ├── formatted_structure.dart       # Estructura en formato fracción (solo lectura)
     ├── knob_control.dart              # Control rotativo con CustomPainter
+    ├── macro_cycle.dart               # Visualizador del ciclo macro con playhead (metrónomo + player)
+    ├── mixer_strip.dart               # Volumen + Mute + Solo por patrón
+    ├── pattern_card.dart              # Contenedor de patrón: encabezado + secuenciador + mixer
     ├── pattern_keypad.dart            # Keypad de estructuras (barra inferior móvil / popover desktop)
+    ├── sequencer_grid.dart            # Celdas del secuenciador (tap / long-press de volumen opcionales)
     ├── share_sheet.dart               # Bottom sheet unificado: generar link → Compartir en… / Copiar link
+    ├── transport_bar.dart             # Barra inferior: Play/Stop, BPM, slider, TAP
     └── update_required_screen.dart    # Pantalla bloqueante de actualización obligatoria
 
 packages/native_audio_engine/

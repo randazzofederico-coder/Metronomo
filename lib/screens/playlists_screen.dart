@@ -29,7 +29,6 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceHighlight(ctx),
         title: Text(
           existing != null ? "Editar Playlist" : "Nueva Playlist",
           style: TextStyle(color: AppColors.textPrimary(ctx)),
@@ -45,7 +44,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                 labelText: "Nombre",
                 labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
                 enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.border(ctx))),
-                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.accentCyan(ctx))),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary(ctx))),
               ),
             ),
             const SizedBox(height: 12),
@@ -56,7 +55,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                 labelText: "Descripción (opcional)",
                 labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
                 enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.border(ctx))),
-                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.accentCyan(ctx))),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary(ctx))),
               ),
             ),
           ],
@@ -85,7 +84,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
             },
             child: Text(
               existing != null ? "ACTUALIZAR" : "CREAR",
-              style: TextStyle(color: AppColors.accentCyan(ctx), fontWeight: FontWeight.bold),
+              style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold),
             ),
           ),
         ],
@@ -98,8 +97,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceHighlight(ctx),
-        title: Text("Eliminar Playlist", style: TextStyle(color: AppColors.textPrimary(ctx))),
+        title: Text("Eliminar Playlist"),
         content: Text(
           "¿Eliminar \"${playlist.name}\"? Esta acción no se puede deshacer.",
           style: TextStyle(color: AppColors.textSecondary(ctx)),
@@ -181,7 +179,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.add_circle_outline, color: AppColors.accentCyan(context)),
+            icon: Icon(Icons.add_circle_outline, color: AppColors.primary(context)),
             onPressed: () => _showCreatePlaylistDialog(),
             tooltip: "Nueva Playlist",
           ),
@@ -214,7 +212,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                       icon: const Icon(Icons.add),
                       label: const Text("CREAR PLAYLIST"),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.accentCyan(context),
+                        backgroundColor: AppColors.primary(context),
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -293,11 +291,11 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                                         width: 40,
                                         height: 40,
                                         decoration: BoxDecoration(
-                                          color: AppColors.accentCyan(context),
+                                          color: AppColors.primary(context),
                                           shape: BoxShape.circle,
                                           boxShadow: [
                                             BoxShadow(
-                                              color: AppColors.accentCyan(context).withOpacity(0.3),
+                                              color: AppColors.primary(context).withOpacity(0.3),
                                               blurRadius: 8,
                                               offset: const Offset(0, 2),
                                             ),
@@ -409,8 +407,6 @@ class _PlaylistDetailScreen extends StatelessWidget {
   void _showAddSessionSheet(BuildContext context) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surface(context),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
         return Consumer<SessionProvider>(
           builder: (context, sessionProvider, _) {
@@ -442,7 +438,7 @@ class _PlaylistDetailScreen extends StatelessWidget {
                         itemBuilder: (context, index) {
                           final session = sessions[index];
                           return ListTile(
-                            leading: Icon(Icons.music_note, color: AppColors.accentCyan(ctx)),
+                            leading: Icon(Icons.music_note, color: AppColors.primary(ctx)),
                             title: Text(
                               session.name,
                               style: TextStyle(color: AppColors.textPrimary(ctx), fontWeight: FontWeight.bold),
@@ -499,13 +495,13 @@ class _PlaylistDetailScreen extends StatelessWidget {
             ),
             actions: [
               IconButton(
-                icon: Icon(Icons.add, color: AppColors.accentCyan(context)),
+                icon: Icon(Icons.add, color: AppColors.primary(context)),
                 onPressed: () => _showAddSessionSheet(context),
                 tooltip: "Agregar Sesión",
               ),
               if (playlist.sessionIds.isNotEmpty)
                 IconButton(
-                  icon: Icon(Icons.play_circle_fill, color: AppColors.accentCyan(context)),
+                  icon: Icon(Icons.play_circle_fill, color: AppColors.primary(context)),
                   onPressed: () {
                     Navigator.push(
                       context,
@@ -541,7 +537,7 @@ class _PlaylistDetailScreen extends StatelessWidget {
                           icon: const Icon(Icons.add),
                           label: const Text("AGREGAR SESIÓN"),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.accentCyan(context),
+                            backgroundColor: AppColors.primary(context),
                             foregroundColor: Colors.white,
                             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -559,7 +555,7 @@ class _PlaylistDetailScreen extends StatelessWidget {
                           decoration: BoxDecoration(
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.accentCyan(context).withOpacity(0.2),
+                                color: AppColors.primary(context).withOpacity(0.2),
                                 blurRadius: 12,
                                 spreadRadius: 2,
                               ),
@@ -605,7 +601,7 @@ class _PlaylistDetailScreen extends StatelessWidget {
                             child: Text(
                               "${index + 1}",
                               style: TextStyle(
-                                color: isDeleted ? AppColors.accentRed(context) : AppColors.accentCyan(context),
+                                color: isDeleted ? AppColors.accentRed(context) : AppColors.primary(context),
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
                               ),

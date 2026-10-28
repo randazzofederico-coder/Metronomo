@@ -108,7 +108,7 @@ class _KnobControlState extends State<KnobControl> {
             size: Size(widget.size, widget.size), 
             painter: KnobPainter(
               angle: angle, 
-              color: widget.labelColor ?? AppColors.accentCyan(context),
+              color: widget.labelColor ?? AppColors.primary(context),
               isCenterZero: widget.zeroAtCenter,
               surfaceHighlightColor: AppColors.surfaceHighlight(context),
               borderColor: AppColors.border(context),

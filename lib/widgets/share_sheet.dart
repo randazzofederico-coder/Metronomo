@@ -88,7 +88,7 @@ class _ShareSheetState extends State<_ShareSheet> {
   Widget build(BuildContext context) {
     final textPrimary = AppColors.textPrimary(context);
     final textSecondary = AppColors.textSecondary(context);
-    final accent = AppColors.accentCyan(context);
+    final accent = AppColors.primary(context);
 
     return SafeArea(
       child: Padding(

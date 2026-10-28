@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback, HardwareKeyboard, KeyDownEvent, KeyEvent, LogicalKeyboardKey;
 import 'package:provider/provider.dart';
@@ -7,8 +6,6 @@ import 'package:metronomo_standalone/constants/app_colors.dart';
 import 'package:metronomo_standalone/audio/click_synth.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
 import 'package:metronomo_standalone/screens/settings_screen.dart';
-import 'package:metronomo_standalone/widgets/knob_control.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:metronomo_standalone/providers/settings_provider.dart';
 import 'package:metronomo_standalone/providers/session_provider.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
@@ -23,6 +20,13 @@ import 'package:metronomo_standalone/widgets/share_sheet.dart';
 import 'package:metronomo_standalone/widgets/pattern_keypad.dart';
 import 'package:metronomo_standalone/utils/structure_input.dart';
 import 'package:metronomo_standalone/utils/space_play_shortcut.dart';
+import 'package:metronomo_standalone/theme/beat_colors.dart';
+import 'package:metronomo_standalone/widgets/formatted_structure.dart';
+import 'package:metronomo_standalone/widgets/macro_cycle.dart';
+import 'package:metronomo_standalone/widgets/mixer_strip.dart';
+import 'package:metronomo_standalone/widgets/pattern_card.dart';
+import 'package:metronomo_standalone/widgets/sequencer_grid.dart';
+import 'package:metronomo_standalone/widgets/transport_bar.dart';
 
 class MetronomeScreen extends StatefulWidget {
   const MetronomeScreen({super.key});
@@ -54,28 +58,6 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
   static const double _wideLayoutBreakpoint = 600;
   bool _wasPlayingBeforeBackground = false;
   
-  // Map Slider Value [0.0, 1.0] to BPM [1, 999]
-  int _sliderToBpm(double val) {
-    if (val <= 0.15) {
-      return (1 + 29 * (val / 0.15)).round(); // 0.0 -> 1, 0.15 -> 30
-    } else if (val <= 0.85) {
-      return (30 + 220 * ((val - 0.15) / 0.70)).round(); // 0.15 -> 30, 0.85 -> 250
-    } else {
-      return (250 + 749 * ((val - 0.85) / 0.15)).round(); // 0.85 -> 250, 1.0 -> 999
-    }
-  }
-
-  // Map BPM [1, 999] to Slider Value [0.0, 1.0]
-  double _bpmToSlider(int bpm) {
-    if (bpm <= 30) {
-      return 0.15 * ((bpm - 1) / 29.0);
-    } else if (bpm <= 250) {
-      return 0.15 + 0.70 * ((bpm - 30) / 220.0);
-    } else {
-      return 0.85 + 0.15 * ((bpm - 250) / 749.0);
-    }
-  }
-
   @override
   void initState() {
     super.initState();
@@ -204,9 +186,8 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceHighlight(ctx),
-        icon: Icon(icon, color: AppColors.accentCyan(ctx)),
-        title: Text('$label recibido', style: TextStyle(color: AppColors.textPrimary(ctx))),
+        icon: Icon(icon, color: AppColors.primary(ctx)),
+        title: Text('$label recibido'),
         content: Text('«${r.name}»\n$status\n\n¿Querés abrirlo ahora?',
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.textSecondary(ctx))),
@@ -217,7 +198,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('ABRIR', style: TextStyle(color: AppColors.accentCyan(ctx), fontWeight: FontWeight.bold)),
+            child: Text('ABRIR', style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -235,10 +216,8 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     final choice = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceHighlight(ctx),
-        title: Text('Cambios sin guardar', style: TextStyle(color: AppColors.textPrimary(ctx))),
-        content: Text('La sesión «$name» tiene cambios sin guardar. ¿Qué querés hacer antes de continuar?',
-            style: TextStyle(color: AppColors.textSecondary(ctx))),
+        title: Text('Cambios sin guardar'),
+        content: Text('La sesión «$name» tiene cambios sin guardar. ¿Qué querés hacer antes de continuar?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, 'cancel'),
@@ -274,7 +253,6 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceHighlight(ctx),
         title: Text(title, style: TextStyle(color: AppColors.textPrimary(ctx))),
         content: Text(message, style: TextStyle(color: AppColors.textSecondary(ctx))),
         actions: [
@@ -300,8 +278,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     context.read<MetronomeProvider>().clearSession();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Sesión nueva', style: TextStyle(color: AppColors.textPrimary(context))),
-        backgroundColor: AppColors.surfaceHighlight(context),
+        content: Text('Sesión nueva'),
         duration: const Duration(seconds: 1),
       ),
     );
@@ -323,14 +300,13 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(
       SnackBar(
-        content: Text('«${instance.title}» eliminado', style: TextStyle(color: AppColors.textPrimary(context))),
-        backgroundColor: AppColors.surfaceHighlight(context),
+        content: Text('«${instance.title}» eliminado'),
         duration: const Duration(seconds: 4),
         // Since Flutter 3.38 snackbars with an action persist by default.
         persist: false,
         action: SnackBarAction(
           label: 'DESHACER',
-          textColor: AppColors.accentCyan(context),
+          textColor: AppColors.primary(context),
           onPressed: () => metronome.restoreInstance(instance, index),
         ),
       ),
@@ -592,9 +568,8 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     final result = await showDialog<Object>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceHighlight(ctx),
-        title: Text("Guardar Cambios", style: TextStyle(color: AppColors.textPrimary(ctx))),
-        content: Text("¿Deseas sobrescribir la sesión actual '${metronome.activeSessionName}' o guardar como una nueva sesión?", style: TextStyle(color: AppColors.textSecondary(ctx))),
+        title: Text("Guardar Cambios"),
+        content: Text("¿Deseas sobrescribir la sesión actual '${metronome.activeSessionName}' o guardar como una nueva sesión?"),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -604,7 +579,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
             onPressed: () {
                Navigator.pop(ctx, 'saveAs');
             },
-            child: Text("GUARDAR COMO...", style: TextStyle(color: AppColors.accentCyan(ctx))),
+            child: Text("GUARDAR COMO...", style: TextStyle(color: AppColors.primary(ctx))),
           ),
           TextButton(
             onPressed: () async {
@@ -635,7 +610,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                
                if (ctx.mounted) {
                   Navigator.pop(ctx, true);
-                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Sesión sobrescrita', style: TextStyle(color: AppColors.textPrimary(ctx))), backgroundColor: AppColors.surfaceHighlight(ctx)));
+                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Sesión sobrescrita')));
                }
             },
             child: Text("SOBRESCRIBIR", style: TextStyle(color: AppColors.accentGreen(ctx), fontWeight: FontWeight.bold)),
@@ -658,8 +633,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     final saved = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.surfaceHighlight(ctx),
-        title: Text("Guardar Sesión", style: TextStyle(color: AppColors.textPrimary(ctx))),
+        title: Text("Guardar Sesión"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -671,7 +645,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                 labelText: "Nombre de la Sesión",
                 labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
                 enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.border(ctx))),
-                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.accentCyan(ctx))),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary(ctx))),
               ),
             ),
             const SizedBox(height: 12),
@@ -682,7 +656,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                 labelText: "Descripción (opcional)",
                 labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
                 enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.border(ctx))),
-                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.accentCyan(ctx))),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary(ctx))),
               ),
             ),
           ],
@@ -722,10 +696,10 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
 
               if (ctx.mounted) {
                  Navigator.pop(ctx, true);
-                 ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Sesión guardada', style: TextStyle(color: AppColors.textPrimary(ctx))), backgroundColor: AppColors.surfaceHighlight(ctx)));
+                 ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Sesión guardada')));
               }
             },
-            child: Text("GUARDAR", style: TextStyle(color: AppColors.accentCyan(ctx), fontWeight: FontWeight.bold)),
+            child: Text("GUARDAR", style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -737,8 +711,6 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     _closeAllKeyboards();
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surface(context),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
         return Consumer<SessionProvider>(
           builder: (context, sessionProvider, child) {
@@ -817,8 +789,6 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
   void _showLoadPatternDialog(BuildContext context, MetronomeProvider metronome) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.surface(context),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) {
         return Consumer<PatternEditorProvider>(
           builder: (context, patProvider, child) {
@@ -989,7 +959,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                         ListView(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           children: [
-                            _MacroCycleVisualizer(metronome: metronome),
+                            MacroCycle(metronome: metronome),
                             const SizedBox(height: 8),
                             
                             // Dynamic Instances
@@ -1123,186 +1093,12 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
   }
 
   Widget _buildGlobalControls(BuildContext context, MetronomeProvider metronome) {
-    final bool isPlaying = metronome.isPlaying;
-    final currentBpm = metronome.bpm;
-    
-    return MediaQuery(
-      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
-      child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        border: Border(top: BorderSide(color: AppColors.border(context))),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, -4),
-          )
-        ]
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          // Play/Stop Button
-          GestureDetector(
-            onTap: () => metronome.togglePlay(),
-            child: Container(
-              height: 48,
-              width: 48,
-              decoration: BoxDecoration(
-                color: isPlaying ? AppColors.accentRed(context) : AppColors.accentCyan(context),
-                shape: BoxShape.circle,
-                boxShadow: kIsWeb ? null : [
-                  BoxShadow(
-                    color: (isPlaying ? AppColors.accentRed(context) : AppColors.accentCyan(context)).withOpacity(0.4),
-                    blurRadius: 16,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Icon(
-                isPlaying ? Icons.stop : Icons.play_arrow,
-                color: Colors.white,
-                size: 28,
-              ),
-            ),
-          ),
-          
-          // BPM Display and Adjust
-          Expanded(
-            child: Column(
-              children: [
-                FittedBox(
-                  fit: BoxFit.scaleDown,
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                       GestureDetector(
-                         onTap: () => metronome.updateBPM(currentBpm - 5),
-                         child: Container(
-                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                           child: Text(
-                             "-5",
-                             style: TextStyle(
-                               color: AppColors.textSecondary(context),
-                               fontSize: 16,
-                               fontWeight: FontWeight.bold,
-                             ),
-                           ),
-                         ),
-                       ),
-                       GestureDetector(
-                         onTap: () => metronome.updateBPM(currentBpm - 1),
-                         child: Container(
-                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                           child: Text(
-                             "-1",
-                             style: TextStyle(
-                               color: AppColors.textSecondary(context),
-                               fontSize: 16,
-                               fontWeight: FontWeight.bold,
-                             ),
-                           ),
-                         ),
-                       ),
-                       Container(
-                         width: 80,
-                         alignment: Alignment.center,
-                         child: Text(
-                           "$currentBpm",
-                           style: TextStyle(
-                             color: AppColors.textPrimary(context),
-                             fontSize: 36,
-                             fontWeight: FontWeight.bold,
-                           ),
-                         ),
-                       ),
-                       GestureDetector(
-                         onTap: () => metronome.updateBPM(currentBpm + 1),
-                         child: Container(
-                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                           child: Text(
-                             "+1",
-                             style: TextStyle(
-                               color: AppColors.textSecondary(context),
-                               fontSize: 16,
-                               fontWeight: FontWeight.bold,
-                             ),
-                           ),
-                         ),
-                       ),
-                       GestureDetector(
-                         onTap: () => metronome.updateBPM(currentBpm + 5),
-                         child: Container(
-                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                           child: Text(
-                             "+5",
-                             style: TextStyle(
-                               color: AppColors.textSecondary(context),
-                               fontSize: 16,
-                               fontWeight: FontWeight.bold,
-                             ),
-                           ),
-                         ),
-                       ),
-                    ],
-                  ),
-                ),
-                // Tempo Slider
-                SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 4,
-                    activeTrackColor: AppColors.accentCyan(context),
-                    inactiveTrackColor: AppColors.border(context),
-                    thumbColor: AppColors.accentCyan(context),
-                    overlayColor: AppColors.accentCyan(context).withOpacity(0.2),
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 8),
-                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
-                  ),
-                  child: Slider(
-                    value: _bpmToSlider(currentBpm).clamp(0.0, 1.0),
-                    min: 0.0,
-                    max: 1.0,
-                    onChanged: (val) => metronome.updateBPM(_sliderToBpm(val)),
-                  ),
-                )
-              ],
-            ),
-          ),
-          
-          // Tap Tempo Button
-          GestureDetector(
-            onTap: () => metronome.tapTempo(),
-            child: Container(
-              height: 48,
-              width: 48,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceHighlight(context),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.border(context), width: 2),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                   Icon(Icons.touch_app, color: AppColors.textPrimary(context), size: 20),
-                   const SizedBox(height: 1),
-                   Text(
-                     "TAP",
-                     style: TextStyle(
-                       color: AppColors.textPrimary(context),
-                       fontWeight: FontWeight.bold,
-                       fontSize: 8,
-                       letterSpacing: 1.0,
-                     ),
-                   )
-                ],
-              ),
-            ),
-          )
-        ],
-      ),
-    ),
+    return TransportBar(
+      isPlaying: metronome.isPlaying,
+      bpm: metronome.bpm,
+      onTogglePlay: metronome.togglePlay,
+      onBpmChanged: metronome.updateBPM,
+      trailing: TapTempoButton(onTap: metronome.tapTempo),
     );
   }
 
@@ -1324,312 +1120,171 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
         _structureControllers[instance.id]!.text = instance.structure;
     }
 
-    bool isEditing = _activePatternIdForKeyboard == instance.id;
+    final bool isEditing = _activePatternIdForKeyboard == instance.id;
+    final edit = _volumeEdit;
 
-    return MediaQuery(
-      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
-      child: Container(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return PatternCard(
+      header: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-               Expanded(
-                 flex: 2,
-                 child: Row(
-                   mainAxisSize: MainAxisSize.min,
-                   children: [
-                     Flexible(
-                       child: IntrinsicWidth(
-                         child: TextField(
-                           controller: _titleControllers.putIfAbsent(instance.id, () => TextEditingController(text: instance.title)),
-                           style: TextStyle(
-                               color: AppColors.textPrimary(context), 
-                               fontWeight: FontWeight.bold, 
-                               letterSpacing: 1.5,
-                               fontStyle: instance.isDirty ? FontStyle.italic : FontStyle.normal,
-                           ),
-                           decoration: const InputDecoration(
-                               border: InputBorder.none, 
-                               isDense: true, 
-                               contentPadding: EdgeInsets.zero,
-                           ),
-                           onTap: () {
-                               Future.delayed(const Duration(milliseconds: 300), () {
-                                 if (context.mounted) Scrollable.ensureVisible(instanceContext, curve: Curves.easeInOut, duration: const Duration(milliseconds: 300));
-                               });
-                           },
-                           onChanged: (val) {
-                               context.read<MetronomeProvider>().renameInstance(instance.id, val);
-                           },
-                         ),
+           Expanded(
+             flex: 2,
+             child: Row(
+               mainAxisSize: MainAxisSize.min,
+               children: [
+                 Flexible(
+                   child: IntrinsicWidth(
+                     child: TextField(
+                       controller: _titleControllers.putIfAbsent(instance.id, () => TextEditingController(text: instance.title)),
+                       style: TextStyle(
+                           color: AppColors.textPrimary(context),
+                           fontWeight: FontWeight.bold,
+                           letterSpacing: 1.5,
+                           fontStyle: instance.isDirty ? FontStyle.italic : FontStyle.normal,
                        ),
-                     ),
-                     if (instance.isDirty)
-                       Padding(
-                         padding: const EdgeInsets.only(left: 4.0),
-                         child: Text("*", style: TextStyle(color: AppColors.textPrimary(context), fontWeight: FontWeight.bold, fontSize: 18)),
+                       decoration: const InputDecoration(
+                           border: InputBorder.none,
+                           isDense: true,
+                           contentPadding: EdgeInsets.zero,
                        ),
-                     const SizedBox(width: 8),
-                   ],
-                 )
-               ),
-               // Grouping Text Field / Formatted Structure Display
-               Expanded(
-                 flex: 3,
-                 child: GestureDetector(
-                   onTap: () => _startStructureEdit(instance.id),
-                   child: Container(
-                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                     decoration: BoxDecoration(
-                         color: isEditing ? AppColors.accentCyan(context).withOpacity(0.1) : AppColors.background(context).withOpacity(0.5),
-                         border: Border.all(
-                           color: isEditing ? AppColors.accentCyan(context) : AppColors.border(context).withOpacity(0.5),
-                           width: isEditing ? 2.0 : 1.0,
-                         ),
-                         borderRadius: BorderRadius.circular(4),
-                     ),
-                      child: isEditing 
-                        ? _buildStructureEditor(context, instance.id)
-                       : FittedBox(
-                           fit: BoxFit.scaleDown,
-                           alignment: Alignment.centerLeft,
-                           child: _buildFormattedStructure(context, instance.structure),
-                         ),
-                   ),
-                 ),
-               ),
-               const SizedBox(width: 8),
-               // Botones de acciones de la instancia
-               Row(
-                 mainAxisSize: MainAxisSize.min,
-                 children: [
-                   Container(
-                     width: 36,
-                     height: 36,
-                     decoration: BoxDecoration(
-                       color: AppColors.background(context).withOpacity(0.5),
-                       borderRadius: BorderRadius.circular(4),
-                     ),
-                     child: IconButton(
-                       padding: EdgeInsets.zero,
-                       icon: Icon(Icons.save, color: AppColors.accentGreen(context).withOpacity(0.8), size: 18),
-                       onPressed: () async {
-                          final patProvider = context.read<PatternEditorProvider>();
-                          final metronome = context.read<MetronomeProvider>();
-                          final pat = metronome.createPatternFromInstance(instance.id, name: instance.title);
-                          
-                          if (instance.originalPatternId != null) {
-                              await patProvider.updatePattern(pat);
-                          } else {
-                              await patProvider.addPattern(pat);
-                          }
-                          
-                          metronome.markInstanceClean(instance.id, pat.id);
-
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Patrón guardado', style: TextStyle(color: AppColors.textPrimary(context))), backgroundColor: AppColors.surfaceHighlight(context), duration: const Duration(seconds: 1)));
-                          }
+                       onTap: () {
+                           Future.delayed(const Duration(milliseconds: 300), () {
+                             if (context.mounted) Scrollable.ensureVisible(instanceContext, curve: Curves.easeInOut, duration: const Duration(milliseconds: 300));
+                           });
+                       },
+                       onChanged: (val) {
+                           context.read<MetronomeProvider>().renameInstance(instance.id, val);
                        },
                      ),
                    ),
-                   const SizedBox(width: 4),
-                   Container(
-                     width: 36,
-                     height: 36,
-                     decoration: BoxDecoration(
-                       color: AppColors.background(context).withOpacity(0.5),
-                       borderRadius: BorderRadius.circular(4),
-                     ),
-                     child: IconButton(
-                       padding: EdgeInsets.zero,
-                       icon: Icon(Icons.close, color: AppColors.accentRed(context).withOpacity(0.7), size: 18),
-                       onPressed: onRemove,
-                     ),
+                 ),
+                 if (instance.isDirty)
+                   Padding(
+                     padding: const EdgeInsets.only(left: 4.0),
+                     child: Text("*", style: TextStyle(color: AppColors.textPrimary(context), fontWeight: FontWeight.bold, fontSize: 18)),
                    ),
-                 ],
-               )
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Sequencer Cells (Responsive & Auto-Wrapping)
-          LayoutBuilder(
-            builder: (context, constraints) {
-               int items = instance.pulses.length;
-               int rows = 1;
-               // If cells get too squeezed (e.g. less than 45px width each), we divide them into multiple rows
-               if (items > 0 && constraints.maxWidth / items < 45.0) {
-                 rows = 2; 
-                 // We could scale to 3 rows if items > 16, but 2 handles most standard use cases cleanly
-                 if (items > 16) rows = 3;
-               }
-               int itemsPerRow = (items / rows).ceil();
-               
-               List<Widget> rowWidgets = [];
-               for(int r = 0; r < rows; r++) {
-                   int start = r * itemsPerRow;
-                   int end = start + itemsPerRow;
-                   if (end > items) end = items;
-                   if (start >= items) break;
-                   
-                   List<Widget> cellWidgets = [];
-                   for (int i = start; i < end; i++) {
-                     final pulse = instance.pulses[i];
-                     int subdivCount = pulse.subdivisions.length;
-                     
-                     cellWidgets.add(
-                       Expanded(
-                         flex: (pulse.durationRatio * 100).round().clamp(1, 10000),
-                         child: Container(
-                           margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-                           height: rows == 1 ? 42 : 36, // Container total height
-                           decoration: BoxDecoration(
-                             border: Border.all(color: AppColors.border(context), width: 1.5),
-                             borderRadius: BorderRadius.circular(8),
-                           ),
-                           child: ClipRRect(
-                             borderRadius: BorderRadius.circular(6),
-                             child: Row(
-                               crossAxisAlignment: CrossAxisAlignment.end, // Align to bottom so the "step down" happens from the top
-                                children: List.generate(subdivCount, (subIndex) {
-                                  int currentType = pulse.subdivisions[subIndex];
-                                  bool isHead = subIndex == 0;
-                                  final double eventVolume = pulse.volumeAt(subIndex);
-                                  final bool canEditVolume = currentType != 0;
-                                  final edit = _volumeEdit;
-                                  final bool isEditingVolume = edit != null &&
-                                      edit.instanceId == instance.id &&
-                                      edit.pulseIndex == i &&
-                                      edit.subIndex == subIndex;
-                                  
-                                  return Expanded(
-                                    child: GestureDetector(
-                                      // Quick tap: cycle the sound type (unchanged behaviour)
-                                      onTap: () {
-                                         int newType = (currentType + 1) % 4;
-                                         onPulseSubdivisionChange(i, subIndex, newType);
-                                      },
-                                      // Long press: "volume mode" — drag up/down to change the event volume.
-                                      // Only available on events that produce sound.
-                                      onLongPressStart: canEditVolume
-                                          ? (_) => _startVolumeEdit(instance.id, i, subIndex, currentType, eventVolume)
-                                          : null,
-                                      onLongPressMoveUpdate: canEditVolume
-                                          ? (details) => _updateVolumeEdit(details.offsetFromOrigin.dy)
-                                          : null,
-                                      onLongPressEnd: canEditVolume ? (_) => _endVolumeEdit() : null,
-                                      child: Container(
-                                        // Create the height difference step for sub-beats
-                                        margin: EdgeInsets.only(top: isHead ? 0 : 8),
-                                        decoration: BoxDecoration(
-                                          // Color intensity reflects the event volume
-                                          color: currentType == 0
-                                              ? AppColors.background(context)
-                                              : AppColors.eventFill(_getColorForType(context, currentType), eventVolume, 0.2),
-                                          border: Border(
-                                            right: subIndex < subdivCount - 1 
-                                               ? BorderSide(color: AppColors.background(context), width: 3) // Harder, thicker dark line between sub-cells
-                                               : BorderSide.none,
-                                            top: isHead ? BorderSide.none : BorderSide(color: AppColors.border(context).withOpacity(0.5), width: 1), // Top border for chopped down sub-beats
-                                          )
-                                        ),
-                                        foregroundDecoration: isEditingVolume
-                                            ? BoxDecoration(border: Border.all(color: _getColorForType(context, currentType), width: 2))
-                                            : null,
-                                        alignment: Alignment.center,
-                                        // Only show the big number on the FIRST subdivision head of the pulse.
-                                        // The sound type is conveyed by the color alone.
-                                        child: subIndex == 0
-                                            ? Text(
-                                                '${i + 1}', 
-                                                style: TextStyle(
-                                                  color: currentType == 0 ? AppColors.textSecondary(context) : AppColors.textPrimary(context),
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: rows == 1 ? 16 : 12
-                                                )
-                                              )
-                                            : null,
-                                      ),
-                                    ),
-                                  );
-                                }),
-                             ),
-                           ),
-                         ),
-                       ),
-                     );
-                   }
-                   // Pad the last row with empty space if needed
-                   while (cellWidgets.length < itemsPerRow) {
-                       cellWidgets.add(Expanded(child: const SizedBox.shrink()));
-                   }
-                   rowWidgets.add(Row(children: cellWidgets));
-               }
-               return Column(children: rowWidgets);
-            }
-          ),
-          const SizedBox(height: 6),
-          // Track Strip (Volume, Mute, Solo) — compact inline row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 36,
-                child: KnobControl(
-                  value: instance.volume,
-                  onChanged: onVolChanged,
-                  min: 0,
-                  max: 1,
-                  label: 'VOL',
-                  labelColor: instance.volume > 0 ? AppColors.accentGreen(context) : AppColors.accentRed(context),
-                  size: 28,
-                ),
-              ),
-              const SizedBox(width: 12),
-              GestureDetector(
-                onTap: onMuteToggle,
-                child: Container(
-                  width: 32,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    color: instance.isMuted ? AppColors.accentRed(context) : Colors.grey.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: AppColors.border(context)),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text('M', style: TextStyle(color: instance.isMuted ? Colors.white : Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
-                ),
-              ),
-              const SizedBox(width: 6),
-              GestureDetector(
-                onTap: onSoloToggle,
-                child: Container(
-                  width: 32,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    color: instance.isSolo ? AppColors.accentCyan(context) : Colors.grey.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: AppColors.border(context)),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text('S', style: TextStyle(color: instance.isSolo ? Colors.black : Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
-                ),
-              ),
-              const SizedBox(width: 6),
-              _buildInstanceSoundSelector(context, instance),
-            ],
-          ),
+                 const SizedBox(width: 8),
+               ],
+             )
+           ),
+           // Grouping Text Field / Formatted Structure Display
+           Expanded(
+             flex: 3,
+             child: GestureDetector(
+               onTap: () => _startStructureEdit(instance.id),
+               child: Container(
+                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                 decoration: BoxDecoration(
+                     color: isEditing ? AppColors.primary(context).withOpacity(0.1) : AppColors.background(context).withOpacity(0.5),
+                     border: Border.all(
+                       color: isEditing ? AppColors.primary(context) : AppColors.border(context).withOpacity(0.5),
+                       width: isEditing ? 2.0 : 1.0,
+                     ),
+                     borderRadius: BorderRadius.circular(4),
+                 ),
+                 child: isEditing
+                   ? _buildStructureEditor(context, instance.id)
+                   : FittedBox(
+                       fit: BoxFit.scaleDown,
+                       alignment: Alignment.centerLeft,
+                       child: FormattedStructure(instance.structure),
+                     ),
+               ),
+             ),
+           ),
+           const SizedBox(width: 8),
+           // Botones de acciones de la instancia
+           Row(
+             mainAxisSize: MainAxisSize.min,
+             children: [
+               _cardActionButton(
+                 context,
+                 icon: Icons.save,
+                 color: AppColors.accentGreen(context).withOpacity(0.8),
+                 tooltip: 'Guardar patrón en la librería',
+                 onPressed: () => _savePatternToLibrary(instance),
+               ),
+               const SizedBox(width: 4),
+               _cardActionButton(
+                 context,
+                 icon: Icons.close,
+                 color: AppColors.accentRed(context).withOpacity(0.7),
+                 tooltip: 'Quitar patrón',
+                 onPressed: onRemove,
+               ),
+             ],
+           )
         ],
       ),
-    ),
+      // Sequencer Cells (Responsive & Auto-Wrapping)
+      sequencer: SequencerGrid(
+        pulses: instance.pulses,
+        // Quick tap: cycle the sound type
+        onCellTap: (c) {
+          final current = instance.pulses[c.pulse].subdivisions[c.sub];
+          onPulseSubdivisionChange(c.pulse, c.sub, (current + 1) % BeatColors.typeCount);
+        },
+        // Long press: "volume mode" — drag up/down to change the event volume.
+        onCellLongPressStart: (c) {
+          final pulse = instance.pulses[c.pulse];
+          _startVolumeEdit(instance.id, c.pulse, c.sub, pulse.subdivisions[c.sub], pulse.volumeAt(c.sub));
+        },
+        onCellLongPressMove: _updateVolumeEdit,
+        onCellLongPressEnd: _endVolumeEdit,
+        highlightedCell: edit != null && edit.instanceId == instance.id
+            ? (pulse: edit.pulseIndex, sub: edit.subIndex)
+            : null,
+      ),
+      // Track Strip (Volume, Mute, Solo, Sound) — compact inline row
+      footer: MixerStrip(
+        volume: instance.volume,
+        onVolumeChanged: onVolChanged,
+        isMuted: instance.isMuted,
+        onMuteToggle: onMuteToggle,
+        isSolo: instance.isSolo,
+        onSoloToggle: onSoloToggle,
+        trailing: _buildInstanceSoundSelector(context, instance),
+      ),
     );
+  }
+
+  /// Small square icon button used in the pattern card header.
+  Widget _cardActionButton(BuildContext context, {required IconData icon, required Color color, required String tooltip, required VoidCallback onPressed}) {
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: AppColors.background(context).withOpacity(0.5),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: IconButton(
+        padding: EdgeInsets.zero,
+        tooltip: tooltip,
+        icon: Icon(icon, color: color, size: 18),
+        onPressed: onPressed,
+      ),
+    );
+  }
+
+  /// Saves (or updates) the instance as a pattern in the library.
+  Future<void> _savePatternToLibrary(HomeMetronomeInstance instance) async {
+    final patProvider = context.read<PatternEditorProvider>();
+    final metronome = context.read<MetronomeProvider>();
+    final pat = metronome.createPatternFromInstance(instance.id, name: instance.title);
+
+    if (instance.originalPatternId != null) {
+      await patProvider.updatePattern(pat);
+    } else {
+      await patProvider.addPattern(pat);
+    }
+
+    metronome.markInstanceClean(instance.id, pat.id);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Patrón guardado'), duration: Duration(seconds: 1)),
+      );
+    }
   }
 
   /// Per-pattern sound set selector ("Global" = follows the sound chosen in Settings).
@@ -1638,7 +1293,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     final hasOverride = instance.soundSet != null;
     final label = metronome.effectiveSoundSet(instance);
     const globalValue = '__global__';
-    final accent = AppColors.accentCyan(context);
+    final accent = AppColors.primary(context);
 
     return PopupMenuButton<String>(
       tooltip: 'Sonido del patrón',
@@ -1718,7 +1373,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
   /// Floating legend shown in the bottom-right corner while in volume mode.
   Widget _buildVolumeLegend(BuildContext context) {
     final edit = _volumeEdit!;
-    final color = _getColorForType(context, edit.type);
+    final color = BeatColors.of(context, edit.type);
     final percent = (edit.value * 100).round();
     return IgnorePointer(
       child: Container(
@@ -1761,85 +1416,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     );
   }
 
-  Color _getColorForType(BuildContext context, int type) {
-     switch (type) {
-        case 1: return AppColors.accentRed(context);
-        case 2: return AppColors.accentCyan(context);
-        case 3: return AppColors.accentGreen(context);
-        default: return AppColors.surfaceHighlight(context);
-     }
-  }
-  
-
   // --- CUSTOM KEYBOARD ---
-  /// Builds a formatted structure display where subdivision appears below a divider.
-  /// e.g. "2/3" → "2" over "―" over "3"
-  /// e.g. "2:3/3" → "2:3" over "―" over "3"
-  /// e.g. "3+2" → "3" + "2" (no subdivisions, no divider)
-  Widget _buildFormattedStructure(BuildContext context, String structure) {
-    final String cleaned = structure.replaceAll(' ', '');
-    if (cleaned.isEmpty) {
-      return Text("—", style: TextStyle(color: AppColors.textSecondary(context), fontSize: 14));
-    }
-
-    final List<String> segments = cleaned.split('+');
-    final List<Widget> segmentWidgets = [];
-
-    for (int s = 0; s < segments.length; s++) {
-      if (s > 0) {
-        segmentWidgets.add(Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          child: Text("+", style: TextStyle(color: AppColors.textSecondary(context), fontSize: 14, fontWeight: FontWeight.bold)),
-        ));
-      }
-
-      final String seg = segments[s];
-      String topPart;
-      String? bottomPart;
-
-      if (seg.contains('/')) {
-        final slashIdx = seg.indexOf('/');
-        topPart = seg.substring(0, slashIdx);
-        bottomPart = seg.substring(slashIdx + 1);
-      } else {
-        topPart = seg;
-      }
-
-      if (bottomPart != null) {
-        // Fraction-style: top / divider / bottom
-        final textColor = AppColors.textPrimary(context);
-        final topWidth = topPart.length * 10.0 + 8;
-        final bottomWidth = bottomPart.length * 10.0 + 8;
-        final width = (topWidth > bottomWidth ? topWidth : bottomWidth).clamp(24.0, 120.0);
-
-        segmentWidgets.add(SizedBox(
-          width: width,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(topPart, style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1)),
-              Container(
-                width: width - 4,
-                height: 1,
-                color: AppColors.textSecondary(context).withOpacity(0.5),
-                margin: const EdgeInsets.symmetric(vertical: 1),
-              ),
-              Text(bottomPart, style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 14, letterSpacing: 1)),
-            ],
-          ),
-        ));
-      } else {
-        // Simple number, no subdivision
-        segmentWidgets.add(Text(topPart, style: TextStyle(color: AppColors.textPrimary(context), fontWeight: FontWeight.bold, fontSize: 16, letterSpacing: 1)));
-      }
-    }
-
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: segmentWidgets,
-    );
-  }
 
   /// Inline editor for the pattern structure. Accepts the physical keyboard
   /// (filtered by [StructureInputFormatter]) without opening the OS soft
@@ -1856,7 +1433,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
             // Incomplete values (e.g. "3+", "3:") are shown in red: they
             // can't be confirmed until finished.
             final bool complete = StructureInput.isComplete(controller.text);
-            final Color color = complete ? AppColors.accentCyan(context) : AppColors.accentRed(context);
+            final Color color = complete ? AppColors.primary(context) : AppColors.accentRed(context);
             return TextField(
               controller: controller,
               focusNode: _structureFocusNodeFor(instanceId),
@@ -1893,206 +1470,6 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
           },
         ),
       ),
-    );
-  }
-}
-
-class _MacroCycleVisualizer extends StatefulWidget {
-  final MetronomeProvider metronome;
-
-  const _MacroCycleVisualizer({Key? key, required this.metronome}) : super(key: key);
-
-  @override
-  State<_MacroCycleVisualizer> createState() => _MacroCycleVisualizerState();
-}
-
-class _MacroCycleVisualizerState extends State<_MacroCycleVisualizer> with SingleTickerProviderStateMixin {
-  late Ticker _ticker;
-  final ValueNotifier<double> _progressNotifier = ValueNotifier<double>(0.0);
-  bool _wasPlaying = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _ticker = createTicker((elapsed) {
-      final newProgress = widget.metronome.currentMacroProgress;
-      if (_progressNotifier.value != newProgress) {
-        _progressNotifier.value = newProgress;
-      }
-      // Auto-stop ticker when playback stops
-      if (!widget.metronome.isPlaying) {
-        _ticker.stop();
-        _wasPlaying = false;
-        // Snap to 0
-        _progressNotifier.value = widget.metronome.currentMacroProgress;
-      }
-    });
-    // Only start if already playing
-    if (widget.metronome.isPlaying) {
-      _ticker.start();
-      _wasPlaying = true;
-    }
-    // Listen for play/stop changes to start/stop ticker
-    widget.metronome.addListener(_onMetronomeChanged);
-  }
-
-  void _onMetronomeChanged() {
-    final isPlaying = widget.metronome.isPlaying;
-    if (isPlaying && !_wasPlaying) {
-      if (!_ticker.isActive) _ticker.start();
-      _wasPlaying = true;
-    } else if (!isPlaying && _wasPlaying) {
-      // Will be stopped inside the ticker callback after snapping
-      // But also handle immediate stop
-      if (_ticker.isActive) _ticker.stop();
-      _wasPlaying = false;
-      _progressNotifier.value = widget.metronome.currentMacroProgress;
-    }
-    // Rebuild the cell matrix only when instances/structure changes (not on every tick)
-    if (mounted) setState(() {});
-  }
-
-  @override
-  void dispose() {
-    widget.metronome.removeListener(_onMetronomeChanged);
-    _ticker.dispose();
-    _progressNotifier.dispose();
-    super.dispose();
-  }
-
-  Color _getColorForTypeLocal(BuildContext context, int type) {
-     switch (type) {
-        case 1: return AppColors.accentRed(context);
-        case 2: return AppColors.accentCyan(context);
-        case 3: return AppColors.accentGreen(context);
-        default: return AppColors.surfaceHighlight(context);
-     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (widget.metronome.instances.isEmpty) return const SizedBox.shrink();
-
-    int macroBeats = widget.metronome.macroCycleBeats;
-
-    return MediaQuery(
-      data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
-      child: Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.surface(context),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.border(context)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-               Text("CICLO MACRO", style: TextStyle(color: AppColors.textSecondary(context), fontSize: 10, letterSpacing: 2.0, fontWeight: FontWeight.bold)),
-               Text("$macroBeats Pulsos", style: TextStyle(color: AppColors.accentCyan(context), fontSize: 10, fontWeight: FontWeight.bold)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              return Stack(
-                clipBehavior: Clip.none,
-                children: [
-                  // Matrix of cells — only rebuilds when instances/structure changes
-                  Column(
-                     children: widget.metronome.instances.map((instance) {
-                       // Compute how many times this instance's pattern repeats within macroBeats
-                       double cycleDuration = 0.0;
-                       for (var p in instance.pulses) {
-                         cycleDuration += p.durationRatio;
-                       }
-                       if (cycleDuration <= 0) cycleDuration = instance.pulses.length.toDouble();
-                       int repeats = (macroBeats / cycleDuration).round().clamp(1, 100);
-                       
-                       // Build cells: repeat the pattern
-                       List<Widget> cells = [];
-                       for (int r = 0; r < repeats; r++) {
-                         for (int pi = 0; pi < instance.pulses.length; pi++) {
-                           final pulse = instance.pulses[pi];
-                           int flexValue = (pulse.durationRatio * 100).round().clamp(1, 10000);
-                           
-                           cells.add(
-                             Expanded(
-                               flex: flexValue,
-                               child: Container(
-                                 margin: const EdgeInsets.symmetric(horizontal: 1),
-                                 child: Row(
-                                    crossAxisAlignment: CrossAxisAlignment.end,
-                                    children: List.generate(pulse.subdivisions.length, (subIndex) {
-                                        int type = pulse.subdivisions[subIndex];
-                                        bool isHead = subIndex == 0;
-                                        
-                                        Color color = type == 0 
-                                           ? AppColors.background(context) 
-                                           : _getColorForTypeLocal(context, type);
-                                           
-                                        return Expanded(
-                                           child: Container(
-                                               margin: EdgeInsets.only(top: isHead ? 0 : 3),
-                                               decoration: BoxDecoration(
-                                                   color: type == 0 ? color : AppColors.eventFill(color, pulse.volumeAt(subIndex), 0.4),
-                                                   border: Border(
-                                                       right: subIndex < pulse.subdivisions.length - 1
-                                                           ? BorderSide(color: AppColors.background(context), width: 1.0)
-                                                           : BorderSide(color: type == 0 ? AppColors.border(context) : color.withOpacity(0.8), width: 1),
-                                                       top: isHead ? BorderSide(color: type == 0 ? AppColors.border(context) : color.withOpacity(0.8), width: 1) : BorderSide(color: Colors.transparent, width: 1),
-                                                       bottom: BorderSide(color: type == 0 ? AppColors.border(context) : color.withOpacity(0.8), width: 1),
-                                                       left: isHead ? BorderSide(color: type == 0 ? AppColors.border(context) : color.withOpacity(0.8), width: 1) : BorderSide(color: Colors.transparent, width: 1),
-                                                   ),
-                                               ),
-                                           ),
-                                        );
-                                   }),
-                                 ),
-                               ),
-                             ),
-                           );
-                         }
-                       }
-                       
-                       return Container(
-                         margin: const EdgeInsets.only(bottom: 6),
-                         height: 16,
-                         child: Row(children: cells),
-                       );
-                     }).toList(),
-                   ),
-                  
-                  // Playhead — ONLY this rebuilds at 60fps via ValueNotifier
-                  ValueListenableBuilder<double>(
-                    valueListenable: _progressNotifier,
-                    builder: (context, progress, child) {
-                      return Positioned(
-                        left: constraints.maxWidth * progress,
-                        top: -4,
-                        bottom: 0,
-                        child: child!,
-                      );
-                    },
-                    child: Container(
-                      width: 2,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                         boxShadow: kIsWeb ? null : [
-                           BoxShadow(color: Colors.white.withOpacity(0.5), blurRadius: 4, spreadRadius: 1)
-                         ]
-                      ),
-                    ),
-                  ),
-                ],
-              );
-            }
-          ),
-        ],
-      ),
-    ),
     );
   }
 }

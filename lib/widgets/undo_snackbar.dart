@@ -1,5 +1,35 @@
 import 'package:flutter/material.dart';
 
+/// Confirmation dialog for destructive actions. Returns true if confirmed.
+Future<bool> confirmDelete(
+  BuildContext context, {
+  required String title,
+  required String message,
+  String confirmLabel = 'ELIMINAR',
+}) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) {
+      final colors = Theme.of(ctx).colorScheme;
+      return AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('CANCELAR', style: TextStyle(color: colors.onSurface.withOpacity(0.7))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(confirmLabel, style: TextStyle(color: colors.secondary, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      );
+    },
+  );
+  return ok == true;
+}
+
 /// Shows a "«item» eliminado · DESHACER" snackbar on the nearest
 /// [ScaffoldMessenger]. Replaces any snackbar currently visible.
 void showUndoSnackBar(

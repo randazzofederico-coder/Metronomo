@@ -93,8 +93,14 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     );
   }
 
-  // ── Delete (with undo) ─────────────────────────────────────────────────
+  // ── Delete (confirmation + undo) ───────────────────────────────────────
   Future<void> _deletePlaylist(Playlist playlist) async {
+    final ok = await confirmDelete(
+      context,
+      title: 'Eliminar playlist',
+      message: '¿Eliminar «${playlist.name}»? Las sesiones que contiene no se borran.',
+    );
+    if (!ok || !mounted) return;
     final provider = context.read<PlaylistProvider>();
     final removed = await provider.deletePlaylist(playlist.id);
     if (removed == null || !mounted) return;

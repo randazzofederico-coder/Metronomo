@@ -766,6 +766,12 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                                     icon: Icon(Icons.delete_outline, color: AppColors.accentRed(ctx)),
                                     tooltip: 'Eliminar sesión',
                                     onPressed: () async {
+                                      final ok = await confirmDelete(
+                                        ctx,
+                                        title: 'Eliminar sesión',
+                                        message: '¿Eliminar «${session.name}» de tu biblioteca?',
+                                      );
+                                      if (!ok) return;
                                       final removed = await sessionProvider.deleteSession(session.id);
                                       if (removed != null) setSheetState(() => lastDeleted = removed);
                                     },

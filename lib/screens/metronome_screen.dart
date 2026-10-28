@@ -237,7 +237,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceHighlight(ctx),
         title: Text('Cambios sin guardar', style: TextStyle(color: AppColors.textPrimary(ctx))),
-        content: Text('La sesión «$name» tiene cambios sin guardar. ¿Qué querés hacer antes de abrir?',
+        content: Text('La sesión «$name» tiene cambios sin guardar. ¿Qué querés hacer antes de continuar?',
             style: TextStyle(color: AppColors.textSecondary(ctx))),
         actions: [
           TextButton(
@@ -267,6 +267,74 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
       default:
         return false;
     }
+  }
+
+  /// Generic destructive-action confirmation. Returns true if confirmed.
+  Future<bool> _confirmDelete(BuildContext context, {required String title, required String message}) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceHighlight(ctx),
+        title: Text(title, style: TextStyle(color: AppColors.textPrimary(ctx))),
+        content: Text(message, style: TextStyle(color: AppColors.textSecondary(ctx))),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('CANCELAR', style: TextStyle(color: AppColors.textSecondary(ctx))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('ELIMINAR', style: TextStyle(color: AppColors.accentRed(ctx), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
+  /// Starts a new empty session, protecting unsaved changes first.
+  Future<void> _newSession() async {
+    _closeAllKeyboards();
+    final proceed = await _protectUnsavedSession();
+    if (!proceed || !mounted) return;
+    context.read<MetronomeProvider>().clearSession();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Sesión nueva', style: TextStyle(color: AppColors.textPrimary(context))),
+        backgroundColor: AppColors.surfaceHighlight(context),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
+  /// Removes a pattern from the current session, offering undo.
+  void _removeInstanceWithUndo(HomeMetronomeInstance instance) {
+    final metronome = context.read<MetronomeProvider>();
+    final index = metronome.instances.indexWhere((i) => i.id == instance.id);
+    if (index < 0) return;
+
+    if (_activePatternIdForKeyboard == instance.id) {
+      _endStructureEdit(commit: false);
+    }
+    _disposeStructureState(instance.id);
+    metronome.removeInstance(instance.id);
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text('«${instance.title}» eliminado', style: TextStyle(color: AppColors.textPrimary(context))),
+        backgroundColor: AppColors.surfaceHighlight(context),
+        duration: const Duration(seconds: 4),
+        // Since Flutter 3.38 snackbars with an action persist by default.
+        persist: false,
+        action: SnackBarAction(
+          label: 'DESHACER',
+          textColor: AppColors.accentCyan(context),
+          onPressed: () => metronome.restoreInstance(instance, index),
+        ),
+      ),
+    );
   }
 
   Future<void> _openImported(ShareImportResult r) async {
@@ -711,19 +779,27 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                                   const SizedBox(width: 4),
                                   IconButton(
                                     icon: Icon(Icons.delete_outline, color: AppColors.accentRed(ctx)),
-                                    onPressed: () {
-                                      sessionProvider.deleteSession(session.id);
+                                    tooltip: 'Eliminar sesión',
+                                    onPressed: () async {
+                                      final ok = await _confirmDelete(
+                                        ctx,
+                                        title: 'Eliminar sesión',
+                                        message: '¿Eliminar «${session.name}» de tu biblioteca? Esta acción no se puede deshacer.',
+                                      );
+                                      if (ok) sessionProvider.deleteSession(session.id);
                                     },
                                   ),
                                 ],
                               ),
                               onTap: () async {
-                                final patProvider = context.read<PatternEditorProvider>();
+                                Navigator.pop(ctx);
+                                final proceed = await _protectUnsavedSession();
+                                if (!proceed || !mounted) return;
+                                final patProvider = this.context.read<PatternEditorProvider>();
                                 await metronome.loadSession(session, settings, getPatternById: (id) async {
                                   await patProvider.ensureLoaded;
                                   return patProvider.getPatternById(id);
                                 });
-                                if (ctx.mounted) Navigator.pop(ctx);
                               },
                             );
                           },
@@ -783,8 +859,22 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                                   const SizedBox(width: 4),
                                   IconButton(
                                     icon: Icon(Icons.delete_outline, color: AppColors.accentRed(ctx)),
-                                    onPressed: () {
-                                      patProvider.deletePattern(pat.id);
+                                    tooltip: 'Eliminar patrón',
+                                    onPressed: () async {
+                                      // Sessions reference library patterns by id: warn if in use.
+                                      final usedBy = ctx.read<SessionProvider>().sessions
+                                          .where((s) => s.patternsConfig.any((c) => c.patternId == pat.id))
+                                          .map((s) => s.name)
+                                          .toList();
+                                      final warning = usedBy.isEmpty
+                                          ? ''
+                                          : '\n\n⚠ Lo usan ${usedBy.length == 1 ? 'la sesión' : '${usedBy.length} sesiones'}: ${usedBy.take(3).map((n) => '«$n»').join(', ')}${usedBy.length > 3 ? '…' : ''}. Esas sesiones perderán este patrón.';
+                                      final ok = await _confirmDelete(
+                                        ctx,
+                                        title: 'Eliminar patrón',
+                                        message: '¿Eliminar «${pat.name}» de la librería?$warning',
+                                      );
+                                      if (ok) patProvider.deletePattern(pat.id);
                                     },
                                   ),
                                 ],
@@ -836,19 +926,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
         actions: [
           IconButton(
             icon: Icon(Icons.add_circle_outline, color: AppColors.textSecondary(context)),
-            onPressed: () {
-              final metronome = context.read<MetronomeProvider>();
-              if (metronome.instances.isNotEmpty) {
-                 metronome.clearSession();
-                 ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Sesión nueva', style: TextStyle(color: AppColors.textPrimary(context))),
-                      backgroundColor: AppColors.surfaceHighlight(context),
-                      duration: const Duration(seconds: 1),
-                    )
-                 );
-              }
-            },
+            onPressed: _newSession,
             tooltip: "Nueva Sesión",
           ),
           IconButton(
@@ -891,6 +969,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                 MaterialPageRoute(builder: (_) => const SettingsScreen()),
               );
             },
+            tooltip: "Ajustes",
           ),
         ],
       ),
@@ -932,13 +1011,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                                       onVolChanged: (val) => metronome.updateInstanceVolume(instance.id, val),
                                       onMuteToggle: () => metronome.toggleInstanceMute(instance.id),
                                       onSoloToggle: () => metronome.toggleInstanceSolo(instance.id),
-                                       onRemove: () {
-                                         if (_activePatternIdForKeyboard == instance.id) {
-                                           _endStructureEdit(commit: false);
-                                         }
-                                         _disposeStructureState(instance.id);
-                                         metronome.removeInstance(instance.id);
-                                       },
+                                       onRemove: () => _removeInstanceWithUndo(instance),
                                     );
                                   }
                                 ),
@@ -1231,84 +1304,6 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
       ),
     ),
     );
-  }
-
-  Widget _buildSettingsTrackStrip({
-      required BuildContext context,
-      required String label,
-      required double value,
-      required Function(double) onChanged,
-      Function(double)? onChangeEnd,
-      required bool isMuted,
-      required VoidCallback onMuteToggle,
-      required bool isSolo,
-      required VoidCallback onSoloToggle,
-      required bool isActive,
-      bool hideSolo = false,
-  }) {
-      return Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-              KnobControl(
-                  value: value,
-                  onChanged: onChanged,
-                  onChangeEnd: onChangeEnd,
-                  min: 0,
-                  max: 1,
-                  label: label,
-                  labelColor: isActive ? AppColors.accentGreen(context) : AppColors.accentRed(context),
-              ),
-              const SizedBox(width: 16),
-              // Mute Button
-              GestureDetector(
-                  onTap: onMuteToggle,
-                  child: Container(
-                      width: 40,
-                      height: 32,
-                      decoration: BoxDecoration(
-                          color: isMuted ? AppColors.accentRed(context) : Colors.grey.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: AppColors.border(context)),
-                      ),
-                      alignment: Alignment.center,
-                      child: Text(
-                          'M',
-                          style: TextStyle(
-                              color: isMuted ? Colors.white : Colors.grey,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                          ),
-                      ),
-                  ),
-              ),
-              if (!hideSolo) ...[
-                  const SizedBox(width: 8),
-                  // Solo Button
-                  GestureDetector(
-                      onTap: onSoloToggle,
-                      child: Container(
-                          width: 40,
-                          height: 32,
-                          decoration: BoxDecoration(
-                              color: isSolo ? AppColors.accentCyan(context) : Colors.grey.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: AppColors.border(context)),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                              'S',
-                              style: TextStyle(
-                                  color: isSolo ? Colors.black : Colors.grey,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 14,
-                              ),
-                          ),
-                      ),
-                  ),
-              ],
-          ],
-      );
   }
 
   Widget _buildMetronomeInstance({

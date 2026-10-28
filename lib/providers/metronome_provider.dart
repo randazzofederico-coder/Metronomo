@@ -277,8 +277,12 @@ class MetronomeProvider with ChangeNotifier {
     
     _loadedSoundBanks.clear(); // anything sent before the engine was ready was dropped
     updateSoundSet(_currentSoundSet);
+    // Instances restored/created while the engine was still initializing
+    // (e.g. the working state loaded at startup on web) were dropped too:
+    // register them again. Remove first in case some did make it.
     for (final inst in _instances) {
-      _applyInstanceSound(inst);
+      _liveMixer.removeMetronomePattern(inst.id);
+      _addInstanceToEngine(inst); // also applies the instance sound
     }
     _liveMixer.setMetronomeConfig(_bpm);
     _liveMixer.setMasterVolume(1.0);
@@ -329,6 +333,16 @@ class MetronomeProvider with ChangeNotifier {
     _instances.removeWhere((i) => i.id == id);
     _liveMixer.removeMetronomePattern(id);
     markSessionDirty(); // Session composition changed
+    notifyListeners();
+  }
+
+  /// Re-inserts a previously removed [instance] at [index] (undo of
+  /// [removeInstance]). Keeps its original id.
+  void restoreInstance(HomeMetronomeInstance instance, int index) {
+    if (_instances.any((i) => i.id == instance.id)) return;
+    _instances.insert(index.clamp(0, _instances.length), instance);
+    _addInstanceToEngine(instance);
+    markSessionDirty();
     notifyListeners();
   }
   

@@ -201,18 +201,24 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
             children: [
               // Session position indicator
               _buildPositionIndicator(context, totalSessions),
-              // Main content with swipe
+              // Main content with swipe. Swiping is disabled while playing so an
+              // accidental gesture on stage can't switch sessions and cut the
+              // audio; the arrows below still work.
               Expanded(
-                child: PageView.builder(
-                  controller: _pageController,
-                  itemCount: totalSessions,
-                  onPageChanged: (page) async {
-                    context.read<MetronomeProvider>().stop();
-                    await _loadSession(page);
-                  },
-                  itemBuilder: (context, index) {
-                    return _buildSessionPage(context);
-                  },
+                child: Selector<MetronomeProvider, bool>(
+                  selector: (_, m) => m.isPlaying,
+                  builder: (context, isPlaying, _) => PageView.builder(
+                    controller: _pageController,
+                    physics: isPlaying ? const NeverScrollableScrollPhysics() : null,
+                    itemCount: totalSessions,
+                    onPageChanged: (page) async {
+                      context.read<MetronomeProvider>().stop();
+                      await _loadSession(page);
+                    },
+                    itemBuilder: (context, index) {
+                      return _buildSessionPage(context);
+                    },
+                  ),
                 ),
               ),
               // Bottom controls

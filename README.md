@@ -22,6 +22,7 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Diseño orientado a claridad** — Energía concentrada en 1.5–4 kHz (zona de máxima sensibilidad del oído y de los parlantes de celular), transiente para un ataque preciso, saturación suave (`tanh`) para subir el RMS sin subir el pico y normalización a −1 dBFS. Resultado: entre ~+8 y +16 dB de RMS respecto de los clicks senoidales anteriores (medido con el volumen por defecto). Los sonidos se generan al **sample rate real del engine** (ej. 48 kHz en la web) y los nombres viejos (Default / Woodblock / Digital) migran automáticamente a Clásico / Madera / Beep
 - **Limitador suave en la salida** — Curva lineal hasta 0.8 y rodilla `tanh` hasta 1.0: permite eventos por encima del 100% y golpes superpuestos sin distorsión
 - **Fade de re-disparo (3 ms)** — Si una voz se vuelve a disparar antes de terminar (ej. hi-hat abierto o bombo a tempo rápido), la cola anterior se desvanece en lugar de cortarse, evitando *pops*
+- **Bancos de sonido (sonido por patrón)** — El engine tiene 16 bancos de 3 voces (`kMaxSoundBanks`); cada patrón (track de metrónomo) dispara las voces de su propio banco, así patrones simultáneos pueden sonar con sets distintos. Índice de banco = posición del set en `ClickSynth.soundSets`; cada banco se genera y carga de forma lazy la primera vez que se usa. API: `live_mixer_set_metronome_bank_sound(bank, slot, data)` y `live_mixer_set_metronome_pattern_sound_bank(id, bank)` (nativo y WASM). `live_mixer_set_metronome_sound` sigue existiendo como alias del banco 0
 - **Silencios al Azar** — Simulación interna en el loop de renderizado C++ con RNG hardware-level (`std::mt19937`) para entrenar el timing interno. Funcional en todas las plataformas incluyendo PWA (exportado a WASM via `_live_mixer_set_random_silence_percent`)
 - **Pipeline de audio atómica** — Posición de reproducción sincronizada con `std::atomic` para visualización sin latencia
 
@@ -38,6 +39,7 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Rango BPM amplio** — De 1 a 999 BPM con slider logarítmico de 3 zonas para precisión en rangos musicales
 - **Ajuste fino** — Botones de ±1 y ±5 BPM para control preciso
 - **Por patrón** — Volumen (knob rotativo), Mute (M) y Solo (S) individuales por cada instancia
+- **Sonido por patrón** — Botón 🎵 junto a M/S en cada patrón: *Global* (sigue el sonido elegido en Configuración, valor por defecto) o cualquiera de los 7 sets. Un patrón con sonido propio muestra el botón resaltado en cyan. Es un atributo de la **sesión** (`SessionPatternConfig.soundSet`), no del patrón de la biblioteca: cambiarlo marca la sesión con `*` pero no el patrón. Se guarda en el estado de trabajo, en sesiones y en links compartidos (solo cuando difiere de *Global*, formato retrocompatible) y se conserva al entrar/salir del reproductor de playlists
 - **Barra espaciadora = Play/Stop** — En el metrónomo y en el reproductor de playlists (mixin `SpacePlayShortcut`, `utils/space_play_shortcut.dart`). Usa `HardwareKeyboard.addHandler`, así no activa el botón que tenga foco. Se ignora mientras se escribe en un campo de texto o se edita una estructura, si hay un diálogo u otra pantalla encima (`ModalRoute.isCurrent`) o con modificadores (Ctrl/Alt/Shift/Meta); el auto-repeat no vuelve a alternar
 
 ### 📊 Visualización
@@ -170,7 +172,7 @@ lib/
 │   └── app_colors.dart                # Paleta de colores adaptativa dark/light + intensidad de eventos por volumen
 ├── models/
 │   ├── pattern_model.dart             # Modelo de patrón rítmico (estructura, pulsos, subdivisiones, volumen por evento)
-│   ├── session_model.dart             # Modelo de sesión (patrones, BPM, configuración de mezcla)
+│   ├── session_model.dart             # Modelo de sesión (patrones, BPM, configuración de mezcla, sonido por patrón)
 │   ├── playlist_model.dart            # Modelo de playlist (lista ordenada de session IDs)
 │   └── permission_cache.dart          # Cache de permisos para acceso offline (30 días TTL)
 ├── providers/
@@ -219,8 +221,8 @@ packages/native_audio_engine/
 │   ├── soundtouch_bindings.dart       # Bindings FFI para SoundTouch
 │   └── soundtouch_processor.dart      # Wrapper Dart para pitch shifting
 └── src/
-    ├── live_mixer.cpp                 # Engine C++ (~44KB): scheduling, mixing, metrónomo, volumen por evento, limitador
-    ├── live_mixer.h                   # Header con API C exportada (_engineSampleRate, eventVolumes)
+    ├── live_mixer.cpp                 # Engine C++ (~45KB): scheduling, mixing, metrónomo, bancos de sonido por patrón, volumen por evento, limitador
+    ├── live_mixer.h                   # Header con API C exportada (_engineSampleRate, eventVolumes, sound banks)
     ├── miniaudio.h                    # Librería de audio multiplataforma
     ├── soundtouch_wrapper.cpp         # Wrapper C para SoundTouch
     ├── Vocoder.cpp/h                  # Procesador vocoder con KissFFT

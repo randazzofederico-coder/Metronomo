@@ -4,6 +4,7 @@ import 'package:flutter/services.dart' show HapticFeedback, HardwareKeyboard, Ke
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
+import 'package:metronomo_standalone/audio/click_synth.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
 import 'package:metronomo_standalone/screens/settings_screen.dart';
 import 'package:metronomo_standalone/widgets/knob_control.dart';

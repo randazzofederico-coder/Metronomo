@@ -104,39 +104,62 @@ class _MacroCycleState extends State<MacroCycle> with SingleTickerProviderStateM
                     style: TextStyle(color: AppColors.primary(context), fontSize: 10, fontWeight: FontWeight.bold)),
               ],
             ),
-            const SizedBox(height: 12),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                return Stack(
-                  clipBehavior: Clip.none,
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Identity color of each pattern (same as its card stripe).
+                Column(
                   children: [
-                    Column(
-                      children: metronome.instances
-                          .map((instance) => _buildInstanceRow(context, instance, macroBeats))
-                          .toList(),
-                    ),
-                    // Playhead — ONLY this rebuilds at 60fps.
-                    ValueListenableBuilder<double>(
-                      valueListenable: _progress,
-                      builder: (context, progress, child) => Positioned(
-                        left: constraints.maxWidth * progress,
-                        top: -4,
-                        bottom: 0,
-                        child: child!,
-                      ),
-                      child: Container(
-                        width: 2,
+                    for (var i = 0; i < metronome.instances.length; i++)
+                      Container(
+                        width: 4,
+                        height: 16,
+                        margin: const EdgeInsets.only(bottom: 6),
                         decoration: BoxDecoration(
-                          color: Colors.white,
-                          boxShadow: kIsWeb
-                              ? null
-                              : [BoxShadow(color: Colors.white.withOpacity(0.5), blurRadius: 4, spreadRadius: 1)],
+                          color: PatternColors.forIndex(i),
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                    ),
                   ],
-                );
-              },
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Column(
+                            children: metronome.instances
+                                .map((instance) => _buildInstanceRow(context, instance, macroBeats))
+                                .toList(),
+                          ),
+                          // Playhead — ONLY this rebuilds at 60fps.
+                          ValueListenableBuilder<double>(
+                            valueListenable: _progress,
+                            builder: (context, progress, child) => Positioned(
+                              left: constraints.maxWidth * progress,
+                              top: -4,
+                              bottom: 0,
+                              child: child!,
+                            ),
+                            child: Container(
+                              width: 2,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                boxShadow: kIsWeb
+                                    ? null
+                                    : [BoxShadow(color: Colors.white.withOpacity(0.5), blurRadius: 4, spreadRadius: 1)],
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 2),
             _BeatLegend(showEditHints: widget.showEditHints),

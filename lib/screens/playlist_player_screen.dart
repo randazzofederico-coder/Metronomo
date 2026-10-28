@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
+import 'package:metronomo_standalone/theme/beat_colors.dart';
 import 'package:metronomo_standalone/models/pattern_model.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
 import 'package:metronomo_standalone/providers/settings_provider.dart';
@@ -249,7 +250,7 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
               const SizedBox(height: 8),
               // Pattern instances
               ...metronome.instances.map((instance) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.only(bottom: 8),
                 child: _buildReadOnlyInstance(context, instance, metronome),
               )),
             ],
@@ -260,38 +261,46 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
   }
 
   Widget _buildReadOnlyInstance(BuildContext context, HomeMetronomeInstance instance, MetronomeProvider metronome) {
+    final index = metronome.instances.indexWhere((i) => i.id == instance.id);
+    final accent = PatternColors.forIndex(index < 0 ? 0 : index);
     return PatternCard(
-      // Title + structure
-      header: Row(
+      accent: accent,
+      title: Row(
         children: [
-          Expanded(
+          Flexible(
             child: Text(
               instance.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: AppColors.textPrimary(context),
+                color: accent,
                 fontWeight: FontWeight.bold,
-                letterSpacing: 1.5,
+                letterSpacing: 1.2,
                 fontStyle: instance.isDirty ? FontStyle.italic : FontStyle.normal,
               ),
             ),
           ),
           if (instance.isDirty)
-            Text(" *", style: TextStyle(color: AppColors.textPrimary(context), fontWeight: FontWeight.bold, fontSize: 18)),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.background(context).withOpacity(0.5),
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: AppColors.border(context).withOpacity(0.5)),
-            ),
-            child: FormattedStructure(instance.structure),
-          ),
+            Text(" *", style: TextStyle(color: accent, fontWeight: FontWeight.bold, fontSize: 16)),
         ],
       ),
-      sequencer: SequencerGrid(pulses: instance.pulses),
-      // Controls row (visible but only interactive in edit mode)
-      footer: Opacity(
+      structure: Container(
+        height: 34,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        alignment: Alignment.centerLeft,
+        decoration: BoxDecoration(
+          color: AppColors.background(context).withOpacity(0.5),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: AppColors.border(context).withOpacity(0.5)),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: FormattedStructure(instance.structure),
+        ),
+      ),
+      // Mixer (visible but only interactive in edit mode)
+      mixer: Opacity(
         opacity: _editMode ? 1.0 : 0.5,
         child: IgnorePointer(
           ignoring: !_editMode,
@@ -305,6 +314,7 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
           ),
         ),
       ),
+      sequencer: SequencerGrid(pulses: instance.pulses),
     );
   }
 

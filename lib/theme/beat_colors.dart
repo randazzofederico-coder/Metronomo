@@ -33,3 +33,23 @@ class BeatColors {
     }
   }
 }
+
+/// Identity color of each pattern in a session (card stripe, title and its
+/// row in the macro cycle), by position. Hues are chosen away from the beat
+/// type colors (red / orange / green) so they don't read as event types.
+class PatternColors {
+  PatternColors._();
+
+  static const List<Color> palette = [
+    Color(0xFF4FC3F7), // light blue
+    Color(0xFFBA68C8), // purple
+    Color(0xFFFFD54F), // yellow
+    Color(0xFFF48FB1), // pink
+    Color(0xFF4DD0E1), // cyan
+    Color(0xFF9FA8DA), // indigo
+    Color(0xFFB0BEC5), // blue grey
+    Color(0xFFBCAAA4), // taupe
+  ];
+
+  static Color forIndex(int index) => palette[index % palette.length];
+}

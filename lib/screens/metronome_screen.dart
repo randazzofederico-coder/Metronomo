@@ -988,7 +988,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
                             // Dynamic Instances
                             ...metronome.instances.map((instance) {
                               return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
+                                padding: const EdgeInsets.only(bottom: 8),
                                 child: Builder(
                                   builder: (instanceContext) {
                                     return _buildMetronomeInstance(
@@ -1146,88 +1146,95 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
     final bool isEditing = _activePatternIdForKeyboard == instance.id;
     final edit = _volumeEdit;
 
+    final index = context.read<MetronomeProvider>().instances.indexWhere((i) => i.id == instance.id);
+    final accent = PatternColors.forIndex(index < 0 ? 0 : index);
+
     return PatternCard(
-      header: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-           // Title (tap to rename)
-           Expanded(
-             flex: 2,
-             child: Tooltip(
-               message: 'Tocá para renombrar',
-               child: InkWell(
-                 borderRadius: BorderRadius.circular(4),
-                 onTap: () => _renameInstance(instance),
-                 child: Padding(
-                   padding: const EdgeInsets.symmetric(vertical: 4),
-                   child: Row(
-                     children: [
-                       Flexible(
-                         child: Text(
-                           instance.title,
-                           maxLines: 1,
-                           overflow: TextOverflow.ellipsis,
-                           style: TextStyle(
-                             color: AppColors.textPrimary(context),
-                             fontWeight: FontWeight.bold,
-                             letterSpacing: 1.5,
-                             fontStyle: instance.isDirty ? FontStyle.italic : FontStyle.normal,
-                           ),
-                         ),
-                       ),
-                       if (instance.isDirty)
-                         Padding(
-                           padding: const EdgeInsets.only(left: 4.0),
-                           child: Text("*", style: TextStyle(color: AppColors.textPrimary(context), fontWeight: FontWeight.bold, fontSize: 18)),
-                         ),
-                       const SizedBox(width: 8),
-                     ],
-                   ),
-                 ),
-               ),
-             ),
-           ),
-           // Grouping Text Field / Formatted Structure Display
-           Expanded(
-             flex: 3,
-             child: GestureDetector(
-               onTap: () => _startStructureEdit(instance.id),
-               child: Container(
-                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                 decoration: BoxDecoration(
-                     color: isEditing ? AppColors.primary(context).withOpacity(0.1) : AppColors.background(context).withOpacity(0.5),
-                     border: Border.all(
-                       color: isEditing ? AppColors.primary(context) : AppColors.border(context).withOpacity(0.5),
-                       width: isEditing ? 2.0 : 1.0,
-                     ),
-                     borderRadius: BorderRadius.circular(4),
-                 ),
-                 child: isEditing
-                   ? _buildStructureEditor(context, instance.id)
-                   : FittedBox(
-                       fit: BoxFit.scaleDown,
-                       alignment: Alignment.centerLeft,
-                       child: FormattedStructure(instance.structure),
-                     ),
-               ),
-             ),
-           ),
-           const SizedBox(width: 4),
-           // Pattern actions
-           PopupMenuButton<_PatternMenu>(
-             tooltip: 'Opciones del patrón',
-             icon: Icon(Icons.more_vert_rounded, color: AppColors.textSecondary(context)),
-             onSelected: (action) => _onPatternMenu(action, instance, onRemove),
-             itemBuilder: (_) => [
-               _menuItem(_PatternMenu.rename, Icons.edit_outlined, 'Renombrar'),
-               _menuItem(_PatternMenu.saveToLibrary, Icons.library_add_outlined, 'Guardar en la librería'),
-               _menuItem(_PatternMenu.share, Icons.share_outlined, 'Compartir patrón'),
-               _menuItem(_PatternMenu.duplicate, Icons.copy_rounded, 'Duplicar'),
-               const PopupMenuDivider(),
-               _menuItem(_PatternMenu.remove, Icons.close_rounded, 'Quitar de la sesión', color: AppColors.accentRed(context)),
-             ],
-           ),
-        ],
+      accent: accent,
+      // Title (tap to rename)
+      title: Tooltip(
+        message: 'Tocá para renombrar',
+        child: InkWell(
+          borderRadius: BorderRadius.circular(4),
+          onTap: () => _renameInstance(instance),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: Row(
+              children: [
+                Flexible(
+                  child: Text(
+                    instance.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.2,
+                      fontStyle: instance.isDirty ? FontStyle.italic : FontStyle.normal,
+                    ),
+                  ),
+                ),
+                if (instance.isDirty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 2.0),
+                    child: Text("*", style: TextStyle(color: accent, fontWeight: FontWeight.bold, fontSize: 16)),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+      // Grouping Text Field / Formatted Structure Display
+      structure: GestureDetector(
+        onTap: () => _startStructureEdit(instance.id),
+        child: Container(
+          height: 34,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          alignment: Alignment.centerLeft,
+          decoration: BoxDecoration(
+              color: isEditing ? AppColors.primary(context).withOpacity(0.1) : AppColors.background(context).withOpacity(0.5),
+              border: Border.all(
+                color: isEditing ? AppColors.primary(context) : AppColors.border(context).withOpacity(0.5),
+                width: isEditing ? 2.0 : 1.0,
+              ),
+              borderRadius: BorderRadius.circular(4),
+          ),
+          child: isEditing
+            ? _buildStructureEditor(context, instance.id)
+            : FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: FormattedStructure(instance.structure),
+              ),
+        ),
+      ),
+      // Track Strip (Volume, Mute, Solo, Sound)
+      mixer: MixerStrip(
+        volume: instance.volume,
+        onVolumeChanged: onVolChanged,
+        isMuted: instance.isMuted,
+        onMuteToggle: onMuteToggle,
+        isSolo: instance.isSolo,
+        onSoloToggle: onSoloToggle,
+        trailing: _buildInstanceSoundSelector(context, instance),
+      ),
+      // Pattern actions
+      menu: SizedBox(
+        width: 32,
+        child: PopupMenuButton<_PatternMenu>(
+          tooltip: 'Opciones del patrón',
+          padding: EdgeInsets.zero,
+          icon: Icon(Icons.more_vert_rounded, color: AppColors.textSecondary(context)),
+          onSelected: (action) => _onPatternMenu(action, instance, onRemove),
+          itemBuilder: (_) => [
+            _menuItem(_PatternMenu.rename, Icons.edit_outlined, 'Renombrar'),
+            _menuItem(_PatternMenu.saveToLibrary, Icons.library_add_outlined, 'Guardar en la librería'),
+            _menuItem(_PatternMenu.share, Icons.share_outlined, 'Compartir patrón'),
+            _menuItem(_PatternMenu.duplicate, Icons.copy_rounded, 'Duplicar'),
+            const PopupMenuDivider(),
+            _menuItem(_PatternMenu.remove, Icons.close_rounded, 'Quitar de la sesión', color: AppColors.accentRed(context)),
+          ],
+        ),
       ),
       // Sequencer Cells (Responsive & Auto-Wrapping)
       sequencer: SequencerGrid(
@@ -1247,16 +1254,6 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
         highlightedCell: edit != null && edit.instanceId == instance.id
             ? (pulse: edit.pulseIndex, sub: edit.subIndex)
             : null,
-      ),
-      // Track Strip (Volume, Mute, Solo, Sound) — compact inline row
-      footer: MixerStrip(
-        volume: instance.volume,
-        onVolumeChanged: onVolChanged,
-        isMuted: instance.isMuted,
-        onMuteToggle: onMuteToggle,
-        isSolo: instance.isSolo,
-        onSoloToggle: onSoloToggle,
-        trailing: _buildInstanceSoundSelector(context, instance),
       ),
     );
   }
@@ -1352,7 +1349,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
     final accent = AppColors.primary(context);
 
     return PopupMenuButton<String>(
-      tooltip: 'Sonido del patrón',
+      tooltip: hasOverride ? 'Sonido del patrón: $label' : 'Sonido: $label (global)',
       initialValue: instance.soundSet ?? globalValue,
       onSelected: (val) => metronome.updateInstanceSoundSet(instance.id, val == globalValue ? null : val),
       itemBuilder: (_) => [
@@ -1363,29 +1360,23 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
         const PopupMenuDivider(),
         ...ClickSynth.soundSets.map((s) => PopupMenuItem(value: s, child: Text(s))),
       ],
-      child: Container(
-        height: 26,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        decoration: BoxDecoration(
-          color: hasOverride ? accent.withOpacity(0.15) : Colors.grey.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: hasOverride ? accent : AppColors.border(context)),
-        ),
-        alignment: Alignment.center,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.music_note, size: 14, color: hasOverride ? accent : Colors.grey),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: TextStyle(
-                color: hasOverride ? AppColors.textPrimary(context) : Colors.grey,
-                fontWeight: FontWeight.bold,
-                fontSize: 12,
-              ),
+      // Compact: icon only (highlighted when the pattern has its own sound);
+      // the sound name is in the tooltip and the menu.
+      child: SizedBox(
+        width: 30,
+        height: 40,
+        child: Center(
+          child: Container(
+            width: 26,
+            height: 24,
+            decoration: BoxDecoration(
+              color: hasOverride ? accent.withOpacity(0.15) : Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: hasOverride ? accent : AppColors.border(context)),
             ),
-          ],
+            alignment: Alignment.center,
+            child: Icon(Icons.music_note, size: 15, color: hasOverride ? accent : Colors.grey),
+          ),
         ),
       ),
     );

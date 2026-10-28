@@ -12,9 +12,10 @@ typedef SequencerCell = ({int pulse, int sub});
 /// duration), split into its subdivisions. Wraps to 2–3 rows when the cells
 /// would get narrower than [minCellWidth].
 ///
-/// While playing, the event currently sounding is lit up (position comes from
-/// the nearest [PlaybackClock]; the grid only rebuilds when the active event
-/// changes).
+/// While playing, a small bar under the cells marks the event currently
+/// sounding (position comes from the nearest [PlaybackClock]; the grid only
+/// rebuilds when the active event changes). Cell colors are never altered:
+/// their intensity is the event volume.
 ///
 /// All callbacks are optional: without them the grid is read-only.
 class SequencerGrid extends StatefulWidget {
@@ -143,29 +144,55 @@ class _SequencerGridState extends State<SequencerGrid> {
   Widget _buildPulse(BuildContext context, int i, {required bool compact}) {
     final pulse = widget.pulses[i];
     final int subdivCount = pulse.subdivisions.length;
-    final bool pulseActive = _active?.pulse == i;
+    final int? activeSub = _active?.pulse == i ? _active!.sub : null;
 
     return Expanded(
       flex: (pulse.durationRatio * 100).round().clamp(1, 10000),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 4),
-        height: compact ? 36 : 42,
-        decoration: BoxDecoration(
-          border: Border.all(
-            color: pulseActive ? AppColors.textPrimary(context).withOpacity(0.7) : AppColors.border(context),
-            width: 1.5,
-          ),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: Row(
-            // Align to bottom so the "step down" of sub-beats happens from the top.
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: List.generate(subdivCount, (subIndex) {
-              return Expanded(child: _buildEvent(context, pulse, i, subIndex, compact: compact));
-            }),
-          ),
+      child: Padding(
+        padding: const EdgeInsets.only(left: 2, right: 2, top: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              height: compact ? 36 : 42,
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.border(context), width: 1.5),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Row(
+                  // Align to bottom so the "step down" of sub-beats happens from the top.
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: List.generate(subdivCount, (subIndex) {
+                    return Expanded(child: _buildEvent(context, pulse, i, subIndex, compact: compact));
+                  }),
+                ),
+              ),
+            ),
+            // Playhead: a small bar under the event that is sounding. Lives in
+            // the space of the old bottom margin, so the height doesn't change
+            // and the cells' colors (= volume) are never altered.
+            SizedBox(
+              height: 4,
+              child: Row(
+                children: List.generate(subdivCount, (subIndex) {
+                  final bool on = activeSub == subIndex;
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 1, left: 3, right: 3),
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: on ? AppColors.textPrimary(context) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -177,23 +204,16 @@ class _SequencerGridState extends State<SequencerGrid> {
     final bool sounds = type != BeatColors.silence;
     final SequencerCell cell = (pulse: i, sub: subIndex);
     final bool highlighted = widget.highlightedCell == cell;
-    final bool playing = _active == cell;
     final Color typeColor = BeatColors.of(context, type);
 
-    final Color fill;
-    if (!sounds) {
-      fill = playing ? AppColors.surfaceHighlight(context) : AppColors.background(context);
-    } else {
-      // Color intensity reflects the event volume; the playing event is lit up.
-      fill = AppColors.eventFill(typeColor, pulse.volumeAt(subIndex), playing ? 0.6 : 0.2);
-    }
-
-    final Widget box = AnimatedContainer(
-      duration: const Duration(milliseconds: 60),
+    final Widget box = Container(
       // Height difference step for sub-beats.
       margin: EdgeInsets.only(top: isHead ? 0 : 8),
       decoration: BoxDecoration(
-        color: fill,
+        // Color intensity reflects the event volume.
+        color: sounds
+            ? AppColors.eventFill(typeColor, pulse.volumeAt(subIndex), 0.2)
+            : AppColors.background(context),
         border: Border(
           right: subIndex < pulse.subdivisions.length - 1
               ? BorderSide(color: AppColors.background(context), width: 3)
@@ -209,7 +229,7 @@ class _SequencerGridState extends State<SequencerGrid> {
           ? Text(
               '${i + 1}',
               style: TextStyle(
-                color: sounds || playing ? AppColors.textPrimary(context) : AppColors.textSecondary(context),
+                color: sounds ? AppColors.textPrimary(context) : AppColors.textSecondary(context),
                 fontWeight: FontWeight.bold,
                 fontSize: compact ? 12 : 16,
               ),

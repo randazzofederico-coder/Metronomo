@@ -26,7 +26,11 @@ class KnobControl extends StatefulWidget {
     this.onTap,
     this.zeroAtCenter = true, 
     this.size = 40.0,
+    this.showLabel = true,
   });
+
+  /// Hides the text label under the knob (compact layouts).
+  final bool showLabel;
 
   @override
   State<KnobControl> createState() => _KnobControlState();
@@ -115,17 +119,19 @@ class _KnobControlState extends State<KnobControl> {
               textSecondaryColor: AppColors.textSecondary(context),
             ),
           ),
-          SizedBox(height: widget.size * 0.15),
-          Text(
-            widget.label, 
-            style: TextStyle(
-              fontSize: 10, 
-              fontWeight: FontWeight.w700, 
-              fontFamily: 'monospace',
-              letterSpacing: 0.5,
-              color: widget.labelColor ?? AppColors.textSecondary(context),
-            )
-          ),
+          if (widget.showLabel) ...[
+            SizedBox(height: widget.size * 0.15),
+            Text(
+              widget.label, 
+              style: TextStyle(
+                fontSize: 10, 
+                fontWeight: FontWeight.w700, 
+                fontFamily: 'monospace',
+                letterSpacing: 0.5,
+                color: widget.labelColor ?? AppColors.textSecondary(context),
+              )
+            ),
+          ],
         ],
       ),
     );

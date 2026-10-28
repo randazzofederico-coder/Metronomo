@@ -27,21 +27,28 @@ class MixerStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
-          width: 36,
-          child: KnobControl(
-            value: volume,
-            onChanged: onVolumeChanged,
-            min: 0,
-            max: 1,
-            label: 'VOL',
-            labelColor: volume > 0 ? AppColors.accentGreen(context) : AppColors.accentRed(context),
-            size: 28,
+        // Compact knob (no text label; tooltip + color say it's the volume).
+        Tooltip(
+          message: 'Volumen ${(volume * 100).round()}% (arrastrá)',
+          child: SizedBox(
+            width: 32,
+            height: 36,
+            child: Center(
+              child: KnobControl(
+                value: volume,
+                onChanged: onVolumeChanged,
+                min: 0,
+                max: 1,
+                label: 'VOL',
+                showLabel: false,
+                labelColor: volume > 0 ? AppColors.accentGreen(context) : AppColors.accentRed(context),
+                size: 24,
+              ),
+            ),
           ),
         ),
-        const SizedBox(width: 8),
         ToggleChipButton(
           label: 'M',
           tooltip: 'Silenciar',
@@ -58,10 +65,7 @@ class MixerStrip extends StatelessWidget {
           activeTextColor: Colors.black,
           onTap: onSoloToggle,
         ),
-        if (trailing != null) ...[
-          const SizedBox(width: 2),
-          trailing!,
-        ],
+        if (trailing != null) trailing!,
       ],
     );
   }
@@ -88,17 +92,17 @@ class ToggleChipButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Visual chip stays 32×26; the hit area is 40×40.
+    // Visual chip 28×24; the hit area is 34×40.
     final Widget chip = GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
       child: SizedBox(
-        width: 40,
+        width: 34,
         height: 40,
         child: Center(
           child: Container(
-            width: 32,
-            height: 26,
+            width: 28,
+            height: 24,
             decoration: BoxDecoration(
               color: active ? activeColor : Colors.grey.withOpacity(0.1),
               borderRadius: BorderRadius.circular(4),

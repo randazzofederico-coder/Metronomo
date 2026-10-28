@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show HapticFeedback, HardwareKeyboard, Ke
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
+import 'package:metronomo_standalone/widgets/undo_snackbar.dart';
 import 'package:metronomo_standalone/audio/click_synth.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
 import 'package:metronomo_standalone/screens/settings_screen.dart';
@@ -258,28 +259,6 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     }
   }
 
-  /// Generic destructive-action confirmation. Returns true if confirmed.
-  Future<bool> _confirmDelete(BuildContext context, {required String title, required String message}) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title, style: TextStyle(color: AppColors.textPrimary(ctx))),
-        content: Text(message, style: TextStyle(color: AppColors.textSecondary(ctx))),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: Text('CANCELAR', style: TextStyle(color: AppColors.textSecondary(ctx))),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text('ELIMINAR', style: TextStyle(color: AppColors.accentRed(ctx), fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-    return ok == true;
-  }
-
   PopupMenuItem<T> _menuItem<T>(T value, IconData icon, String label, {Color? color}) {
     return PopupMenuItem<T>(
       value: value,
@@ -346,20 +325,10 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     _disposeStructureState(instance.id);
     metronome.removeInstance(instance.id);
 
-    final messenger = ScaffoldMessenger.of(context);
-    messenger.hideCurrentSnackBar();
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text('«${instance.title}» eliminado'),
-        duration: const Duration(seconds: 4),
-        // Since Flutter 3.38 snackbars with an action persist by default.
-        persist: false,
-        action: SnackBarAction(
-          label: 'DESHACER',
-          textColor: AppColors.primary(context),
-          onPressed: () => metronome.restoreInstance(instance, index),
-        ),
-      ),
+    showUndoSnackBar(
+      context,
+      message: '«${instance.title}» quitado de la sesión',
+      onUndo: () => metronome.restoreInstance(instance, index),
     );
   }
 
@@ -739,13 +708,18 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
 
   void _showLoadSessionDialog(BuildContext context, MetronomeProvider metronome, SettingsProvider settings) {
     _closeAllKeyboards();
+    // Last deletion in this sheet, for the inline undo strip (a snackbar
+    // would be hidden behind the modal sheet).
+    (Session, int)? lastDeleted;
     showModalBottomSheet(
       context: context,
       builder: (ctx) {
-        return Consumer<SessionProvider>(
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) => Consumer<SessionProvider>(
           builder: (context, sessionProvider, child) {
             final sessions = sessionProvider.sessions;
-            
+            final deleted = lastDeleted;
+
             return SafeArea(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -754,6 +728,14 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                      padding: const EdgeInsets.all(16.0),
                      child: Text("Cargar Sesión", style: TextStyle(color: AppColors.textPrimary(ctx), fontSize: 18, fontWeight: FontWeight.bold)),
                    ),
+                   if (deleted != null)
+                     UndoStrip(
+                       message: '«${deleted.$1.name}» eliminada',
+                       onUndo: () async {
+                         await sessionProvider.restoreSession(deleted.$1, deleted.$2);
+                         setSheetState(() => lastDeleted = null);
+                       },
+                     ),
                    if (sessions.isEmpty)
                       Padding(
                         padding: const EdgeInsets.all(32.0),
@@ -773,6 +755,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                                 children: [
                                   IconButton(
                                     icon: Icon(Icons.share_outlined, color: AppColors.textSecondary(ctx)),
+                                    tooltip: 'Compartir sesión',
                                     onPressed: () {
                                       Navigator.pop(ctx);
                                       _shareSession(session);
@@ -783,12 +766,8 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                                     icon: Icon(Icons.delete_outline, color: AppColors.accentRed(ctx)),
                                     tooltip: 'Eliminar sesión',
                                     onPressed: () async {
-                                      final ok = await _confirmDelete(
-                                        ctx,
-                                        title: 'Eliminar sesión',
-                                        message: '¿Eliminar «${session.name}» de tu biblioteca? Esta acción no se puede deshacer.',
-                                      );
-                                      if (ok) sessionProvider.deleteSession(session.id);
+                                      final removed = await sessionProvider.deleteSession(session.id);
+                                      if (removed != null) setSheetState(() => lastDeleted = removed);
                                     },
                                   ),
                                 ],
@@ -811,19 +790,23 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
               ),
             );
           }
+          ),
         );
       }
     );
   }
 
   void _showLoadPatternDialog(BuildContext context, MetronomeProvider metronome) {
+    (Pattern, int)? lastDeleted;
     showModalBottomSheet(
       context: context,
       builder: (ctx) {
-        return Consumer<PatternEditorProvider>(
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) => Consumer<PatternEditorProvider>(
           builder: (context, patProvider, child) {
             final patterns = patProvider.patterns;
-            
+            final deleted = lastDeleted;
+
             return SafeArea(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -832,6 +815,14 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                      padding: const EdgeInsets.all(16.0),
                      child: Text("Cargar Patrón", style: TextStyle(color: AppColors.textPrimary(ctx), fontSize: 18, fontWeight: FontWeight.bold)),
                    ),
+                   if (deleted != null)
+                     UndoStrip(
+                       message: '«${deleted.$1.name}» eliminado de la librería',
+                       onUndo: () async {
+                         await patProvider.restorePattern(deleted.$1, deleted.$2);
+                         setSheetState(() => lastDeleted = null);
+                       },
+                     ),
                    if (patterns.isEmpty)
                       Padding(
                         padding: const EdgeInsets.all(32.0),
@@ -851,6 +842,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                                 children: [
                                   IconButton(
                                     icon: Icon(Icons.share_outlined, color: AppColors.textSecondary(ctx)),
+                                    tooltip: 'Compartir patrón',
                                     onPressed: () {
                                       Navigator.pop(ctx);
                                       _sharePattern(pat);
@@ -859,17 +851,12 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                                   const SizedBox(width: 4),
                                   IconButton(
                                     icon: Icon(Icons.delete_outline, color: AppColors.accentRed(ctx)),
-                                    tooltip: 'Eliminar patrón',
+                                    tooltip: 'Eliminar patrón de la librería',
                                     onPressed: () async {
-                                      final ok = await _confirmDelete(
-                                        ctx,
-                                        title: 'Eliminar patrón',
-                                        message: '¿Eliminar «${pat.name}» de la librería?\n\nLas sesiones que lo usan no cambian: tienen su propia copia.',
-                                      );
-                                      if (!ok) return;
                                       // Safety net: make sure no legacy session still depends on it.
                                       await ctx.read<SessionProvider>().embedMissingPatterns(patProvider.getPatternById);
-                                      await patProvider.deletePattern(pat.id);
+                                      final removed = await patProvider.deletePattern(pat.id);
+                                      if (removed != null) setSheetState(() => lastDeleted = removed);
                                     },
                                   ),
                                 ],
@@ -886,6 +873,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
               ),
             );
           }
+          ),
         );
       }
     );

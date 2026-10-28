@@ -136,9 +136,11 @@ class PatternEditorProvider extends ChangeNotifier {
   /// **STRICT RULE**: If the deleted pattern is the one currently being
   /// edited (activeEditingPatternId), the keyboard is automatically closed
   /// and the active state resets to null.
-  Future<void> deletePattern(String patternId) async {
+  Future<(Pattern, int)?> deletePattern(String patternId) async {
     await _loadCompleter.future;
-    _patterns.removeWhere((p) => p.id == patternId);
+    final index = _patterns.indexWhere((p) => p.id == patternId);
+    if (index < 0) return null;
+    final removed = _patterns.removeAt(index);
     await _repository.deletePattern(patternId);
 
     // ── Strict check: close keyboard if deleting the focused pattern ──
@@ -148,6 +150,16 @@ class PatternEditorProvider extends ChangeNotifier {
       // Single notifyListeners covers both removal and keyboard close
     }
 
+    notifyListeners();
+    return (removed, index);
+  }
+
+  /// Undo of [deletePattern]: re-inserts [pattern] at [index].
+  Future<void> restorePattern(Pattern pattern, int index) async {
+    await _loadCompleter.future;
+    if (getPatternById(pattern.id) != null) return;
+    _patterns.insert(index.clamp(0, _patterns.length), pattern);
+    await _repository.insertPattern(index, pattern);
     notifyListeners();
   }
 

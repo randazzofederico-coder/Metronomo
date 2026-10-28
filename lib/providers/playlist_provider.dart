@@ -46,11 +46,38 @@ class PlaylistProvider extends ChangeNotifier {
   }
 
   /// Deletes a playlist from the library.
-  Future<void> deletePlaylist(String playlistId) async {
+  /// Returns the removed playlist and its position (for [restorePlaylist]).
+  Future<(Playlist, int)?> deletePlaylist(String playlistId) async {
     await _loadCompleter.future;
-    _playlists.removeWhere((p) => p.id == playlistId);
+    final index = _playlists.indexWhere((p) => p.id == playlistId);
+    if (index < 0) return null;
+    final removed = _playlists.removeAt(index);
     await _repository.deletePlaylist(playlistId);
     notifyListeners();
+    return (removed, index);
+  }
+
+  /// Undo of [deletePlaylist]: re-inserts [playlist] at [index].
+  Future<void> restorePlaylist(Playlist playlist, int index) async {
+    await _loadCompleter.future;
+    if (getPlaylistById(playlist.id) != null) return;
+    _playlists.insert(index.clamp(0, _playlists.length), playlist);
+    await _repository.insertPlaylist(index, playlist);
+    notifyListeners();
+  }
+
+  /// Inserts a session ID at [sessionIndex] (undo of [removeSessionFromPlaylist]).
+  Future<void> insertSessionInPlaylist(String playlistId, int sessionIndex, String sessionId) async {
+    await _loadCompleter.future;
+    final index = _playlists.indexWhere((p) => p.id == playlistId);
+    if (index != -1) {
+      final playlist = _playlists[index];
+      final updatedIds = List<String>.from(playlist.sessionIds)
+        ..insert(sessionIndex.clamp(0, playlist.sessionIds.length), sessionId);
+      _playlists[index] = playlist.copyWith(sessionIds: updatedIds);
+      await _repository.updatePlaylist(_playlists[index]);
+      notifyListeners();
+    }
   }
 
   /// Retrieves a playlist by ID, or null if not found.

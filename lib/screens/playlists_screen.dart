@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
+import 'package:metronomo_standalone/widgets/undo_snackbar.dart';
 import 'package:metronomo_standalone/models/playlist_model.dart';
 import 'package:metronomo_standalone/providers/playlist_provider.dart';
 import 'package:metronomo_standalone/providers/session_provider.dart';
@@ -92,30 +93,15 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     );
   }
 
-  // ── Delete confirmation ────────────────────────────────────────────────
-  void _confirmDelete(Playlist playlist) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text("Eliminar Playlist"),
-        content: Text(
-          "¿Eliminar \"${playlist.name}\"? Esta acción no se puede deshacer.",
-          style: TextStyle(color: AppColors.textSecondary(ctx)),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text("CANCELAR", style: TextStyle(color: AppColors.textSecondary(ctx))),
-          ),
-          TextButton(
-            onPressed: () async {
-              await context.read<PlaylistProvider>().deletePlaylist(playlist.id);
-              if (ctx.mounted) Navigator.pop(ctx);
-            },
-            child: Text("ELIMINAR", style: TextStyle(color: AppColors.accentRed(ctx), fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
+  // ── Delete (with undo) ─────────────────────────────────────────────────
+  Future<void> _deletePlaylist(Playlist playlist) async {
+    final provider = context.read<PlaylistProvider>();
+    final removed = await provider.deletePlaylist(playlist.id);
+    if (removed == null || !mounted) return;
+    showUndoSnackBar(
+      context,
+      message: '«${playlist.name}» eliminada',
+      onUndo: () => provider.restorePlaylist(removed.$1, removed.$2),
     );
   }
 
@@ -321,7 +307,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                                   // Delete
                                   IconButton(
                                     icon: Icon(Icons.delete_outline, color: AppColors.accentRed(context), size: 20),
-                                    onPressed: () => _confirmDelete(playlist),
+                                    onPressed: () => _deletePlaylist(playlist),
                                     padding: EdgeInsets.zero,
                                     constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                                   ),
@@ -625,8 +611,14 @@ class _PlaylistDetailScreen extends StatelessWidget {
                             children: [
                               IconButton(
                                 icon: Icon(Icons.delete_outline, color: AppColors.accentRed(context), size: 20),
+                                tooltip: 'Quitar de la playlist',
                                 onPressed: () {
                                   playlistProvider.removeSessionFromPlaylist(playlistId, index);
+                                  showUndoSnackBar(
+                                    context,
+                                    message: isDeleted ? 'Quitada de la playlist' : '«${session.name}» quitada de la playlist',
+                                    onUndo: () => playlistProvider.insertSessionInPlaylist(playlistId, index, sessionId),
+                                  );
                                 },
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(minWidth: 36, minHeight: 36),

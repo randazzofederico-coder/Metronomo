@@ -45,6 +45,12 @@ class PatternRepository {
     await _savePatterns();
   }
 
+  /// Inserts a pattern at [index] (undo of a delete) and persists.
+  Future<void> insertPattern(int index, Pattern pattern) async {
+    _patterns.insert(index.clamp(0, _patterns.length), pattern);
+    await _savePatterns();
+  }
+
   /// Updates an existing pattern by ID and persists.
   Future<void> updatePattern(Pattern updated) async {
     final index = _patterns.indexWhere((p) => p.id == updated.id);

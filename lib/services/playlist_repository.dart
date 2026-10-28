@@ -45,6 +45,12 @@ class PlaylistRepository {
     await _savePlaylists();
   }
 
+  /// Inserts a playlist at [index] (undo of a delete) and persists.
+  Future<void> insertPlaylist(int index, Playlist playlist) async {
+    _playlists.insert(index.clamp(0, _playlists.length), playlist);
+    await _savePlaylists();
+  }
+
   /// Updates an existing playlist by ID and persists.
   Future<void> updatePlaylist(Playlist updated) async {
     final index = _playlists.indexWhere((p) => p.id == updated.id);

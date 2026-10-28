@@ -63,10 +63,23 @@ class SessionProvider extends ChangeNotifier {
   }
 
   /// Deletes a session from the library.
-  Future<void> deleteSession(String sessionId) async {
+  /// Returns the removed session and its position (for [restoreSession]).
+  Future<(Session, int)?> deleteSession(String sessionId) async {
     await _loadCompleter.future;
-    _sessions.removeWhere((s) => s.id == sessionId);
+    final index = _sessions.indexWhere((s) => s.id == sessionId);
+    if (index < 0) return null;
+    final removed = _sessions.removeAt(index);
     await _repository.deleteSession(sessionId);
+    notifyListeners();
+    return (removed, index);
+  }
+
+  /// Undo of [deleteSession]: re-inserts [session] at [index].
+  Future<void> restoreSession(Session session, int index) async {
+    await _loadCompleter.future;
+    if (getSessionById(session.id) != null) return;
+    _sessions.insert(index.clamp(0, _sessions.length), session);
+    await _repository.insertSession(index, session);
     notifyListeners();
   }
 

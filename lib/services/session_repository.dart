@@ -45,6 +45,12 @@ class SessionRepository {
     await _saveSessions();
   }
 
+  /// Inserts a session at [index] (undo of a delete) and persists.
+  Future<void> insertSession(int index, Session session) async {
+    _sessions.insert(index.clamp(0, _sessions.length), session);
+    await _saveSessions();
+  }
+
   /// Updates an existing session by ID and persists.
   Future<void> updateSession(Session updated) async {
     final index = _sessions.indexWhere((s) => s.id == updated.id);

@@ -3,7 +3,7 @@ import 'package:uuid/uuid.dart';
 /// Configuration for a single pattern within a session.
 ///
 /// Each pattern in a session has its own independent volume, mute and solo states,
-/// plus an order index for arranging the sequence.
+/// an optional sound set, plus an order index for arranging the sequence.
 class SessionPatternConfig {
   final String patternId;
   final double volume;
@@ -11,20 +11,29 @@ class SessionPatternConfig {
   final bool isSolo;
   final int orderIndex;
 
+  /// Sound set used by this pattern (see `ClickSynth.soundSets`).
+  /// `null` = follows the session's global sound set.
+  final String? soundSet;
+
   SessionPatternConfig({
     required this.patternId,
     this.volume = 1.0,
     this.isMuted = false,
     this.isSolo = false,
     this.orderIndex = 0,
+    this.soundSet,
   });
 
+  static const Object _unset = Object();
+
+  /// Pass `soundSet: null` explicitly to reset the pattern to the session's sound.
   SessionPatternConfig copyWith({
     String? patternId,
     double? volume,
     bool? isMuted,
     bool? isSolo,
     int? orderIndex,
+    Object? soundSet = _unset,
   }) {
     return SessionPatternConfig(
       patternId: patternId ?? this.patternId,
@@ -32,6 +41,7 @@ class SessionPatternConfig {
       isMuted: isMuted ?? this.isMuted,
       isSolo: isSolo ?? this.isSolo,
       orderIndex: orderIndex ?? this.orderIndex,
+      soundSet: identical(soundSet, _unset) ? this.soundSet : soundSet as String?,
     );
   }
 
@@ -41,6 +51,8 @@ class SessionPatternConfig {
     'isMuted': isMuted,
     'isSolo': isSolo,
     'orderIndex': orderIndex,
+    // Only persisted when overridden, so untouched sessions keep the legacy format.
+    if (soundSet != null) 'soundSet': soundSet,
   };
 
   factory SessionPatternConfig.fromJson(Map<String, dynamic> json) {
@@ -50,6 +62,7 @@ class SessionPatternConfig {
       isMuted: json['isMuted'] as bool? ?? false,
       isSolo: json['isSolo'] as bool? ?? false,
       orderIndex: json['orderIndex'] as int? ?? 0,
+      soundSet: json['soundSet'] as String?,
     );
   }
 

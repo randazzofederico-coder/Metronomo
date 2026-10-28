@@ -38,6 +38,7 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Rango BPM amplio** — De 1 a 999 BPM con slider logarítmico de 3 zonas para precisión en rangos musicales
 - **Ajuste fino** — Botones de ±1 y ±5 BPM para control preciso
 - **Por patrón** — Volumen (knob rotativo), Mute (M) y Solo (S) individuales por cada instancia
+- **Barra espaciadora = Play/Stop** — En el metrónomo y en el reproductor de playlists (mixin `SpacePlayShortcut`, `utils/space_play_shortcut.dart`). Usa `HardwareKeyboard.addHandler`, así no activa el botón que tenga foco. Se ignora mientras se escribe en un campo de texto o se edita una estructura, si hay un diálogo u otra pantalla encima (`ModalRoute.isCurrent`) o con modificadores (Ctrl/Alt/Shift/Meta); el auto-repeat no vuelve a alternar
 
 ### 📊 Visualización
 - **Macro Ciclo** — Visualizador matricial que muestra todos los patrones alineados al MCM de sus duraciones
@@ -46,9 +47,12 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Estructura formateada** — Display estilo fracción (numerador/denominador) para subdivisiones
 
 ### ⌨️ Teclado Métrico
-- Teclado numérico custom con teclas `+`, `/`, `:` para ingresar estructuras rítmicas
-- Edición en vivo — El patrón se actualiza mientras se escribe
-- Límite de 2 dígitos consecutivos por slot numérico
+- **Teclado físico + keypad en pantalla** — El campo de estructura es un `TextField` real con `TextInputType.none`: en PC se escribe directamente desde el teclado (cursor, selección, flechas, Supr, pegar) y en móvil no se abre el teclado del sistema, se usa el keypad propio
+- **Keypad siempre visible durante la edición** — Teclas `0-9`, `+`, `/`, `:`, borrar y OK. Las teclas que producirían una estructura inválida se muestran atenuadas, así el keypad documenta la sintaxis
+- **Layout adaptativo** — Desde 600 px de ancho el keypad es un popover compacto (232 px) anclado debajo del campo (`CompositedTransformFollower`) con la ayuda de atajos; en móvil es una barra inferior con ancho máximo de 480 px
+- **Solo entradas válidas** — `StructureInputFormatter` (`utils/structure_input.dart`) filtra caracteres y secuencias imposibles (`++`, `+` inicial, `3:/`, `//`, ceros a la izquierda) y respeta los límites del parser (pulsos 1–32, ratio 1–64, subdivisión 1–12). Al pegar se descartan los espacios; borrar siempre está permitido. Teclado físico y keypad pasan por la misma validación
+- **Commit al confirmar** — El patrón se recalcula solo al confirmar y solo si el valor cambió (no se pierden acentos editados a mano mientras se escribe). Un valor incompleto (`3+`, `3:`) se muestra en rojo y no se puede confirmar
+- **Atajos** — `Enter` confirma · `Esc` cancela y restaura el valor original · `Tab` / `Shift+Tab` confirma y pasa al patrón siguiente/anterior · tocar fuera confirma (o revierte si está incompleto)
 
 ### 🎨 Diseño y UI
 - **Tema oscuro premium** — Paleta cálida con fondo `#1E1A17` y acento naranja `#F98533`
@@ -151,7 +155,7 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Edición Dinámica de Patrones** — Renombrado in-situ de pistas con cajas delimitadas dinámicamente (`IntrinsicWidth`) y tracking visual milimétrico del asterisco de edición
 - **Guardado Inteligente** — Discriminación contextual en la App Bar: sistema de guardado rápido para sobrescribir (pisar) datos modificados, o "Guardar Como..." (`Uuid().v4()`) para versionado de bibliotecas limpias
 - **Aislamiento de Periféricos (Gestos y Foco)** —
-  - **Foco Seguro**: Prevención estricta de superposición de teclados (Android Nativo vs Numérico Métrico) purgando la jerarquía de foco antes de despachar diálogos modales. Visibilidad garantizada vía `Scrollable.ensureVisible`
+  - **Foco Seguro**: Prevención estricta de superposición de teclados (Android Nativo vs Numérico Métrico) purgando la jerarquía de foco antes de despachar diálogos modales; abrir un diálogo confirma la estructura en edición. Visibilidad garantizada vía `Scrollable.ensureVisible`
   - **Arena de Gestos de Alta Precisión**: Controladores de perillas (Knobs) con monopolio asertivo sobre los arreglos `onVerticalDragUpdate` y `onHorizontalDragUpdate`. Esto neutraliza el reconocedor nativo del `ListView`, inhibiendo el scroll inercial padre mientras se manipulan los parámetros de mezcla
 
 ## 📐 Arquitectura
@@ -176,7 +180,7 @@ lib/
 │   ├── session_provider.dart          # CRUD de la biblioteca de sesiones
 │   └── playlist_provider.dart         # CRUD de playlists + reordenar sesiones internas
 ├── screens/
-│   ├── metronome_screen.dart          # UI: secuenciador, controles, visualizador, teclado custom
+│   ├── metronome_screen.dart          # UI: secuenciador, controles, visualizador, edición de estructuras y atajos
 │   ├── playlists_screen.dart          # Gestión de playlists: crear, editar, eliminar, reordenar sesiones
 │   ├── playlist_player_screen.dart    # Reproductor: PageView, flechas de navegación, modo solo lectura, toggle edición
 │   ├── auth_gate.dart                 # Gate de autenticación, permisos y fallback offline
@@ -197,8 +201,12 @@ lib/
 │   ├── pattern_repository.dart        # Persistencia de patrones (SharedPreferences)
 │   ├── session_repository.dart        # Persistencia de sesiones (SharedPreferences)
 │   └── playlist_repository.dart       # Persistencia de playlists (SharedPreferences)
+├── utils/
+│   ├── structure_input.dart           # Validación de estructuras (parcial/completa) + TextInputFormatter
+│   └── space_play_shortcut.dart       # Mixin: barra espaciadora → Play/Stop
 └── widgets/
     ├── knob_control.dart              # Control rotativo con CustomPainter
+    ├── pattern_keypad.dart            # Keypad de estructuras (barra inferior móvil / popover desktop)
     ├── share_sheet.dart               # Bottom sheet unificado: generar link → Compartir en… / Copiar link
     └── update_required_screen.dart    # Pantalla bloqueante de actualización obligatoria
 
@@ -237,6 +245,7 @@ packages/native_audio_engine/
 3. Si hay `ratio`, la duración de cada pulso es `ratio / count` beats
 4. Si no hay `ratio`, cada pulso dura 1 beat
 5. Las subdivisiones generan sub-celdas con acentos automáticos (1° del grupo = primario, resto = secundario)
+6. Límites: `count` 1–32, `ratio` 1–64, `subdivision` 1–12, máximo 64 pulsos totales. La UI no permite ingresar valores fuera de rango (`StructureInput`); el parser es único (`HomeMetronomeInstance._parseStructureInitial`) y lo usan tanto la creación como la edición de patrones
 
 ## 🛠️ Stack Tecnológico
 

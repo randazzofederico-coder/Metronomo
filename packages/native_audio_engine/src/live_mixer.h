@@ -60,7 +60,11 @@ public:
 
     // --- METRONOME ---
     void setMetronomeConfig(int bpm);
-    void setMetronomeSound(int type, const float* data, int numSamples);
+    void setMetronomeSound(int type, const float* data, int numSamples); // = setMetronomeBankSound(0, ...)
+    // Sound banks: each bank holds the 3 click buffers (slot 0/1/2) of one sound set.
+    // Every metronome pattern plays through one bank (default 0), so patterns can sound different.
+    void setMetronomeBankSound(int bank, int type, const float* data, int numSamples);
+    void setMetronomePatternSoundBank(int id, int bank);
     void setMetronomeVolume(float vol34, float vol68); // keeping for backward compat if needed, or remove? Let's remove
     // New dynamic metronome API
     // eventVolumes: optional flat array (same length as flatPatternData) with a per-event gain (1.0 = 100%).
@@ -127,6 +131,7 @@ private:
        float volume = 0.0f;
        bool muted = false;
        bool solo = false;
+       int soundBank = 0; // index into _soundBanks
        std::vector<MetronomePulse> pulses;
    };
    std::vector<MetronomeTrack> _metronomeTracks;
@@ -146,9 +151,11 @@ private:
    int _voiceFadeFrames = 132; // ~3 ms, recomputed from the engine sample rate
    void _triggerVoice(MetronomeVoice& voice, float volume);
    float _renderVoice(MetronomeVoice& voice);
-   MetronomeVoice _clickHigh; // type 0
-   MetronomeVoice _clickLow;  // type 1
-   MetronomeVoice _clickNoise;// type 2
+   static const int kMaxSoundBanks = 16;
+   struct SoundBank {
+       MetronomeVoice voices[3]; // type 0 (High) / 1 (Low) / 2 (Noise)
+   };
+   SoundBank _soundBanks[kMaxSoundBanks];
 
    // Solo logic helper
    bool _anyTrackSolo = false; // Renamed from _anySolo
@@ -188,6 +195,8 @@ extern "C" {
 
     EXPORT void live_mixer_set_metronome_config(void* mixer, int bpm);
     EXPORT void live_mixer_set_metronome_sound(void* mixer, int type, const float* data, int numSamples);
+    EXPORT void live_mixer_set_metronome_bank_sound(void* mixer, int bank, int type, const float* data, int numSamples);
+    EXPORT void live_mixer_set_metronome_pattern_sound_bank(void* mixer, int id, int bank);
     EXPORT void live_mixer_add_metronome_pattern(void* mixer, int id, const int* flatPatternData, const int* subdivisionsData, const double* durationRatios, const float* eventVolumes, int numPulses, float vol, bool mute, bool solo);
     EXPORT void live_mixer_update_metronome_pattern(void* mixer, int id, const int* flatPatternData, const int* subdivisionsData, const double* durationRatios, const float* eventVolumes, int numPulses, float vol, bool mute, bool solo);
     EXPORT void live_mixer_remove_metronome_pattern(void* mixer, int id);

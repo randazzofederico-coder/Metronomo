@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show HapticFeedback;
+import 'package:flutter/services.dart' show HapticFeedback, HardwareKeyboard, KeyDownEvent, KeyEvent, LogicalKeyboardKey;
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
@@ -19,6 +19,9 @@ import 'package:metronomo_standalone/providers/playlist_provider.dart';
 import 'package:metronomo_standalone/screens/playlists_screen.dart';
 import 'package:metronomo_standalone/screens/playlist_player_screen.dart';
 import 'package:metronomo_standalone/widgets/share_sheet.dart';
+import 'package:metronomo_standalone/widgets/pattern_keypad.dart';
+import 'package:metronomo_standalone/utils/structure_input.dart';
+import 'package:metronomo_standalone/utils/space_play_shortcut.dart';
 
 class MetronomeScreen extends StatefulWidget {
   const MetronomeScreen({super.key});
@@ -27,7 +30,7 @@ class MetronomeScreen extends StatefulWidget {
   State<MetronomeScreen> createState() => _MetronomeScreenState();
 }
 
-class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObserver {
+class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObserver, SpacePlayShortcut {
   int? _activePatternIdForKeyboard;
 
   /// Event currently in "volume mode" (long press + vertical drag), or null.
@@ -36,7 +39,18 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
   /// Vertical drag distance (logical px) per 5% volume step.
   static const double _volumePxPerStep = 12.0;
   final Map<int, TextEditingController> _structureControllers = {};
+  final Map<int, FocusNode> _structureFocusNodes = {};
   final Map<int, TextEditingController> _titleControllers = {};
+
+  /// Structure value when editing started (restored on Esc / invalid input).
+  String _structureBeforeEdit = '';
+
+  /// Anchors the desktop keypad popover to the field being edited.
+  final LayerLink _keypadLink = LayerLink();
+
+  /// From this width on, the keypad is a popover next to the field instead
+  /// of a full-width bar at the bottom.
+  static const double _wideLayoutBreakpoint = 600;
   bool _wasPlayingBeforeBackground = false;
   
   // Map Slider Value [0.0, 1.0] to BPM [1, 999]
@@ -345,16 +359,162 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     for (var controller in _titleControllers.values) {
       controller.dispose();
     }
+    for (var node in _structureFocusNodes.values) {
+      node.dispose();
+    }
     super.dispose();
   }
 
   void _closeAllKeyboards() {
+    _endStructureEdit(commit: true);
     FocusScope.of(context).unfocus();
-    if (_activePatternIdForKeyboard != null) {
-      setState(() {
-        _activePatternIdForKeyboard = null;
+  }
+
+  // --- GLOBAL SHORTCUTS ---
+
+  @override
+  void onSpacePlayToggle() => context.read<MetronomeProvider>().togglePlay();
+
+  /// Space types into the structure editor instead of toggling playback.
+  @override
+  bool get spaceShortcutBlocked => _activePatternIdForKeyboard != null;
+
+  // --- STRUCTURE EDITING ---
+  // A structure edit is a session: it starts when the field is tapped and
+  // ends with confirm (Enter / OK / Tab / tap outside) or cancel (Esc).
+  // The pattern is only rebuilt on confirm, and only if the value changed.
+
+  bool _isWideLayout(BuildContext context) =>
+      MediaQuery.sizeOf(context).width >= _wideLayoutBreakpoint;
+
+  FocusNode _structureFocusNodeFor(int id) {
+    return _structureFocusNodes.putIfAbsent(id, () {
+      final node = FocusNode(
+        debugLabel: 'pattern-structure-$id',
+        onKeyEvent: (node, event) => _onStructureKey(id, event),
+      );
+      node.addListener(() {
+        // Focus moved elsewhere (another field, a dialog...): confirm.
+        if (!node.hasFocus && _activePatternIdForKeyboard == id) {
+          _endStructureEdit(commit: true);
+        }
       });
+      return node;
+    });
+  }
+
+  void _startStructureEdit(int id) {
+    if (_activePatternIdForKeyboard == id) return;
+    if (_activePatternIdForKeyboard != null) _endStructureEdit(commit: true);
+
+    final metronome = context.read<MetronomeProvider>();
+    final instance = metronome.instances.where((i) => i.id == id).firstOrNull;
+    if (instance == null) return;
+
+    _structureBeforeEdit = instance.structure;
+    final controller = _structureControllers.putIfAbsent(id, () => TextEditingController());
+    controller.text = instance.structure;
+    _structureFocusNodeFor(id);
+
+    setState(() => _activePatternIdForKeyboard = id);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _activePatternIdForKeyboard != id) return;
+      final node = _structureFocusNodeFor(id);
+      node.requestFocus();
+      // Desktop: select all so typing replaces the value. Mobile: caret at end.
+      controller.selection = _isWideLayout(context)
+          ? TextSelection(baseOffset: 0, extentOffset: controller.text.length)
+          : TextSelection.collapsed(offset: controller.text.length);
+      final fieldContext = node.context;
+      if (fieldContext != null) {
+        Scrollable.ensureVisible(
+          fieldContext,
+          alignment: 0.1,
+          curve: Curves.easeInOut,
+          duration: const Duration(milliseconds: 300),
+        );
+      }
+    });
+  }
+
+  /// Ends the current structure edit. With [commit], applies the value if it
+  /// is complete and changed; otherwise restores the original value.
+  void _endStructureEdit({required bool commit}) {
+    final id = _activePatternIdForKeyboard;
+    if (id == null || !mounted) return;
+
+    // Clear first so the focus listener doesn't re-enter.
+    setState(() => _activePatternIdForKeyboard = null);
+
+    final controller = _structureControllers[id];
+    final metronome = context.read<MetronomeProvider>();
+    final instance = metronome.instances.where((i) => i.id == id).firstOrNull;
+    if (controller != null && instance != null) {
+      final text = controller.text;
+      if (commit && StructureInput.isComplete(text) && text != instance.structure) {
+        metronome.updateInstanceStructure(id, text);
+      } else {
+        controller.text = _structureBeforeEdit;
+      }
     }
+
+    final node = _structureFocusNodes[id];
+    if (node != null && node.hasFocus) node.unfocus();
+  }
+
+  /// Enter / OK: confirm only if the value is complete, otherwise keep editing.
+  void _confirmStructureEdit() {
+    final id = _activePatternIdForKeyboard;
+    if (id == null) return;
+    if (!StructureInput.isComplete(_structureControllers[id]?.text ?? '')) return;
+    _endStructureEdit(commit: true);
+  }
+
+  /// Tab / Shift+Tab: confirm and jump to the next / previous pattern.
+  void _moveStructureEdit({required bool forward}) {
+    final id = _activePatternIdForKeyboard;
+    if (id == null) return;
+    if (!StructureInput.isComplete(_structureControllers[id]?.text ?? '')) return;
+
+    final instances = context.read<MetronomeProvider>().instances;
+    final index = instances.indexWhere((i) => i.id == id);
+    final targetIndex = forward ? index + 1 : index - 1;
+
+    _endStructureEdit(commit: true);
+    if (index >= 0 && targetIndex >= 0 && targetIndex < instances.length) {
+      _startStructureEdit(instances[targetIndex].id);
+    }
+  }
+
+  KeyEventResult _onStructureKey(int id, KeyEvent event) {
+    if (event is! KeyDownEvent || _activePatternIdForKeyboard != id) {
+      return KeyEventResult.ignored;
+    }
+    final key = event.logicalKey;
+    if (key == LogicalKeyboardKey.escape) {
+      _endStructureEdit(commit: false);
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.enter || key == LogicalKeyboardKey.numpadEnter) {
+      _confirmStructureEdit();
+      return KeyEventResult.handled;
+    }
+    if (key == LogicalKeyboardKey.tab) {
+      _moveStructureEdit(forward: !HardwareKeyboard.instance.isShiftPressed);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  /// Drops the per-instance editing state of a removed pattern.
+  void _disposeStructureState(int id) {
+    final controller = _structureControllers.remove(id);
+    final node = _structureFocusNodes.remove(id);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      controller?.dispose();
+      node?.dispose();
+    });
   }
 
   /// Returns true if the session ended up saved (overwrite or "save as").
@@ -736,12 +896,8 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
       body: SafeArea(
         child: GestureDetector(
           onTap: () {
-            // Dismiss custom keyboard when tapping outside
-            if (_activePatternIdForKeyboard != null) {
-              setState(() {
-                _activePatternIdForKeyboard = null;
-              });
-            }
+            // Tapping outside confirms the structure being edited.
+            _endStructureEdit(commit: true);
           },
           child: Consumer<MetronomeProvider>(
             builder: (context, metronome, child) {
@@ -777,11 +933,9 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                                       onSoloToggle: () => metronome.toggleInstanceSolo(instance.id),
                                        onRemove: () {
                                          if (_activePatternIdForKeyboard == instance.id) {
-                                           setState(() {
-                                             _activePatternIdForKeyboard = null;
-                                           });
+                                           _endStructureEdit(commit: false);
                                          }
-                                         _structureControllers.remove(instance.id);
+                                         _disposeStructureState(instance.id);
                                          metronome.removeInstance(instance.id);
                                        },
                                     );
@@ -833,7 +987,8 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                                 ),
                               ],
                             ),
-                            SizedBox(height: _activePatternIdForKeyboard != null ? 300 : 80), // Pad bottom for keyboard
+                            // Room below the field being edited for the keypad.
+                            SizedBox(height: _activePatternIdForKeyboard != null ? 260 : 80),
                           ],
                         ),
                         
@@ -845,32 +1000,40 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                             child: _buildVolumeLegend(context),
                           ),
 
-                        // Custom Keyboard Overlay
-                        if (_activePatternIdForKeyboard != null)
-                          Positioned(
-                            left: 0,
-                            right: 0,
-                            bottom: 0,
-                            child: _buildCustomKeyboard(
-                               context: context,
-                               instanceId: _activePatternIdForKeyboard!,
-                               controller: _structureControllers[_activePatternIdForKeyboard!]!,
-                               onSubmit: (val) {
-                                   metronome.updateInstanceStructure(_activePatternIdForKeyboard!, val);
-                                   setState(() {
-                                       _activePatternIdForKeyboard = null;
-                                   });
-                               },
-                               onUpdateLive: (val) {
-                                   // Force local UI redraw so the user sees the '+' immediately
-                                   setState(() {});
-                                   
-                                   if (val.isNotEmpty && !val.endsWith('+')) { 
-                                       metronome.updateInstanceStructure(_activePatternIdForKeyboard!, val);
-                                   }
-                               }
+                        // Pattern structure keypad: popover next to the field on
+                        // wide screens, full-width bar at the bottom on mobile.
+                        if (_activePatternIdForKeyboard != null &&
+                            _structureControllers[_activePatternIdForKeyboard!] != null)
+                          if (_isWideLayout(context))
+                            Positioned(
+                              left: 0,
+                              top: 0,
+                              child: CompositedTransformFollower(
+                                link: _keypadLink,
+                                showWhenUnlinked: false,
+                                targetAnchor: Alignment.bottomLeft,
+                                followerAnchor: Alignment.topLeft,
+                                // Target is the text inside the field box: compensate
+                                // its padding (12/6) + border (2) to align with the box.
+                                offset: const Offset(-14, 14),
+                                child: PatternKeypad(
+                                  style: PatternKeypadStyle.popover,
+                                  controller: _structureControllers[_activePatternIdForKeyboard!]!,
+                                  onSubmit: _confirmStructureEdit,
+                                ),
+                              ),
+                            )
+                          else
+                            Positioned(
+                              left: 0,
+                              right: 0,
+                              bottom: 0,
+                              child: PatternKeypad(
+                                style: PatternKeypadStyle.docked,
+                                controller: _structureControllers[_activePatternIdForKeyboard!]!,
+                                onSubmit: _confirmStructureEdit,
+                              ),
                             ),
-                          ),
                       ],
                     ),
                   ),
@@ -1203,11 +1366,6 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                                contentPadding: EdgeInsets.zero,
                            ),
                            onTap: () {
-                               if (_activePatternIdForKeyboard != null) {
-                                 setState(() {
-                                   _activePatternIdForKeyboard = null;
-                                 });
-                               }
                                Future.delayed(const Duration(milliseconds: 300), () {
                                  if (context.mounted) Scrollable.ensureVisible(instanceContext, curve: Curves.easeInOut, duration: const Duration(milliseconds: 300));
                                });
@@ -1231,15 +1389,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                Expanded(
                  flex: 3,
                  child: GestureDetector(
-                   onTap: () {
-                       FocusScope.of(context).unfocus(); // Close Android keyboard
-                       setState(() {
-                           _activePatternIdForKeyboard = instance.id;
-                       });
-                       Future.delayed(const Duration(milliseconds: 100), () {
-                           if (context.mounted) Scrollable.ensureVisible(instanceContext, curve: Curves.easeInOut, duration: const Duration(milliseconds: 300));
-                       });
-                   },
+                   onTap: () => _startStructureEdit(instance.id),
                    child: Container(
                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                      decoration: BoxDecoration(
@@ -1251,30 +1401,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                          borderRadius: BorderRadius.circular(4),
                      ),
                       child: isEditing 
-                        ? SizedBox(
-                            height: 24,
-                            child: TextField(
-                              controller: _structureControllers[instance.id],
-                              readOnly: true,
-                              showCursor: true,
-                              cursorColor: AppColors.accentCyan(context),
-                              style: TextStyle(
-                                color: AppColors.accentCyan(context),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                letterSpacing: 2.0,
-                              ),
-                              decoration: InputDecoration(
-                                border: InputBorder.none,
-                                isDense: true,
-                                contentPadding: EdgeInsets.zero,
-                                hintText: "Ej. 3+2",
-                                hintStyle: TextStyle(
-                                  color: AppColors.textSecondary(context).withOpacity(0.5),
-                                ),
-                              ),
-                            ),
-                          )
+                        ? _buildStructureEditor(context, instance.id)
                        : FittedBox(
                            fit: BoxFit.scaleDown,
                            alignment: Alignment.centerLeft,
@@ -1499,11 +1626,61 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                   child: Text('S', style: TextStyle(color: instance.isSolo ? Colors.black : Colors.grey, fontWeight: FontWeight.bold, fontSize: 12)),
                 ),
               ),
+              const SizedBox(width: 6),
+              _buildInstanceSoundSelector(context, instance),
             ],
           ),
         ],
       ),
     ),
+    );
+  }
+
+  /// Per-pattern sound set selector ("Global" = follows the sound chosen in Settings).
+  Widget _buildInstanceSoundSelector(BuildContext context, HomeMetronomeInstance instance) {
+    final metronome = context.read<MetronomeProvider>();
+    final hasOverride = instance.soundSet != null;
+    final label = metronome.effectiveSoundSet(instance);
+    const globalValue = '__global__';
+    final accent = AppColors.accentCyan(context);
+
+    return PopupMenuButton<String>(
+      tooltip: 'Sonido del patrón',
+      initialValue: instance.soundSet ?? globalValue,
+      onSelected: (val) => metronome.updateInstanceSoundSet(instance.id, val == globalValue ? null : val),
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: globalValue,
+          child: Text('Global (${metronome.currentSoundSet})'),
+        ),
+        const PopupMenuDivider(),
+        ...ClickSynth.soundSets.map((s) => PopupMenuItem(value: s, child: Text(s))),
+      ],
+      child: Container(
+        height: 26,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: hasOverride ? accent.withOpacity(0.15) : Colors.grey.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: hasOverride ? accent : AppColors.border(context)),
+        ),
+        alignment: Alignment.center,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.music_note, size: 14, color: hasOverride ? accent : Colors.grey),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: hasOverride ? AppColors.textPrimary(context) : Colors.grey,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1668,170 +1845,59 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     );
   }
 
-  Widget _buildCustomKeyboard({
-      required BuildContext context, 
-      required int instanceId,
-      required TextEditingController controller,
-      required Function(String) onSubmit,
-      required Function(String) onUpdateLive,
-  }) {
-      return MediaQuery(
-        data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
-        child: Container(
-          padding: const EdgeInsets.only(top: 6, bottom: 12, left: 4, right: 4),
-          decoration: BoxDecoration(
-              color: AppColors.surfaceHighlight(context),
-              border: Border(top: BorderSide(color: AppColors.accentCyan(context), width: 2)),
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.5), blurRadius: 10, offset: const Offset(0, -4))]
-          ),
-          child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                  // Text display row showing what's being typed
-                  Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                          color: AppColors.background(context),
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: AppColors.accentCyan(context).withOpacity(0.5)),
-                      ),
-                      child: TextField(
-                          controller: controller,
-                          readOnly: true,
-                          showCursor: true,
-                          cursorColor: AppColors.accentCyan(context),
-                          style: TextStyle(
-                              color: AppColors.accentCyan(context),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              letterSpacing: 2.0,
-                          ),
-                          decoration: InputDecoration(
-                              border: InputBorder.none,
-                              isDense: true,
-                              contentPadding: EdgeInsets.zero,
-                              hintText: "Ej. 3+2",
-                              hintStyle: TextStyle(
-                                  color: AppColors.textSecondary(context).withOpacity(0.5),
-                              ),
-                          ),
-                      ),
-                  ),
-                  Row(
-                      children: [
-                          Expanded(child: _buildKeyBtn("1", controller, onUpdateLive)),
-                          Expanded(child: _buildKeyBtn("2", controller, onUpdateLive)),
-                          Expanded(child: _buildKeyBtn("3", controller, onUpdateLive)),
-                          Expanded(child: _buildKeyBtn("+", controller, onUpdateLive, isControl: true, color: AppColors.accentGreen(context))),
-                      ],
-                  ),
-                  Row(
-                      children: [
-                          Expanded(child: _buildKeyBtn("4", controller, onUpdateLive)),
-                          Expanded(child: _buildKeyBtn("5", controller, onUpdateLive)),
-                          Expanded(child: _buildKeyBtn("6", controller, onUpdateLive)),
-                          Expanded(child: _buildKeyBtn("/", controller, onUpdateLive, isControl: true, color: AppColors.accentGreen(context))),
-                      ],
-                  ),
-                  Row(
-                      children: [
-                          Expanded(child: _buildKeyBtn("7", controller, onUpdateLive)),
-                          Expanded(child: _buildKeyBtn("8", controller, onUpdateLive)),
-                          Expanded(child: _buildKeyBtn("9", controller, onUpdateLive)),
-                          Expanded(child: _buildKeyBtn(":", controller, onUpdateLive, isControl: true, color: AppColors.accentGreen(context))),
-                      ],
-                  ),
-                  Row(
-                      children: [
-                          Expanded(child: _buildKeyBtn("0", controller, onUpdateLive)),
-                          Expanded(child: _buildKeyBtn("OK", controller, (v) => onSubmit(controller.text), isControl: true, color: AppColors.accentCyan(context))),
-                          Expanded(child: _buildKeyBtn("\u232b", controller, onUpdateLive, isControl: true, color: AppColors.accentRed(context), icon: Icons.backspace)),
-                      ],
-                  ),
-              ],
-          ),
-        ),
-      );
-  }
-
-  Widget _buildKeyBtn(String keyData, TextEditingController controller, Function(String) onChange, {bool isControl = false, Color? color, IconData? icon}) {
-      return GestureDetector(
-          onTap: () {
-              if (keyData == "OK") {
-                  onChange(controller.text);
-              } else if (keyData == "\u232b") {
-                  if (controller.text.isNotEmpty) {
-                      final int pos = controller.selection.baseOffset;
-                      if (pos > 0) {
-                          controller.text = controller.text.substring(0, pos - 1) + controller.text.substring(pos);
-                          controller.selection = TextSelection.collapsed(offset: pos - 1);
-                          onChange(controller.text);
-                      } else if (pos == -1) {
-                          // Cursor not active, delete from end
-                          controller.text = controller.text.substring(0, controller.text.length - 1);
-                          onChange(controller.text);
-                      }
-                  }
-              } else {
-                  final int pos = controller.selection.baseOffset;
-                  final String text = controller.text;
-                  
-                  // Limit digits: max 2 consecutive digits per numeric slot
-                  if (RegExp(r'[0-9]').hasMatch(keyData)) {
-                      final int insertPos = pos >= 0 ? pos : text.length;
-                      // Count consecutive digits before insert position
-                      int digitsBefore = 0;
-                      for (int i = insertPos - 1; i >= 0; i--) {
-                          if (RegExp(r'[0-9]').hasMatch(text[i])) {
-                              digitsBefore++;
-                          } else {
-                              break;
-                          }
-                      }
-                      // Count consecutive digits after insert position
-                      int digitsAfter = 0;
-                      for (int i = insertPos; i < text.length; i++) {
-                          if (RegExp(r'[0-9]').hasMatch(text[i])) {
-                              digitsAfter++;
-                          } else {
-                              break;
-                          }
-                      }
-                      if (digitsBefore + digitsAfter >= 2) return; // Block input
-                  }
-                  
-                  if (pos >= 0) {
-                      controller.text = text.substring(0, pos) + keyData + text.substring(pos);
-                      controller.selection = TextSelection.collapsed(offset: pos + keyData.length);
-                  } else {
-                      controller.text += keyData;
-                  }
-                  onChange(controller.text);
-              }
-          },
-          child: Container(
-              margin: const EdgeInsets.all(2),
-              height: 36,
-              decoration: BoxDecoration(
-                  color: isControl ? (color ?? AppColors.surface(context)).withOpacity(0.2) : AppColors.surface(context),
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: isControl ? (color ?? AppColors.border(context)) : AppColors.border(context)),
+  /// Inline editor for the pattern structure. Accepts the physical keyboard
+  /// (filtered by [StructureInputFormatter]) without opening the OS soft
+  /// keyboard; on touch devices the [PatternKeypad] is the input method.
+  Widget _buildStructureEditor(BuildContext context, int instanceId) {
+    final controller = _structureControllers[instanceId]!;
+    return CompositedTransformTarget(
+      link: _keypadLink,
+      child: SizedBox(
+        height: 24,
+        child: ListenableBuilder(
+          listenable: controller,
+          builder: (context, child) {
+            // Incomplete values (e.g. "3+", "3:") are shown in red: they
+            // can't be confirmed until finished.
+            final bool complete = StructureInput.isComplete(controller.text);
+            final Color color = complete ? AppColors.accentCyan(context) : AppColors.accentRed(context);
+            return TextField(
+              controller: controller,
+              focusNode: _structureFocusNodeFor(instanceId),
+              keyboardType: TextInputType.none,
+              textInputAction: TextInputAction.done,
+              inputFormatters: [StructureInputFormatter()],
+              autocorrect: false,
+              enableSuggestions: false,
+              maxLines: 1,
+              showCursor: true,
+              cursorColor: color,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                letterSpacing: 2.0,
               ),
-              alignment: Alignment.center,
-              child: icon != null 
-                  ? Icon(icon, color: isControl ? (color ?? AppColors.textPrimary(context)) : AppColors.textPrimary(context), size: 18)
-                  : Text(
-                      keyData,
-                      style: TextStyle(
-                          color: isControl ? (color ?? AppColors.textPrimary(context)) : AppColors.textPrimary(context),
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                      ),
-                  ),
-          ),
-      );
+              decoration: InputDecoration(
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+                hintText: "Ej. 3+2",
+                hintStyle: TextStyle(
+                  color: AppColors.textSecondary(context).withOpacity(0.5),
+                ),
+              ),
+              onSubmitted: (_) => _confirmStructureEdit(),
+              // Keep focus on Enter when the value is incomplete.
+              onEditingComplete: () {},
+              // Closing is handled by the screen's tap detector, so taps on
+              // the keypad don't steal focus from the field.
+              onTapOutside: (_) {},
+            );
+          },
+        ),
+      ),
+    );
   }
 }
 

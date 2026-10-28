@@ -100,6 +100,14 @@ class LiveMixer {
     throw UnsupportedError('Native audio engine is not supported on this platform.');
   }
 
+  void setMetronomeBankSound(int bank, int type, Float32List data) {
+    throw UnsupportedError('Native audio engine is not supported on this platform.');
+  }
+
+  void setMetronomePatternSoundBank(int id, int bank) {
+    throw UnsupportedError('Native audio engine is not supported on this platform.');
+  }
+
   void addMetronomePattern(int id, List<int>? flatPattern, List<int>? subdivisions, List<double>? durationRatios, double vol, bool mute, bool solo, {List<double>? eventVolumes}) {
     throw UnsupportedError('Native audio engine is not supported on this platform.');
   }

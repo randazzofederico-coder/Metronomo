@@ -627,9 +627,15 @@ void LiveMixer::setMetronomeConfig(int bpm) {
 }
 
 void LiveMixer::setMetronomeSound(int type, const float* data, int numSamples) {
+    setMetronomeBankSound(0, type, data, numSamples);
+}
+
+void LiveMixer::setMetronomeBankSound(int bank, int type, const float* data, int numSamples) {
     if (!data || numSamples <= 0) return;
+    if (bank < 0 || bank >= kMaxSoundBanks) return;
     std::lock_guard<std::mutex> lock(_mutex);
-    MetronomeVoice* voice = (type == 0) ? &_clickHigh : (type == 1) ? &_clickLow : &_clickNoise; // High / Low / Noise(2)
+    int slot = (type == 0 || type == 1) ? type : 2; // High / Low / Noise(2)
+    MetronomeVoice* voice = &_soundBanks[bank].voices[slot];
     voice->data.assign(data, data + numSamples);
     // Stop anything that was playing from the previous buffer
     voice->currentPointer = -1;
@@ -717,6 +723,17 @@ void LiveMixer::updateMetronomePattern(int id, const int* flatPatternData, const
         }
     }
     _updateGlobalSolo();
+}
+
+void LiveMixer::setMetronomePatternSoundBank(int id, int bank) {
+    if (bank < 0 || bank >= kMaxSoundBanks) bank = 0;
+    std::lock_guard<std::mutex> lock(_mutex);
+    for (auto& track : _metronomeTracks) {
+        if (track.id == id) {
+            track.soundBank = bank;
+            break;
+        }
+    }
 }
 
 void LiveMixer::removeMetronomePattern(int id) {
@@ -880,9 +897,8 @@ void LiveMixer::_mixInternal(float* outputBuffer, int numFrames) {
         if (_bpm > 0 && !_metronomeTracks.empty()) {
             double framesPerBeat = ((double)_engineSampleRate * 60.0) / _bpm;
             
-            float volHigh = 0.0f;
-            float volLow = 0.0f;
-            float volNoise = 0.0f;
+            // Per-bank, per-slot trigger volumes for this frame (slot 0 = High, 1 = Low, 2 = Noise)
+            float vols[kMaxSoundBanks][3] = {};
             
             double prevBeatFloat = (double)(_currentPosition - 1) / framesPerBeat;
             double currBeatFloat = (double)_currentPosition / framesPerBeat;
@@ -965,20 +981,26 @@ void LiveMixer::_mixInternal(float* outputBuffer, int numFrames) {
                             int type = pulse.subdivisions[currSub];
                             float eventVol = (currSub < (int)pulse.volumes.size()) ? pulse.volumes[currSub] : 1.0f;
                             float v = track.volume * eventVol;
-                            if (type == 1) volHigh = (std::max)(volHigh, v);
-                            else if (type == 2) volLow = (std::max)(volLow, v);
-                            else if (type == 3) volNoise = (std::max)(volNoise, v);
+                            int bank = (track.soundBank >= 0 && track.soundBank < kMaxSoundBanks) ? track.soundBank : 0;
+                            if (type >= 1 && type <= 3) {
+                                float& slotVol = vols[bank][type - 1];
+                                slotVol = (std::max)(slotVol, v);
+                            }
                         }
                     }
                 }
             }
             
             skipTrigger:;
-            if (volHigh > 0.0f && !_clickHigh.data.empty()) _triggerVoice(_clickHigh, volHigh);
-            if (volLow > 0.0f && !_clickLow.data.empty()) _triggerVoice(_clickLow, volLow);
-            if (volNoise > 0.0f && !_clickNoise.data.empty()) _triggerVoice(_clickNoise, volNoise);
-            
-            float click = _renderVoice(_clickHigh) + _renderVoice(_clickLow) + _renderVoice(_clickNoise);
+            float click = 0.0f;
+            for (int b = 0; b < kMaxSoundBanks; b++) {
+                for (int s = 0; s < 3; s++) {
+                    MetronomeVoice& voice = _soundBanks[b].voices[s];
+                    if (voice.data.empty()) continue;
+                    if (vols[b][s] > 0.0f) _triggerVoice(voice, vols[b][s]);
+                    click += _renderVoice(voice);
+                }
+            }
             
             leftSum += click;
             rightSum += click;
@@ -1151,6 +1173,14 @@ extern "C" {
 
     EXPORT void live_mixer_set_metronome_sound(void* mixer, int type, const float* data, int numSamples) {
         static_cast<LiveMixer*>(mixer)->setMetronomeSound(type, data, numSamples);
+    }
+
+    EXPORT void live_mixer_set_metronome_bank_sound(void* mixer, int bank, int type, const float* data, int numSamples) {
+        if (mixer) static_cast<LiveMixer*>(mixer)->setMetronomeBankSound(bank, type, data, numSamples);
+    }
+
+    EXPORT void live_mixer_set_metronome_pattern_sound_bank(void* mixer, int id, int bank) {
+        if (mixer) static_cast<LiveMixer*>(mixer)->setMetronomePatternSoundBank(id, bank);
     }
 
 EXPORT void live_mixer_add_metronome_pattern(void* mixer, int id, const int* flatPatternData, const int* subdivisionsData, const double* durationRatios, const float* eventVolumes, int numPulses, float vol, bool mute, bool solo) {

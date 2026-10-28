@@ -170,6 +170,17 @@ class LiveMixerWorkletProcessor extends AudioWorkletProcessor {
                 m._free(ptr);
                 break;
             }
+            case 'setMetronomeBankSound': {
+                const soundData = data.data; // Float32Array
+                const ptr = m._malloc(soundData.byteLength);
+                m.HEAPF32.set(soundData, ptr / 4);
+                m._live_mixer_set_metronome_bank_sound(handle, data.bank, data.trackType, ptr, soundData.length);
+                m._free(ptr);
+                break;
+            }
+            case 'setMetronomePatternSoundBank':
+                m._live_mixer_set_metronome_pattern_sound_bank(handle, data.id, data.bank);
+                break;
             case 'addMetronomePattern':
             case 'updateMetronomePattern': {
                 let flatPtr = 0;

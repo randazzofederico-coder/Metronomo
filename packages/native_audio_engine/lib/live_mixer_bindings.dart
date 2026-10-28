@@ -62,6 +62,12 @@ typedef LiveMixerSetMetronomeConfigDart = void Function(Pointer<Void>, int);
 typedef LiveMixerSetMetronomeSoundC = Void Function(Pointer<Void>, Int32, Pointer<Float>, Int32);
 typedef LiveMixerSetMetronomeSoundDart = void Function(Pointer<Void>, int, Pointer<Float>, int);
 
+typedef LiveMixerSetMetronomeBankSoundC = Void Function(Pointer<Void>, Int32, Int32, Pointer<Float>, Int32);
+typedef LiveMixerSetMetronomeBankSoundDart = void Function(Pointer<Void>, int, int, Pointer<Float>, int);
+
+typedef LiveMixerSetMetronomePatternSoundBankC = Void Function(Pointer<Void>, Int32, Int32);
+typedef LiveMixerSetMetronomePatternSoundBankDart = void Function(Pointer<Void>, int, int);
+
 typedef LiveMixerAddMetronomePatternC = Void Function(Pointer<Void>, Int32, Pointer<Int32>, Pointer<Int32>, Pointer<Double>, Pointer<Float>, Int32, Float, Bool, Bool);
 typedef LiveMixerAddMetronomePatternDart = void Function(Pointer<Void>, int, Pointer<Int32>, Pointer<Int32>, Pointer<Double>, Pointer<Float>, int, double, bool, bool);
 
@@ -251,6 +257,8 @@ class LiveMixerBindings {
   late final _setRandomSilencePercent = _lib.lookupFunction<LiveMixerSetRandomSilencePercentC, LiveMixerSetRandomSilencePercentDart>('live_mixer_set_random_silence_percent');
   late final _setMetronomeConfig = _lib.lookupFunction<LiveMixerSetMetronomeConfigC, LiveMixerSetMetronomeConfigDart>('live_mixer_set_metronome_config');
   late final _setMetronomeSound = _lib.lookupFunction<LiveMixerSetMetronomeSoundC, LiveMixerSetMetronomeSoundDart>('live_mixer_set_metronome_sound');
+  late final _setMetronomeBankSound = _lib.lookupFunction<LiveMixerSetMetronomeBankSoundC, LiveMixerSetMetronomeBankSoundDart>('live_mixer_set_metronome_bank_sound');
+  late final _setMetronomePatternSoundBank = _lib.lookupFunction<LiveMixerSetMetronomePatternSoundBankC, LiveMixerSetMetronomePatternSoundBankDart>('live_mixer_set_metronome_pattern_sound_bank');
   late final _addMetronomePattern = _lib.lookupFunction<LiveMixerAddMetronomePatternC, LiveMixerAddMetronomePatternDart>('live_mixer_add_metronome_pattern');
   late final _updateMetronomePattern = _lib.lookupFunction<LiveMixerUpdateMetronomePatternC, LiveMixerUpdateMetronomePatternDart>('live_mixer_update_metronome_pattern');
   late final _removeMetronomePattern = _lib.lookupFunction<LiveMixerRemoveMetronomePatternC, LiveMixerRemoveMetronomePatternDart>('live_mixer_remove_metronome_pattern');
@@ -274,6 +282,16 @@ class LiveMixerBindings {
       _setMetronomeSound(mixer, type, ptr, data.length);
       calloc.free(ptr);
   }
+
+  void setMetronomeBankSound(Pointer<Void> mixer, int bank, int type, Float32List data) {
+      final ptr = calloc<Float>(data.length);
+      ptr.asTypedList(data.length).setAll(0, data);
+      _setMetronomeBankSound(mixer, bank, type, ptr, data.length);
+      calloc.free(ptr);
+  }
+
+  void setMetronomePatternSoundBank(Pointer<Void> mixer, int id, int bank) =>
+      _setMetronomePatternSoundBank(mixer, id, bank);
 
   void addMetronomePattern(Pointer<Void> mixer, int id, List<int>? flatPattern, List<int>? subdivisions, List<double>? durationRatios, double vol, bool mute, bool solo, {List<double>? eventVolumes}) {
       _callWithPatternBuffers(flatPattern, subdivisions, durationRatios, eventVolumes, (flatPtr, subPtr, durPtr, volPtr, numPulses) {

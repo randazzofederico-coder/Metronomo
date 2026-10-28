@@ -10,6 +10,7 @@ import 'package:metronomo_standalone/providers/session_provider.dart';
 import 'package:metronomo_standalone/providers/playlist_provider.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
 import 'package:metronomo_standalone/widgets/knob_control.dart';
+import 'package:metronomo_standalone/utils/space_play_shortcut.dart';
 
 class PlaylistPlayerScreen extends StatefulWidget {
   final String playlistId;
@@ -19,7 +20,7 @@ class PlaylistPlayerScreen extends StatefulWidget {
   State<PlaylistPlayerScreen> createState() => _PlaylistPlayerScreenState();
 }
 
-class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
+class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpacePlayShortcut {
   late PageController _pageController;
   int _currentPage = 0;
   bool _editMode = false;
@@ -50,6 +51,7 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
       pulses: i.pulses.map((p) => p.copyWith()).toList(),
       volume: i.volume, isMuted: i.isMuted, isSolo: i.isSolo,
       originalPatternId: i.originalPatternId, isDirty: i.isDirty,
+      soundSet: i.soundSet,
     )).toList();
 
     await _loadSession(0);
@@ -86,6 +88,7 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
         title: inst.title, structure: inst.structure,
         pulses: inst.pulses, originalPatternId: inst.originalPatternId,
         isDirty: inst.isDirty,
+        soundSet: inst.soundSet,
       );
       // Restore volume/mute/solo
       final loaded = metronome.instances.last;
@@ -105,6 +108,9 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
     _pageController.dispose();
     super.dispose();
   }
+
+  @override
+  void onSpacePlayToggle() => context.read<MetronomeProvider>().togglePlay();
 
   int _sliderToBpm(double val) {
     if (val <= 0.15) return (1 + 29 * (val / 0.15)).round();
@@ -585,11 +591,12 @@ class _SavedInstance {
   final bool isSolo;
   final String? originalPatternId;
   final bool isDirty;
+  final String? soundSet;
 
   _SavedInstance({
     required this.title, required this.structure, required this.pulses,
     required this.volume, required this.isMuted, required this.isSolo,
-    this.originalPatternId, required this.isDirty,
+    this.originalPatternId, required this.isDirty, this.soundSet,
   });
 }
 

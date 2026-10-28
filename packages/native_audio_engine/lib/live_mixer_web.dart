@@ -402,6 +402,27 @@ class LiveMixer {
      _postCmd(msg);
   }
 
+  /// Loads the click buffer of slot [type] (0/1/2) into sound bank [bank].
+  void setMetronomeBankSound(int bank, int type, Float32List data) {
+     if (_isDisposed || !isReady) return;
+     final msg = JSObject();
+     msg.setProperty('cmd'.toJS, 'setMetronomeBankSound'.toJS);
+     msg.setProperty('bank'.toJS, bank.toJS);
+     msg.setProperty('trackType'.toJS, type.toJS);
+     msg.setProperty('data'.toJS, data.toJS);
+     _postCmd(msg);
+  }
+
+  /// Selects which sound bank the metronome pattern [id] plays through.
+  void setMetronomePatternSoundBank(int id, int bank) {
+     if (_isDisposed || !isReady) return;
+     final msg = JSObject();
+     msg.setProperty('cmd'.toJS, 'setMetronomePatternSoundBank'.toJS);
+     msg.setProperty('id'.toJS, id.toJS);
+     msg.setProperty('bank'.toJS, bank.toJS);
+     _postCmd(msg);
+  }
+
   void addMetronomePattern(int id, List<int>? flatPattern, List<int>? subdivisions, List<double>? durationRatios, double vol, bool mute, bool solo, {List<double>? eventVolumes}) {
      _postPatternCmd('addMetronomePattern', id, flatPattern, subdivisions, durationRatios, eventVolumes, vol, mute, solo);
   }

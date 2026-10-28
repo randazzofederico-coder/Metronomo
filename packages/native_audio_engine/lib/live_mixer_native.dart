@@ -190,6 +190,18 @@ class LiveMixer {
      _bindings.setMetronomeSound(_handle, type, data);
   }
 
+  /// Loads the click buffer of slot [type] (0/1/2) into sound bank [bank].
+  void setMetronomeBankSound(int bank, int type, Float32List data) {
+     if (_isDisposed) return;
+     _bindings.setMetronomeBankSound(_handle, bank, type, data);
+  }
+
+  /// Selects which sound bank the metronome pattern [id] plays through.
+  void setMetronomePatternSoundBank(int id, int bank) {
+     if (_isDisposed) return;
+     _bindings.setMetronomePatternSoundBank(_handle, id, bank);
+  }
+
   void addMetronomePattern(int id, List<int>? flatPattern, List<int>? subdivisions, List<double>? durationRatios, double vol, bool mute, bool solo, {List<double>? eventVolumes}) {
       if (_isDisposed) return;
       _bindings.addMetronomePattern(_handle, id, flatPattern, subdivisions, durationRatios, vol, mute, solo, eventVolumes: eventVolumes);

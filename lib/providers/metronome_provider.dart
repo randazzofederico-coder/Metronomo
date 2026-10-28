@@ -19,6 +19,10 @@ class HomeMetronomeInstance {
   String title;
   String structure;
 
+  /// Sound set override for this pattern (see [ClickSynth.soundSets]).
+  /// `null` = follows the global sound set.
+  String? soundSet;
+
   HomeMetronomeInstance({
     required this.id,
     required this.title,
@@ -29,6 +33,7 @@ class HomeMetronomeInstance {
     this.isSolo = false,
     this.originalPatternId,
     this.isDirty = false,
+    this.soundSet,
   }) : pulses = pulses ?? _parseStructureInitial(structure); 
 
   Map<String, dynamic> toJson() => {
@@ -41,6 +46,7 @@ class HomeMetronomeInstance {
     'isSolo': isSolo,
     'originalPatternId': originalPatternId,
     'isDirty': isDirty,
+    'soundSet': soundSet,
   };
 
   factory HomeMetronomeInstance.fromJson(Map<String, dynamic> json) {
@@ -56,6 +62,7 @@ class HomeMetronomeInstance {
       isSolo: json['isSolo'] as bool? ?? false,
       originalPatternId: json['originalPatternId'] as String?,
       isDirty: json['isDirty'] as bool? ?? false,
+      soundSet: json['soundSet'] == null ? null : ClickSynth.normalize(json['soundSet'] as String),
     );
   }
 
@@ -138,7 +145,12 @@ class MetronomeProvider with ChangeNotifier {
   final List<DateTime> _tapTimes = [];
 
   /// Currently loaded click sound set (see [ClickSynth.soundSets]).
+  /// Used by every pattern without its own sound override.
   String _currentSoundSet = ClickSynth.defaultSoundSet;
+  String get currentSoundSet => _currentSoundSet;
+
+  /// Engine sound banks already loaded (bank index = index in [ClickSynth.soundSets]).
+  final Set<int> _loadedSoundBanks = {};
 
   String? activeSessionId;
   String? activeSessionName;
@@ -263,15 +275,19 @@ class MetronomeProvider with ChangeNotifier {
       }
     }
     
+    _loadedSoundBanks.clear(); // anything sent before the engine was ready was dropped
     updateSoundSet(_currentSoundSet);
+    for (final inst in _instances) {
+      _applyInstanceSound(inst);
+    }
     _liveMixer.setMetronomeConfig(_bpm);
     _liveMixer.setMasterVolume(1.0);
     _liveMixer.setMetronomePreviewMode(true); // Always isolated preview mode
     _liveMixer.setRandomSilencePercent(0.0);
   }
   
-  void addInstance({required String title, String structure = "4", List<HomeMetronomePulse>? pulses, String? originalPatternId, bool isDirty = false}) {
-    final instance = HomeMetronomeInstance(id: _nextId++, title: title, structure: structure, pulses: pulses, originalPatternId: originalPatternId, isDirty: isDirty);
+  void addInstance({required String title, String structure = "4", List<HomeMetronomePulse>? pulses, String? originalPatternId, bool isDirty = false, String? soundSet}) {
+    final instance = HomeMetronomeInstance(id: _nextId++, title: title, structure: structure, pulses: pulses, originalPatternId: originalPatternId, isDirty: isDirty, soundSet: soundSet);
     _instances.add(instance);
     _addInstanceToEngine(instance);
     markSessionDirty(); // Session mixture changed
@@ -290,6 +306,7 @@ class MetronomeProvider with ChangeNotifier {
         instance.isSolo,
         eventVolumes: flat.volumes,
     );
+    _applyInstanceSound(instance);
   }
 
   /// Flattens pulses into the parallel arrays expected by the audio engine.
@@ -348,56 +365,7 @@ class MetronomeProvider with ChangeNotifier {
       final String cleaned = structureString.replaceAll(' ', '');
       if (cleaned.isEmpty) return;
 
-      final List<String> parts = cleaned.split('+');
-      final List<HomeMetronomePulse> newPulses = [];
-
-      for (String part in parts) {
-          int count = 1;
-          int ratio = 0;
-          int subdivision = 1;
-          
-          String remainder = part;
-          
-          // Parse optional :ratio
-          if (remainder.contains(':')) {
-              final ratioParts = remainder.split(':');
-              count = int.tryParse(ratioParts[0]) ?? 1;
-              remainder = ratioParts.length > 1 ? ratioParts[1] : '';
-              if (remainder.contains('/')) {
-                  final subParts = remainder.split('/');
-                  ratio = int.tryParse(subParts[0]) ?? count;
-                  subdivision = int.tryParse(subParts[1]) ?? 1;
-              } else {
-                  ratio = int.tryParse(remainder) ?? count;
-              }
-          } else if (remainder.contains('/')) {
-              final subParts = remainder.split('/');
-              count = int.tryParse(subParts[0]) ?? 1;
-              if (subParts.length > 1) subdivision = int.tryParse(subParts[1]) ?? 1;
-          } else {
-              count = int.tryParse(remainder) ?? 1;
-          }
-          
-          if (count <= 0) count = 1;
-          if (subdivision <= 0) subdivision = 1;
-          // Clamp to safe limits
-          count = count.clamp(1, 32);
-          subdivision = subdivision.clamp(1, 12);
-          if (ratio > 0) ratio = ratio.clamp(1, 64);
-
-          double pulseDuration = (ratio > 0) ? ratio / count : 1.0;
-
-          for (int i = 0; i < count; i++) {
-              if (newPulses.length >= 64) break; // Total pulse cap
-              List<int> subdivList = List.generate(subdivision, (s) => 3);
-              if (i == 0) {
-                  subdivList[0] = 1;
-              } else {
-                  subdivList[0] = 2;
-              }
-              newPulses.add(HomeMetronomePulse(subdivList, pulseDuration));
-          }
-      }
+      final List<HomeMetronomePulse> newPulses = HomeMetronomeInstance._parseStructureInitial(cleaned);
 
       final instance = _instances.firstWhere((i) => i.id == id);
       instance.structure = cleaned;
@@ -543,13 +511,50 @@ class MetronomeProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  /// Sets the global sound set (used by every pattern without its own override).
   void updateSoundSet(String setName) {
     _currentSoundSet = ClickSynth.normalize(setName);
-    // Generate at the engine's real sample rate (e.g. 48 kHz on most web AudioContexts)
-    final buffers = ClickSynth(_liveMixer.getSampleRate()).buildSet(_currentSoundSet);
-    for (var slot = 0; slot < buffers.length; slot++) {
-      _liveMixer.setMetronomeSound(slot, buffers[slot]);
+    _ensureSoundBank(_currentSoundSet);
+    for (final inst in _instances) {
+      if (inst.soundSet == null) _applyInstanceSound(inst);
     }
+    notifyListeners();
+  }
+
+  /// Sound set actually heard for [instance] (its override or the global one).
+  String effectiveSoundSet(HomeMetronomeInstance instance) =>
+      ClickSynth.normalize(instance.soundSet ?? _currentSoundSet);
+
+  /// Assigns a sound set to a single pattern. `null` = follow the global sound set.
+  void updateInstanceSoundSet(int id, String? setName) {
+    final instance = _instances.firstWhere((i) => i.id == id);
+    final normalized = setName == null ? null : ClickSynth.normalize(setName);
+    if (instance.soundSet == normalized) return;
+    instance.soundSet = normalized;
+    _applyInstanceSound(instance);
+    markSessionDirty();
+    notifyListeners();
+  }
+
+  /// Makes sure the engine bank for [setName] is loaded and returns its index.
+  /// Bank index = position in [ClickSynth.soundSets] (always < the engine's 16 banks).
+  int _ensureSoundBank(String setName) {
+    final name = ClickSynth.normalize(setName);
+    final bank = ClickSynth.soundSets.indexOf(name);
+    if (_loadedSoundBanks.add(bank)) {
+      // Generate at the engine's real sample rate (e.g. 48 kHz on most web AudioContexts)
+      final buffers = ClickSynth(_liveMixer.getSampleRate()).buildSet(name);
+      for (var slot = 0; slot < buffers.length; slot++) {
+        _liveMixer.setMetronomeBankSound(bank, slot, buffers[slot]);
+      }
+    }
+    return bank;
+  }
+
+  /// Routes [instance] to the engine bank of its effective sound set.
+  void _applyInstanceSound(HomeMetronomeInstance instance) {
+    final bank = _ensureSoundBank(effectiveSoundSet(instance));
+    _liveMixer.setMetronomePatternSoundBank(instance.id, bank);
   }
 
   // --- MACRO CYCLE MATH ---
@@ -692,6 +697,7 @@ class MetronomeProvider with ChangeNotifier {
               isSolo: config.isSolo,
               originalPatternId: config.patternId,
               isDirty: false,
+              soundSet: config.soundSet == null ? null : ClickSynth.normalize(config.soundSet),
           );
           _instances.add(instance);
           _addInstanceToEngine(instance);
@@ -719,6 +725,7 @@ class MetronomeProvider with ChangeNotifier {
            isMuted: instance.isMuted,
            isSolo: instance.isSolo,
            orderIndex: i,
+           soundSet: instance.soundSet,
         ));
      }
      

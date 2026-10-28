@@ -507,13 +507,35 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
                     ),
                   ),
                 ),
-                // Swipe hint
-                Column(
+                // Session navigation arrows
+                Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.swipe, color: AppColors.textSecondary(context).withOpacity(0.5), size: 20),
-                    Text("${_currentPage + 1}/${context.read<PlaylistProvider>().getPlaylistById(widget.playlistId)?.sessionIds.length ?? 0}",
-                      style: TextStyle(color: AppColors.textSecondary(context), fontSize: 10, fontWeight: FontWeight.bold)),
+                    _navArrow(
+                      context,
+                      icon: Icons.chevron_left,
+                      enabled: _currentPage > 0,
+                      onTap: () => _pageController.previousPage(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(
+                        "${_currentPage + 1}/${context.read<PlaylistProvider>().getPlaylistById(widget.playlistId)?.sessionIds.length ?? 0}",
+                        style: TextStyle(color: AppColors.textSecondary(context), fontSize: 12, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    _navArrow(
+                      context,
+                      icon: Icons.chevron_right,
+                      enabled: _currentPage < (context.read<PlaylistProvider>().getPlaylistById(widget.playlistId)?.sessionIds.length ?? 1) - 1,
+                      onTap: () => _pageController.nextPage(
+                        duration: const Duration(milliseconds: 300),
+                        curve: Curves.easeInOut,
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -530,6 +552,25 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         child: Text(label, style: TextStyle(color: AppColors.textSecondary(context), fontSize: 16, fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Widget _navArrow(BuildContext context, {required IconData icon, required bool enabled, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: enabled ? AppColors.accentCyan(context).withOpacity(0.15) : Colors.transparent,
+          border: Border.all(
+            color: enabled ? AppColors.accentCyan(context) : AppColors.border(context),
+            width: 1.5,
+          ),
+        ),
+        child: Icon(icon, color: enabled ? AppColors.accentCyan(context) : AppColors.border(context), size: 22),
       ),
     );
   }

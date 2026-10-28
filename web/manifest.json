@@ -9,6 +9,10 @@
     "description": "Metrónomo profesional con motor de audio nativo, subdivisiones, acentos, birritmia y control preciso de tempo.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
+    "launch_handler": {
+        "client_mode": ["focus-existing", "auto"]
+    },
+    "handle_links": "preferred",
     "categories": ["music", "utilities", "education"],
     "lang": "es",
     "icons": [

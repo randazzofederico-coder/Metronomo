@@ -7,6 +7,7 @@ import 'package:native_audio_engine/live_mixer.dart';
 import '../models/pattern_model.dart';
 import '../models/session_model.dart';
 import '../providers/settings_provider.dart';
+import '../services/working_state_repository.dart';
 
 class HomeMetronomeInstance {
   final int id;
@@ -30,6 +31,34 @@ class HomeMetronomeInstance {
     this.originalPatternId,
     this.isDirty = false,
   }) : pulses = pulses ?? _parseStructureInitial(structure); 
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'structure': structure,
+    'pulses': pulses.map((p) => p.toJson()).toList(),
+    'volume': volume,
+    'isMuted': isMuted,
+    'isSolo': isSolo,
+    'originalPatternId': originalPatternId,
+    'isDirty': isDirty,
+  };
+
+  factory HomeMetronomeInstance.fromJson(Map<String, dynamic> json) {
+    return HomeMetronomeInstance(
+      id: json['id'] as int,
+      title: json['title'] as String,
+      structure: json['structure'] as String? ?? '4',
+      pulses: (json['pulses'] as List<dynamic>)
+          .map((p) => HomeMetronomePulse.fromJson(p as Map<String, dynamic>))
+          .toList(),
+      volume: (json['volume'] as num?)?.toDouble() ?? 0.8,
+      isMuted: json['isMuted'] as bool? ?? false,
+      isSolo: json['isSolo'] as bool? ?? false,
+      originalPatternId: json['originalPatternId'] as String?,
+      isDirty: json['isDirty'] as bool? ?? false,
+    );
+  }
 
   static List<HomeMetronomePulse> _parseStructureInitial(String struct) {
       final String cleaned = struct.replaceAll(' ', '');
@@ -93,11 +122,13 @@ class HomeMetronomeInstance {
 
 class MetronomeProvider with ChangeNotifier {
   final LiveMixer _liveMixer = LiveMixer();
+  final WorkingStateRepository _workingStateRepo = WorkingStateRepository();
+  Timer? _debounceSaveTimer;
   
   bool _isPlaying = false;
   bool get isPlaying => _isPlaying;
 
-  int _bpm = 120;
+  int _bpm = 60;
   int get bpm => _bpm;
   
   final List<HomeMetronomeInstance> _instances = [];
@@ -112,11 +143,109 @@ class MetronomeProvider with ChangeNotifier {
   bool _isSessionDirty = false;
   bool get isSessionDirty => _isSessionDirty;
 
+  bool _initialized = false;
+  bool get initialized => _initialized;
+
   void markSessionDirty() {
     if (!_isSessionDirty) {
       _isSessionDirty = true;
       notifyListeners();
     }
+    _scheduleDebouncedSave();
+  }
+
+  /// Schedules a debounced save of the working state.
+  /// Waits 500ms after the last change before persisting.
+  void _scheduleDebouncedSave() {
+    _debounceSaveTimer?.cancel();
+    _debounceSaveTimer = Timer(const Duration(milliseconds: 500), () {
+      _persistWorkingState();
+    });
+  }
+
+  /// Persists current working state to SharedPreferences.
+  Future<void> _persistWorkingState() async {
+    final state = <String, dynamic>{
+      'bpm': _bpm,
+      'instances': _instances.map((i) => i.toJson()).toList(),
+      'nextId': _nextId,
+      'activeSessionId': activeSessionId,
+      'activeSessionName': activeSessionName,
+      'isSessionDirty': _isSessionDirty,
+    };
+    await _workingStateRepo.saveWorkingState(state);
+  }
+
+  /// Explicitly saves working state (called from lifecycle handler).
+  Future<void> saveWorkingState() async {
+    _debounceSaveTimer?.cancel();
+    await _persistWorkingState();
+  }
+
+  /// Initializes the metronome from persisted working state, or sets up
+  /// the default state (pattern "1" at 60 BPM) on first launch.
+  Future<void> initializeWorkingState(SettingsProvider settings) async {
+    if (_initialized) return;
+    _initialized = true;
+
+    final state = await _workingStateRepo.loadWorkingState();
+
+    if (state != null) {
+      // Restore persisted working state
+      _bpm = state['bpm'] as int? ?? 60;
+      _nextId = state['nextId'] as int? ?? 1;
+      activeSessionId = state['activeSessionId'] as String?;
+      activeSessionName = state['activeSessionName'] as String?;
+      _isSessionDirty = state['isSessionDirty'] as bool? ?? false;
+
+      final instancesList = state['instances'] as List<dynamic>?;
+      if (instancesList != null && instancesList.isNotEmpty) {
+        for (final instJson in instancesList) {
+          final instance = HomeMetronomeInstance.fromJson(
+              instJson as Map<String, dynamic>);
+          _instances.add(instance);
+          _addInstanceToEngine(instance);
+        }
+      } else {
+        // Persisted state but no instances — add default
+        _addDefaultInstance();
+      }
+
+      _liveMixer.setMetronomeConfig(_bpm);
+    } else {
+      // First launch — set up default state
+      _addDefaultInstance();
+    }
+
+    notifyListeners();
+  }
+
+  /// Adds the default "1" pattern instance at current BPM.
+  void _addDefaultInstance() {
+    final instance = HomeMetronomeInstance(
+      id: _nextId++,
+      title: 'Patrón 1',
+      structure: '1',
+    );
+    _instances.add(instance);
+    _addInstanceToEngine(instance);
+  }
+
+  /// Clears everything and resets to the default state (pattern "1" at 60 BPM).
+  void newSession() {
+    stop();
+    for (var inst in _instances) {
+      _liveMixer.removeMetronomePattern(inst.id);
+    }
+    _instances.clear();
+    activeSessionId = null;
+    activeSessionName = null;
+    _isSessionDirty = false;
+    _bpm = 60;
+    _liveMixer.setMetronomeConfig(_bpm);
+    _addDefaultInstance();
+    _scheduleDebouncedSave();
+    notifyListeners();
   }
 
   MetronomeProvider() {
@@ -542,19 +671,23 @@ class MetronomeProvider with ChangeNotifier {
     activeSessionId = sessionId;
     activeSessionName = sessionName;
     _isSessionDirty = false;
+    _scheduleDebouncedSave();
     notifyListeners();
   }
 
   void clearSession() {
-    stop();
+    newSession();
+  }
+
+  /// Starts a fresh, untitled session containing only [pattern].
+  /// Used when opening a pattern received through a shared link.
+  void newSessionWithPattern(Pattern pattern) {
+    newSession();
     for (var inst in _instances) {
-        _liveMixer.removeMetronomePattern(inst.id);
+      _liveMixer.removeMetronomePattern(inst.id);
     }
     _instances.clear();
-    activeSessionId = null;
-    activeSessionName = null;
-    _isSessionDirty = false;
-    notifyListeners();
+    loadPattern(pattern); // marks the new session dirty ("Sin Título *")
   }
 
   /// Clears current metronome and loads a full Session.
@@ -603,6 +736,7 @@ class MetronomeProvider with ChangeNotifier {
        }
     }
     // We intentionally do not markSessionDirty here since we just loaded a clean session
+    _scheduleDebouncedSave();
     notifyListeners();
   }
 
@@ -638,6 +772,7 @@ class MetronomeProvider with ChangeNotifier {
 
   @override
   void dispose() {
+    _debounceSaveTimer?.cancel();
     _liveMixer.dispose();
     super.dispose();
   }

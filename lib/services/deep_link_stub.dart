@@ -3,3 +3,5 @@
 
 String? getShareParamFromUrl() => null;
 void cleanShareParamFromUrl() {}
+bool webCanShare() => false;
+void listenWebLaunchQueue(void Function(String shareId) onShare) {}

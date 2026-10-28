@@ -12,7 +12,9 @@ import 'package:metronomo_standalone/providers/settings_provider.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
 import 'package:metronomo_standalone/providers/session_provider.dart';
 import 'package:metronomo_standalone/providers/playlist_provider.dart';
-import 'package:metronomo_standalone/screens/auth_gate.dart';
+import 'package:metronomo_standalone/screens/metronome_screen.dart';
+import 'package:metronomo_standalone/services/version_check_service.dart';
+import 'package:metronomo_standalone/widgets/update_required_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,7 +38,19 @@ void main() async {
     ]);
   }
 
-  runApp(const MyApp());
+  // ── Version Check ──
+  // Compare the running version against the minimum required version
+  // stored in Firebase Remote Config. If outdated, show a blocking update
+  // screen instead of the main app.
+  final versionService = VersionCheckService();
+  await versionService.initialize();
+  final versionResult = await versionService.checkForUpdate();
+
+  if (versionResult.updateRequired) {
+    runApp(UpdateRequiredScreen(result: versionResult));
+  } else {
+    runApp(const MyApp());
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -98,7 +112,7 @@ class MyApp extends StatelessWidget {
             ),
           ),
         ),
-        home: const AuthGate(),
+        home: const MetronomeScreen(),
         debugShowCheckedModeBanner: false,
         builder: (context, child) {
           final settings = context.watch<SettingsProvider>();

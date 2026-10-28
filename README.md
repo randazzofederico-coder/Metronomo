@@ -67,24 +67,36 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 ### 🔗 Compartir Sesiones y Patrones (Deep Links)
 - **Compartir via Deep Link** — Sesiones, patrones y playlists se comparten con URLs limpias tipo `federicorandazzo.com.ar/metronomo/?share=xk9mp2nq&name=chacarera` respaldadas por Firestore
 - **Exportación inteligente** — Al compartir una sesión, se empaquetan automáticamente todos los patrones referenciados como un bundle completo. Al compartir una playlist, se incluyen todas las sesiones y sus patrones
-- **Importación automática** — Al abrir un link compartido, la app detecta el parámetro `?share=`, descarga los datos de Firestore, genera IDs nuevos (para evitar colisiones) y los guarda en la biblioteca local
-- **Android App Links** — Verificación de dominio via `assetlinks.json` con prioridad: app nativa (Play Store) → PWA instalada → versión web. Intent filter con `autoVerify="true"` y soporte para cold start (captura temprana en `main.dart`) y warm resume (stream listener)
-- **Limpieza de URL** — Después de importar, el parámetro `?share=` se elimina de la barra de direcciones con `history.replaceState` para evitar re-importaciones al refrescar
-- **Share nativo** — Integración con la Web Share API / share sheet nativo del OS con fallback a clipboard
-- **Firestore como backend de links** — Colección `shared_links` con lectura pública y escritura autenticada
-- **TTL client-side (30 días)** — Cada documento incluye un campo `expiresAt` que se renueva con cada descarga. Links sin actividad por 30 días se eliminan automáticamente al ser accedidos o al crear nuevos links (limpieza lazy en batch de hasta 10 docs)
+- **Sheet de compartir unificado** (`widgets/share_sheet.dart`) — Genera el link con spinner y ofrece *Compartir en…* (share sheet nativo / Web Share API, disparado por un tap fresco para respetar la activación de usuario) y *Copiar link*. Errores siempre visibles con reintento
+- **ID por contenido** — El ID del link es un hash SHA-256 (10 chars) del contenido + autor: compartir lo mismo dos veces reutiliza el mismo link
+- **Login anónimo** — Para crear links se usa Firebase Anonymous Auth (lazy, solo al compartir). La cuenta anónima puede promoverse a cuenta formal con `linkWithCredential` conservando el `uid` (`ownerUid` del link)
+- **Importación idempotente** (`services/share_import_service.dart`) — IDs locales derivados (UUID v5 de `shareId + idOriginal`): reabrir el mismo link no duplica nada; si el contenido es propio (mismo ID local) se reutiliza
+- **Flujo al abrir** — Se importa a la biblioteca y se pregunta *¿Abrir ahora?*. Si la sesión actual tiene cambios sin guardar ofrece Guardar / Descartar / Cancelar. Patrón → sesión nueva con ese patrón; Sesión → se carga; Playlist → abre el reproductor
+- **Android App Links** — Verificación de dominio via `assetlinks.json` con prioridad: app nativa (Play Store) → PWA instalada → versión web. Intent filter con `autoVerify="true"`; captura única del link inicial en `main.dart` + stream con deduplicación
+- **PWA de escritorio** — `launch_handler: focus-existing` + `handle_links: preferred`; el link llega a la ventana abierta vía `launchQueue` (`web/index.html`)
+- **Limpieza de URL** — Después de capturar el link, el parámetro `?share=` se elimina de la barra de direcciones con `history.replaceState` para evitar re-importaciones al refrescar
+- **Firestore como backend de links** — Colección `shared_links` (schema v2: `type`, `name`, `ownerUid`, `summary`, `payload` JSON string, `createdAt`, `expiresAt`). Lectura pública por ID, creación autenticada (anónima o formal)
+- **TTL (30 días)** — `expiresAt` se renueva con cada apertura. Como el proyecto está en plan Spark (sin TTL Policies), la limpieza es lazy desde el cliente: hasta 10 links vencidos al crear uno nuevo, y cualquier link vencido que se abra. Las reglas solo permiten listar/borrar docs ya vencidos
 
 ### 🎶 Playlists (Listas de Reproducción)
 - **Gestión de Playlists** — Crear, renombrar, eliminar y duplicar listas de reproducción. Cada playlist contiene una lista ordenada de sesiones
 - **Edición de Contenido** — Agregar sesiones desde un bottom sheet con toda la biblioteca disponible, eliminar sesiones individuales, y reordenar con drag & drop (`ReorderableListView`)
 - **Reproducción Secuencial** — Al presionar Play se abre el player dedicado (`PlaylistPlayerScreen`) que carga y reproduce automáticamente la primera sesión
-- **Navegación por Swipe** — Deslizar horizontalmente (`PageView`) para avanzar/retroceder entre sesiones. Al cambiar de sesión, se detiene la anterior y se auto-reproduce la nueva
+- **Navegación entre Sesiones** — Deslizar horizontalmente (`PageView`) en móvil, o usar las flechas `‹` `›` en PC/desktop para avanzar/retroceder entre sesiones. Al cambiar de sesión, se detiene la anterior y se auto-reproduce la nueva
 - **Modo Solo Lectura** — Todo bloqueado por defecto: BPM (botones ±1/±5, slider), volumen (knob), mute, solo, estructura, nombre, añadir/eliminar patrones. Solo activos: Play/Stop, toggle de edición y swipe
 - **Toggle Modo Edición** — Switch en el AppBar que desbloquea todos los controles. Los controles bloqueados se muestran con opacidad reducida (50%) usando `IgnorePointer` + `Opacity`
 - **Dirty Tracking** — Misma lógica de sesiones: nombre en *itálica* con `*` cuando hay cambios pendientes
 - **Conservación de Estado** — Al entrar al player, se guarda el estado completo del metrónomo (sesión activa, BPM, instancias, volumen, mute/solo, dirty state). Al salir, se restaura íntegramente
-- **Indicador de Posición** — Dots animados que muestran la sesión actual dentro de la playlist
+- **Indicador de Posición** — Dots animados en la parte superior muestran la sesión actual, y flechas circulares con contador `1/N` en la barra inferior permiten navegación directa con animación suave (300ms)
 - **Compartir Playlists** — Deep links que empaquetan la playlist + todas las sesiones + todos los patrones referenciados
+
+### 🔄 Actualización Automática de Versión
+- **Verificación al inicio** — Al abrir la app, se consulta Firebase Remote Config para obtener la versión mínima requerida (`metronomo_min_version`)
+- **Comparación semántica** — Se compara `major.minor.patch` de la versión actual (embebida en build) contra la mínima remota
+- **Web/PWA: auto-update** — Si hay actualización, se limpia el cache del Service Worker y se recarga la página automáticamente, descargando el build más nuevo
+- **Android/iOS: redirección a Store** — Se muestra pantalla bloqueante con botón que abre la tienda correspondiente
+- **Mensaje customizable** — El parámetro `metronomo_force_update_message` permite cambiar el mensaje de actualización desde Firebase Console sin publicar una nueva versión
+- **Tolerante a fallos** — Si no hay conexión, la verificación se omite silenciosamente y la app abre normalmente
 
 ### 🌐 Web & PWA
 - **Soporte Web Completo** — La aplicación es accesible desde cualquier navegador moderno
@@ -122,7 +134,7 @@ lib/
 ├── screens/
 │   ├── metronome_screen.dart          # UI: secuenciador, controles, visualizador, teclado custom
 │   ├── playlists_screen.dart          # Gestión de playlists: crear, editar, eliminar, reordenar sesiones
-│   ├── playlist_player_screen.dart    # Reproductor: PageView, modo solo lectura, toggle edición
+│   ├── playlist_player_screen.dart    # Reproductor: PageView, flechas de navegación, modo solo lectura, toggle edición
 │   ├── auth_gate.dart                 # Gate de autenticación, permisos y fallback offline
 │   ├── login_screen.dart              # Login (Google/Email) con detección de errores de red
 │   ├── onboarding_screen.dart         # Onboarding para nuevos usuarios
@@ -134,11 +146,15 @@ lib/
 │   ├── pwa_install_service.dart       # Servicio de instalación PWA
 │   ├── pwa_install_web.dart           # JS interop: beforeinstallprompt
 │   ├── pwa_install_stub.dart          # Stub para plataformas no-web
+│   ├── version_check_service.dart     # Verificación de versión mínima (Firebase Remote Config)
+│   ├── version_check_web.dart         # JS interop: limpieza de cache y reload para actualización web
+│   ├── version_check_stub.dart        # Stub para plataformas no-web
 │   ├── pattern_repository.dart        # Persistencia de patrones (SharedPreferences)
 │   ├── session_repository.dart        # Persistencia de sesiones (SharedPreferences)
 │   └── playlist_repository.dart       # Persistencia de playlists (SharedPreferences)
 └── widgets/
-    └── knob_control.dart              # Control rotativo con CustomPainter
+    ├── knob_control.dart              # Control rotativo con CustomPainter
+    └── update_required_screen.dart    # Pantalla bloqueante de actualización obligatoria
 
 packages/native_audio_engine/
 ├── lib/
@@ -186,7 +202,7 @@ packages/native_audio_engine/
 | DSP | SoundTouch (pitch/tempo shifting) |
 | FFT | KissFFT (procesamiento espectral) |
 | FFI | dart:ffi (nativo) / Web Audio API (web) |
-| Backend y Auth | Firebase Auth, Cloud Firestore |
+| Backend y Auth | Firebase Auth, Cloud Firestore, Remote Config |
 | Persistencia local | SharedPreferences (settings, patrones, sesiones, playlists, cache offline) |
 | Web Build | Emscripten, JS Interop |
 | Rendering | CustomPainter (knobs), Ticker (animaciones) |

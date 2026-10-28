@@ -9,6 +9,7 @@ import 'package:metronomo_standalone/models/session_model.dart';
 import 'package:metronomo_standalone/models/pattern_model.dart';
 import 'package:metronomo_standalone/services/deep_link_service.dart';
 import 'package:metronomo_standalone/screens/playlist_player_screen.dart';
+import 'package:metronomo_standalone/widgets/share_sheet.dart';
 
 /// Management screen for creating, editing, and launching Playlists.
 class PlaylistsScreen extends StatefulWidget {
@@ -131,40 +132,38 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
   }
 
   // ── Share playlist ─────────────────────────────────────────────────────
-  Future<void> _sharePlaylist(Playlist playlist) async {
-    try {
-      final sessionProvider = context.read<SessionProvider>();
-      final patProvider = context.read<PatternEditorProvider>();
-      await sessionProvider.ensureLoaded;
-      await patProvider.ensureLoaded;
+  void _sharePlaylist(Playlist playlist) {
+    showShareSheet(
+      context,
+      heading: 'Compartir playlist',
+      subtitle: '«${playlist.name}» · ${playlist.sessionIds.length} sesiones',
+      createLink: () async {
+        final sessionProvider = context.read<SessionProvider>();
+        final patProvider = context.read<PatternEditorProvider>();
+        await sessionProvider.ensureLoaded;
+        await patProvider.ensureLoaded;
 
-      // Resolve sessions and their patterns
-      final sessions = <Session>[];
-      final allPatterns = <Pattern>[];
-      final seenPatternIds = <String>{};
+        // Resolve sessions and their patterns
+        final sessions = <Session>[];
+        final allPatterns = <Pattern>[];
+        final seenPatternIds = <String>{};
 
-      for (var sessionId in playlist.sessionIds) {
-        final session = sessionProvider.getSessionById(sessionId);
-        if (session != null) {
-          sessions.add(session);
-          for (var config in session.patternsConfig) {
-            if (!seenPatternIds.contains(config.patternId)) {
-              seenPatternIds.add(config.patternId);
-              final pat = patProvider.getPatternById(config.patternId);
-              if (pat != null) allPatterns.add(pat);
+        for (var sessionId in playlist.sessionIds) {
+          final session = sessionProvider.getSessionById(sessionId);
+          if (session != null) {
+            sessions.add(session);
+            for (var config in session.patternsConfig) {
+              if (seenPatternIds.add(config.patternId)) {
+                final pat = patProvider.getPatternById(config.patternId);
+                if (pat != null) allPatterns.add(pat);
+              }
             }
           }
         }
-      }
 
-      await DeepLinkService().sharePlaylist(playlist, sessions, allPatterns);
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al compartir: $e'), backgroundColor: AppColors.accentRed(context)),
-        );
-      }
-    }
+        return DeepLinkService().createPlaylistLink(playlist, sessions, allPatterns);
+      },
+    );
   }
 
   @override

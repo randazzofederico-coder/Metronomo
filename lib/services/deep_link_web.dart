@@ -17,6 +17,35 @@ String? getShareParamFromUrl() {
   }
 }
 
+/// Registers [onShare] to receive share IDs delivered to an already-open
+/// installed PWA via `launchQueue` (see web/index.html). Drains queued IDs.
+void listenWebLaunchQueue(void Function(String shareId) onShare) {
+  try {
+    globalContext['_metronomoOnShare'] =
+        ((JSString id) => onShare(id.toDart)).toJS;
+    final pending = globalContext['_metronomoPendingShares'];
+    if (pending != null) {
+      final list = (pending as JSArray<JSString>).toDart;
+      for (final id in list) {
+        onShare(id.toDart);
+      }
+      globalContext['_metronomoPendingShares'] = <JSString>[].toJS;
+    }
+  } catch (_) {
+    // launchQueue not supported — nothing to do.
+  }
+}
+
+/// Whether the browser supports the Web Share API (`navigator.share`).
+bool webCanShare() {
+  try {
+    final navigator = globalContext['navigator'] as JSObject;
+    return navigator.has('share');
+  } catch (_) {
+    return false;
+  }
+}
+
 /// Removes all query parameters from the browser URL
 /// using history.replaceState (no page reload).
 void cleanShareParamFromUrl() {

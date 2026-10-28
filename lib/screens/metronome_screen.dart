@@ -12,10 +12,12 @@ import 'package:metronomo_standalone/providers/session_provider.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
 import 'package:metronomo_standalone/models/pattern_model.dart';
 import 'package:metronomo_standalone/models/session_model.dart';
-import 'package:metronomo_standalone/models/playlist_model.dart';
 import 'package:metronomo_standalone/services/deep_link_service.dart';
+import 'package:metronomo_standalone/services/share_import_service.dart';
 import 'package:metronomo_standalone/providers/playlist_provider.dart';
 import 'package:metronomo_standalone/screens/playlists_screen.dart';
+import 'package:metronomo_standalone/screens/playlist_player_screen.dart';
+import 'package:metronomo_standalone/widgets/share_sheet.dart';
 
 class MetronomeScreen extends StatefulWidget {
   const MetronomeScreen({super.key});
@@ -58,39 +60,46 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     WidgetsBinding.instance.addObserver(this);
     // Check for incoming shared links after the first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Initialize working state (restore or default)
+      final metronome = context.read<MetronomeProvider>();
+      final settings = context.read<SettingsProvider>();
+      metronome.initializeWorkingState(settings);
+
       _checkForSharedLink();
-      // Native (Android/iOS): listen for runtime App Links (app already open)
-      DeepLinkService().initNativeLinks(
-        onShareReceived: (shareId) => _handleShareId(shareId),
-      );
+      // Links arriving while the app runs (App Links / PWA launchQueue).
+      DeepLinkService().listenIncomingLinks(_handleShareId);
     });
   }
 
   Future<void> _checkForSharedLink() async {
-    final service = DeepLinkService();
-
-    // 1. Check for native deep link captured in main.dart (cold start)
-    final pendingId = service.consumePendingShareId();
-    if (pendingId != null && pendingId.isNotEmpty) {
-      await _handleShareId(pendingId);
-      return;
-    }
-
-    // 2. Web: check URL query params
-    final shareId = service.checkForShareParam();
-    if (shareId == null) return;
-
-    // Clean URL immediately to prevent re-import on refresh
-    service.cleanUrl();
-
-    await _handleShareId(shareId);
+    // Link captured in main.dart (native cold start or web `?share=`).
+    final pendingId = DeepLinkService().consumePendingShareId();
+    if (pendingId != null) await _handleShareId(pendingId);
   }
 
-  /// Shared import logic for both Web (URL param) and Native (App Links).
+  bool _isHandlingShare = false;
+  final List<String> _queuedShares = [];
+
+  /// Receive flow: fetch → import to library → ask to open (protecting
+  /// unsaved work) → open. Links arriving mid-flow are queued.
   Future<void> _handleShareId(String shareId) async {
     if (!mounted) return;
-    // Show loading indicator
-    ScaffoldMessenger.of(context).showSnackBar(
+    if (_isHandlingShare) {
+      _queuedShares.add(shareId);
+      return;
+    }
+    _isHandlingShare = true;
+    try {
+      await _receiveShare(shareId);
+    } finally {
+      _isHandlingShare = false;
+    }
+    if (_queuedShares.isNotEmpty) await _handleShareId(_queuedShares.removeAt(0));
+  }
+
+  Future<void> _receiveShare(String shareId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
       SnackBar(
         content: Row(
           children: [
@@ -102,184 +111,197 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
               ),
             ),
             const SizedBox(width: 12),
-            Text('Importando...', style: TextStyle(color: AppColors.textPrimary(context))),
+            Text('Abriendo link compartido...', style: TextStyle(color: AppColors.textPrimary(context))),
           ],
         ),
         backgroundColor: AppColors.surfaceHighlight(context),
-        duration: const Duration(seconds: 15),
+        duration: const Duration(seconds: 20),
       ),
     );
 
-    final data = await DeepLinkService().fetchSharedData(shareId);
+    final bundle = await DeepLinkService().fetchSharedBundle(shareId);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    messenger.hideCurrentSnackBar();
 
-    if (data == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('El enlace compartido no es válido o ha expirado.',
-              style: TextStyle(color: AppColors.textPrimary(context))),
-          backgroundColor: AppColors.accentRed(context),
-        ),
-      );
+    if (bundle == null) {
+      _showErrorSnack('El enlace compartido no es válido o ha expirado.');
       return;
     }
 
-    final type = data['type'] as String?;
-    if (type == 'pattern') {
-      await _importSharedPattern(data);
-    } else if (type == 'session') {
-      await _importSharedSession(data);
-    } else if (type == 'playlist') {
-      await _importSharedPlaylist(data);
+    final ShareImportResult result;
+    try {
+      result = await ShareImportService(
+        patterns: context.read<PatternEditorProvider>(),
+        sessions: context.read<SessionProvider>(),
+        playlists: context.read<PlaylistProvider>(),
+      ).import(bundle);
+    } catch (e) {
+      debugPrint('Share import error: $e');
+      _showErrorSnack('No se pudo importar el contenido compartido.');
+      return;
+    }
+    if (!mounted) return;
+
+    final wantsOpen = await _askOpenImported(result);
+    if (wantsOpen != true || !mounted) return;
+
+    // Playlists open in their own player, which preserves the working state.
+    if (result.type != SharedType.playlist) {
+      final proceed = await _protectUnsavedSession();
+      if (!proceed || !mounted) return;
+    }
+    await _openImported(result);
+  }
+
+  void _showErrorSnack(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message, style: TextStyle(color: AppColors.textPrimary(context))),
+        backgroundColor: AppColors.accentRed(context),
+      ),
+    );
+  }
+
+  /// "Added to your library — open now?" dialog.
+  Future<bool?> _askOpenImported(ShareImportResult r) {
+    final (label, icon) = switch (r.type) {
+      SharedType.pattern => ('Patrón', Icons.graphic_eq_rounded),
+      SharedType.session => ('Sesión', Icons.library_music_rounded),
+      SharedType.playlist => ('Playlist', Icons.queue_music_rounded),
+    };
+    final details = switch (r.type) {
+      SharedType.pattern => '',
+      SharedType.session => ' (${r.patternCount} patrones)',
+      SharedType.playlist => ' (${r.sessionCount} sesiones, ${r.patternCount} patrones)',
+    };
+    final status = r.alreadyInLibrary
+        ? 'Ya estaba en tu biblioteca.'
+        : 'Se agregó a tu biblioteca$details.';
+
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceHighlight(ctx),
+        icon: Icon(icon, color: AppColors.accentCyan(ctx)),
+        title: Text('$label recibido', style: TextStyle(color: AppColors.textPrimary(ctx))),
+        content: Text('«${r.name}»\n$status\n\n¿Querés abrirlo ahora?',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: AppColors.textSecondary(ctx))),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('SOLO GUARDAR', style: TextStyle(color: AppColors.textSecondary(ctx))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('ABRIR', style: TextStyle(color: AppColors.accentCyan(ctx), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// If the current session has unsaved changes, offers Save / Discard /
+  /// Cancel. Returns true when it's OK to replace the current session.
+  Future<bool> _protectUnsavedSession() async {
+    final metronome = context.read<MetronomeProvider>();
+    final settings = context.read<SettingsProvider>();
+    if (!metronome.isSessionDirty) return true;
+
+    final name = metronome.activeSessionName ?? 'Sin Título';
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceHighlight(ctx),
+        title: Text('Cambios sin guardar', style: TextStyle(color: AppColors.textPrimary(ctx))),
+        content: Text('La sesión «$name» tiene cambios sin guardar. ¿Qué querés hacer antes de abrir?',
+            style: TextStyle(color: AppColors.textSecondary(ctx))),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'cancel'),
+            child: Text('CANCELAR', style: TextStyle(color: AppColors.textSecondary(ctx))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'discard'),
+            child: Text('DESCARTAR', style: TextStyle(color: AppColors.accentRed(ctx))),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 'save'),
+            child: Text('GUARDAR', style: TextStyle(color: AppColors.accentGreen(ctx), fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (!mounted) return false;
+    switch (choice) {
+      case 'discard':
+        return true;
+      case 'save':
+        return metronome.activeSessionId != null
+            ? _showQuickSaveDialog(context, metronome, settings)
+            : _showSaveSessionDialog(context, metronome, settings);
+      default:
+        return false;
     }
   }
 
-  Future<void> _importSharedPattern(Map<String, dynamic> data) async {
-    try {
-      final patternJson = data['data'] as Map<String, dynamic>;
-      final pattern = Pattern.fromJson(patternJson);
-      // Generate a new ID to avoid collisions with local library
-      final newPattern = pattern.copyWith(id: const Uuid().v4());
+  Future<void> _openImported(ShareImportResult r) async {
+    final metronome = context.read<MetronomeProvider>();
+    final settings = context.read<SettingsProvider>();
+    final patProvider = context.read<PatternEditorProvider>();
+    final sessionProvider = context.read<SessionProvider>();
 
-      final patProvider = context.read<PatternEditorProvider>();
-      await patProvider.addPattern(newPattern);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Patrón "${pattern.name}" añadido a tu librería ✓',
-                style: TextStyle(color: AppColors.textPrimary(context))),
-            backgroundColor: AppColors.surfaceHighlight(context),
-          ),
+    switch (r.type) {
+      case SharedType.pattern:
+        final pattern = patProvider.getPatternById(r.localId);
+        if (pattern != null) metronome.newSessionWithPattern(pattern);
+      case SharedType.session:
+        final session = sessionProvider.getSessionById(r.localId);
+        if (session != null) {
+          await metronome.loadSession(session, settings, getPatternById: (id) async {
+            await patProvider.ensureLoaded;
+            return patProvider.getPatternById(id);
+          });
+        }
+      case SharedType.playlist:
+        await Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => PlaylistPlayerScreen(playlistId: r.localId)),
         );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al importar patrón: $e'),
-            backgroundColor: AppColors.accentRed(context),
-          ),
-        );
-      }
     }
   }
 
-  Future<void> _importSharedSession(Map<String, dynamic> data) async {
-    try {
-      final patProvider = context.read<PatternEditorProvider>();
-      final sessionProvider = context.read<SessionProvider>();
+  // ── Share (export) ─────────────────────────────────────────────────────
 
-      // Import all bundled patterns with fresh IDs
-      final patternsJson = data['patterns'] as List<dynamic>? ?? [];
-      final Map<String, String> idMapping = {};
-
-      for (var pJson in patternsJson) {
-        final pattern = Pattern.fromJson(pJson as Map<String, dynamic>);
-        final newId = const Uuid().v4();
-        idMapping[pattern.id] = newId;
-        final newPattern = pattern.copyWith(id: newId);
-        await patProvider.addPattern(newPattern);
-      }
-
-      // Import session with remapped pattern references
-      final sessionJson = data['data'] as Map<String, dynamic>;
-      final session = Session.fromJson(sessionJson);
-      final updatedConfigs = session.patternsConfig.map((config) {
-        return config.copyWith(
-          patternId: idMapping[config.patternId] ?? config.patternId,
-        );
-      }).toList();
-      final newSession = session.copyWith(
-        id: const Uuid().v4(),
-        patternsConfig: updatedConfigs,
-      );
-      await sessionProvider.addSession(newSession);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                'Sesión "${session.name}" importada con ${patternsJson.length} patrones ✓',
-                style: TextStyle(color: AppColors.textPrimary(context))),
-            backgroundColor: AppColors.surfaceHighlight(context),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al importar sesión: $e'),
-            backgroundColor: AppColors.accentRed(context),
-          ),
-        );
-      }
-    }
+  void _sharePattern(Pattern pattern) {
+    showShareSheet(
+      context,
+      heading: 'Compartir patrón',
+      subtitle: '«${pattern.name}» · ${pattern.structure}',
+      createLink: () => DeepLinkService().createPatternLink(pattern),
+    );
   }
 
-  Future<void> _importSharedPlaylist(Map<String, dynamic> data) async {
-    try {
-      final patProvider = context.read<PatternEditorProvider>();
-      final sessionProvider = context.read<SessionProvider>();
-      final playlistProvider = context.read<PlaylistProvider>();
-
-      // Import all bundled patterns with fresh IDs
-      final patternsJson = data['patterns'] as List<dynamic>? ?? [];
-      final Map<String, String> patternIdMapping = {};
-      for (var pJson in patternsJson) {
-        final pattern = Pattern.fromJson(pJson as Map<String, dynamic>);
-        final newId = const Uuid().v4();
-        patternIdMapping[pattern.id] = newId;
-        await patProvider.addPattern(pattern.copyWith(id: newId));
-      }
-
-      // Import all bundled sessions with fresh IDs and remapped pattern refs
-      final sessionsJson = data['sessions'] as List<dynamic>? ?? [];
-      final Map<String, String> sessionIdMapping = {};
-      for (var sJson in sessionsJson) {
-        final session = Session.fromJson(sJson as Map<String, dynamic>);
-        final newSessionId = const Uuid().v4();
-        sessionIdMapping[session.id] = newSessionId;
-        final updatedConfigs = session.patternsConfig.map((c) {
-          return c.copyWith(patternId: patternIdMapping[c.patternId] ?? c.patternId);
-        }).toList();
-        await sessionProvider.addSession(session.copyWith(id: newSessionId, patternsConfig: updatedConfigs));
-      }
-
-      // Import playlist with remapped session IDs
-      final playlistJson = data['data'] as Map<String, dynamic>;
-      final playlist = Playlist.fromJson(playlistJson);
-      final remappedSessionIds = playlist.sessionIds
-          .map((id) => sessionIdMapping[id] ?? id)
-          .toList();
-      await playlistProvider.addPlaylist(playlist.copyWith(
-        id: const Uuid().v4(),
-        sessionIds: remappedSessionIds,
-      ));
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Playlist "${playlist.name}" importada con ${sessionsJson.length} sesiones \u2713',
-              style: TextStyle(color: AppColors.textPrimary(context)),
-            ),
-            backgroundColor: AppColors.surfaceHighlight(context),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error al importar playlist: $e'),
-            backgroundColor: AppColors.accentRed(context),
-          ),
-        );
-      }
-    }
+  void _shareSession(Session session) {
+    showShareSheet(
+      context,
+      heading: 'Compartir sesión',
+      subtitle: '«${session.name}» · ${session.globalBpm} BPM · ${session.patternsConfig.length} patrones',
+      createLink: () async {
+        final patProvider = context.read<PatternEditorProvider>();
+        await patProvider.ensureLoaded;
+        final patterns = <Pattern>[];
+        final seen = <String>{};
+        for (var config in session.patternsConfig) {
+          if (!seen.add(config.patternId)) continue;
+          final pat = patProvider.getPatternById(config.patternId);
+          if (pat != null) patterns.add(pat);
+        }
+        return DeepLinkService().createSessionLink(session, patterns);
+      },
+    );
   }
 
   @override
@@ -290,6 +312,9 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     final settings = context.read<SettingsProvider>();
 
     if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden || state == AppLifecycleState.inactive) {
+      // Persist working state before going to background
+      metronome.saveWorkingState();
+
       // App going to background
       if (!settings.backgroundPlayback && metronome.isPlaying) {
         _wasPlayingBeforeBackground = true;
@@ -325,9 +350,10 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     }
   }
 
-  void _showQuickSaveDialog(BuildContext context, MetronomeProvider metronome, SettingsProvider settings) {
+  /// Returns true if the session ended up saved (overwrite or "save as").
+  Future<bool> _showQuickSaveDialog(BuildContext context, MetronomeProvider metronome, SettingsProvider settings) async {
     _closeAllKeyboards();
-    showDialog(
+    final result = await showDialog<Object>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceHighlight(ctx),
@@ -340,8 +366,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
           ),
           TextButton(
             onPressed: () {
-               Navigator.pop(ctx);
-               _showSaveSessionDialog(context, metronome, settings);
+               Navigator.pop(ctx, 'saveAs');
             },
             child: Text("GUARDAR COMO...", style: TextStyle(color: AppColors.accentCyan(ctx))),
           ),
@@ -373,7 +398,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                metronome.markSessionClean(updatedSession.id, updatedSession.name);
                
                if (ctx.mounted) {
-                  Navigator.pop(ctx);
+                  Navigator.pop(ctx, true);
                   ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Sesión sobrescrita', style: TextStyle(color: AppColors.textPrimary(ctx))), backgroundColor: AppColors.surfaceHighlight(ctx)));
                }
             },
@@ -382,14 +407,19 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
         ],
       )
     );
+    if (result == 'saveAs' && context.mounted) {
+      return _showSaveSessionDialog(context, metronome, settings);
+    }
+    return result == true;
   }
 
-  void _showSaveSessionDialog(BuildContext context, MetronomeProvider metronome, SettingsProvider settings) {
+  /// Returns true if a new session was saved.
+  Future<bool> _showSaveSessionDialog(BuildContext context, MetronomeProvider metronome, SettingsProvider settings) async {
     _closeAllKeyboards();
     final nameController = TextEditingController();
     final descController = TextEditingController();
 
-    showDialog(
+    final saved = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.surfaceHighlight(ctx),
@@ -455,7 +485,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
               metronome.markSessionClean(newSession.id, newSession.name);
 
               if (ctx.mounted) {
-                 Navigator.pop(ctx);
+                 Navigator.pop(ctx, true);
                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Sesión guardada', style: TextStyle(color: AppColors.textPrimary(ctx))), backgroundColor: AppColors.surfaceHighlight(ctx)));
               }
             },
@@ -464,6 +494,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
         ],
       ),
     );
+    return saved == true;
   }
 
   void _showLoadSessionDialog(BuildContext context, MetronomeProvider metronome, SettingsProvider settings) {
@@ -504,25 +535,9 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                                 children: [
                                   IconButton(
                                     icon: Icon(Icons.share_outlined, color: AppColors.textSecondary(ctx)),
-                                    onPressed: () async {
-                                      try {
-                                        if (ctx.mounted) Navigator.pop(ctx);
-
-                                        // Resolve all patterns referenced by this session
-                                        final patProvider = context.read<PatternEditorProvider>();
-                                        await patProvider.ensureLoaded;
-                                        final patterns = <Pattern>[];
-                                        for (var config in session.patternsConfig) {
-                                          final pat = patProvider.getPatternById(config.patternId);
-                                          if (pat != null) patterns.add(pat);
-                                        }
-
-                                        await DeepLinkService().shareSession(session, patterns);
-                                      } catch (e) {
-                                        if (ctx.mounted) {
-                                           ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Error al compartir: $e')));
-                                        }
-                                      }
+                                    onPressed: () {
+                                      Navigator.pop(ctx);
+                                      _shareSession(session);
                                     },
                                   ),
                                   const SizedBox(width: 4),
@@ -592,15 +607,9 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                                 children: [
                                   IconButton(
                                     icon: Icon(Icons.share_outlined, color: AppColors.textSecondary(ctx)),
-                                    onPressed: () async {
-                                      try {
-                                        if (ctx.mounted) Navigator.pop(ctx);
-                                        await DeepLinkService().sharePattern(pat);
-                                      } catch (e) {
-                                        if (ctx.mounted) {
-                                           ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Error al compartir: $e')));
-                                        }
-                                      }
+                                    onPressed: () {
+                                      Navigator.pop(ctx);
+                                      _sharePattern(pat);
                                     },
                                   ),
                                   const SizedBox(width: 4),

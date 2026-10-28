@@ -39,6 +39,30 @@
 
   <title>Metrónomo Musical</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Link previews (WhatsApp, Telegram, redes) -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Metrónomo">
+  <meta property="og:title" content="Metrónomo Musical">
+  <meta property="og:description" content="Te compartieron un ritmo. Abrilo en Metrónomo: subdivisiones, acentos, birritmia y control preciso de tempo.">
+  <meta property="og:image" content="https://federicorandazzo.com.ar/metronomo/icons/Icon-512.png">
+  <meta name="twitter:card" content="summary">
+
+  <script>
+    // Installed PWA (desktop Chrome/Edge): with launch_handler "focus-existing",
+    // shared links are delivered to the open window through launchQueue.
+    // Flutter registers window._metronomoOnShare; until then, IDs are queued.
+    window._metronomoPendingShares = [];
+    if ('launchQueue' in window) {
+      window.launchQueue.setConsumer(function (params) {
+        if (!params || !params.targetURL) return;
+        var id = new URL(params.targetURL).searchParams.get('share');
+        if (!id) return;
+        if (typeof window._metronomoOnShare === 'function') window._metronomoOnShare(id);
+        else window._metronomoPendingShares.push(id);
+      });
+    }
+  </script>
   <script src="live_mixer.js"></script>
   <style>
     body {

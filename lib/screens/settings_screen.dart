@@ -1,13 +1,11 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/pwa_install_service.dart';
 import '../providers/settings_provider.dart';
 import '../providers/metronome_provider.dart';
 import '../constants/app_colors.dart';
-import '../models/permission_cache.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -197,12 +195,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
             const SizedBox(height: 12),
           ],
 
-          // ── Session & Logout ──
-          _buildSessionSection(context),
-          const SizedBox(height: 12),
-          _buildLogoutButton(context),
-          const SizedBox(height: 8),
-          _buildDeleteAccountButton(context),
+          // ── Acerca de ──
+          _buildAboutSection(context),
           const SizedBox(height: 24),
         ],
       ),
@@ -306,41 +300,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildNumericField(
-    BuildContext context, {
-    required String label,
-    required int value,
-    required ValueChanged<int> onChanged,
-  }) {
-    return TextFormField(
-      initialValue: value.toString(),
-      keyboardType: TextInputType.number,
-      style: TextStyle(color: AppColors.textPrimary(context), fontSize: 14),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(color: AppColors.textSecondary(context), fontSize: 12),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: AppColors.border(context)),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: AppColors.border(context)),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: AppColors.primary(context), width: 1.5),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        filled: true,
-        fillColor: AppColors.surfaceHighlight(context),
-      ),
-      onChanged: (val) {
-        final parsed = int.tryParse(val);
-        if (parsed != null) onChanged(parsed);
-      },
-    );
-  }
 
   Widget _buildPwaInstallSection(BuildContext context) {
     final pwaService = PwaInstallService();
@@ -479,280 +438,56 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _buildSessionSection(BuildContext context) {
-    final settings = context.read<SettingsProvider>();
-
-    return FutureBuilder<PermissionCache?>(
-      future: settings.loadPermissionCacheAsync(),
-      builder: (context, snapshot) {
-        final cache = snapshot.data;
-
-        String lastDateText = 'Nunca verificada';
-        String daysText = 'Sin datos';
-        Color daysColor = AppColors.textSecondary(context);
-        IconData daysIcon = Icons.help_outline;
-
-        if (cache != null) {
-          // Manual date formatting (avoids DateFormat locale crash)
-          final d = cache.lastVerified;
-          const meses = [
-            'enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
-            'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre',
-          ];
-          lastDateText = '${d.day} de ${meses[d.month - 1]} de ${d.year}';
-
-          final days = cache.daysUntilExpiry;
-          if (days > 5) {
-            daysText = '$days días restantes';
-            daysColor = AppColors.accentGreen(context);
-            daysIcon = Icons.check_circle_outline;
-          } else if (days > 0) {
-            daysText = '$days ${days == 1 ? 'día' : 'días'} restantes';
-            daysColor = AppColors.warning(context);
-            daysIcon = Icons.warning_amber_rounded;
-          } else {
-            daysText = 'Verificación requerida';
-            daysColor = AppColors.error(context);
-            daysIcon = Icons.error_outline;
-          }
-        }
-
-        return _buildSectionCard(
-          context,
-          icon: Icons.shield_outlined,
-          title: 'Sesión',
-          child: Column(
-            children: [
-              _buildInfoRow(
-                context,
-                icon: Icons.calendar_today_outlined,
-                label: 'Última verificación online',
-                value: lastDateText,
-              ),
-              const SizedBox(height: 12),
-              _buildInfoRow(
-                context,
-                icon: daysIcon,
-                label: 'Próxima verificación requerida',
-                value: daysText,
-                valueColor: daysColor,
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildInfoRow(
-    BuildContext context, {
-    required IconData icon,
-    required String label,
-    required String value,
-    Color? valueColor,
-  }) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: AppColors.textSecondary(context)),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: AppColors.textSecondary(context),
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                  color: valueColor ?? AppColors.textPrimary(context),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLogoutButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () => _showLogoutConfirmation(context),
-        icon: Icon(Icons.logout_rounded, size: 18, color: AppColors.error(context)),
-        label: Text(
-          'Cerrar sesión',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: AppColors.error(context),
-          ),
-        ),
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: AppColors.error(context).withOpacity(0.4)),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showLogoutConfirmation(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface(context),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          '¿Cerrar sesión?',
-          style: TextStyle(color: AppColors.textPrimary(context)),
-        ),
-        content: Text(
-          'Tus patrones y sesiones guardados localmente no se borrarán. '
-          'Solo se cerrará la sesión de tu cuenta.',
-          style: TextStyle(
-            color: AppColors.textSecondary(context),
-            fontSize: 14,
-            height: 1.5,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'Cancelar',
-              style: TextStyle(color: AppColors.textSecondary(context)),
+  Widget _buildAboutSection(BuildContext context) {
+    return _buildSectionCard(
+      context,
+      icon: Icons.info_outline_rounded,
+      title: 'Acerca de',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Metrónomo',
+            style: TextStyle(
+              color: AppColors.textPrimary(context),
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
             ),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(
-              'Cerrar sesión',
-              style: TextStyle(color: AppColors.error(context), fontWeight: FontWeight.w600),
+          const SizedBox(height: 4),
+          Text(
+            'Desarrollado por Federico Randazzo',
+            style: TextStyle(
+              color: AppColors.textSecondary(context),
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () async {
+                final uri = Uri.parse('https://federicorandazzo.com.ar/apps/');
+                if (await canLaunchUrl(uri)) {
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+              icon: const Icon(Icons.language_rounded),
+              label: const Text(
+                'Visitar Sitio Web',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary(context),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
             ),
           ),
         ],
       ),
     );
-
-    if (confirmed == true && mounted) {
-      final settings = context.read<SettingsProvider>();
-      await settings.clearPermissionCache();
-      await FirebaseAuth.instance.signOut();
-      if (mounted) {
-        Navigator.of(context).popUntil((route) => route.isFirst);
-      }
-    }
-  }
-
-  Widget _buildDeleteAccountButton(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton.icon(
-        onPressed: () => _showDeleteAccountConfirmation(context),
-        icon: Icon(Icons.delete_forever, size: 18, color: Colors.red),
-        label: Text(
-          'Eliminar cuenta',
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: Colors.red,
-          ),
-        ),
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: Colors.red.withOpacity(0.4)),
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _showDeleteAccountConfirmation(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surface(context),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text(
-          'Eliminar cuenta',
-          style: TextStyle(color: AppColors.textPrimary(context)),
-        ),
-        content: Text(
-          '¿Estás seguro que deseas eliminar tu cuenta de forma permanente?\n\n'
-          'Esta acción no se puede deshacer y perderás todos tus datos asociados a esta cuenta.',
-          style: TextStyle(
-            color: AppColors.textSecondary(context),
-            fontSize: 14,
-            height: 1.5,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'Cancelar',
-              style: TextStyle(color: AppColors.textSecondary(context)),
-            ),
-          ),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        await FirebaseFirestore.instance.collection('usuarios').doc(user.uid).delete();
-        await user.delete();
-      }
-      if (mounted) {
-        final settings = context.read<SettingsProvider>();
-        await settings.clearPermissionCache();
-        Navigator.of(context).popUntil((route) => route.isFirst);
-      }
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'requires-recent-login' && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Por seguridad, debes volver a iniciar sesión antes de eliminar tu cuenta.'),
-            duration: Duration(seconds: 5),
-          ),
-        );
-        final settings = context.read<SettingsProvider>();
-        await settings.clearPermissionCache();
-        await FirebaseAuth.instance.signOut();
-        if (mounted) {
-          Navigator.of(context).popUntil((route) => route.isFirst);
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al eliminar: ${e.message}')));
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error inesperado: $e')));
-      }
-    }
   }
 }
 

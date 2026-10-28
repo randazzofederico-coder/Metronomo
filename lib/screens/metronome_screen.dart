@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
 import 'package:metronomo_standalone/widgets/undo_snackbar.dart';
+import 'package:metronomo_standalone/services/share_actions.dart';
 import 'package:metronomo_standalone/audio/click_synth.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
 import 'package:metronomo_standalone/screens/settings_screen.dart';
@@ -17,7 +18,6 @@ import 'package:metronomo_standalone/services/share_import_service.dart';
 import 'package:metronomo_standalone/providers/playlist_provider.dart';
 import 'package:metronomo_standalone/screens/playlists_screen.dart';
 import 'package:metronomo_standalone/screens/playlist_player_screen.dart';
-import 'package:metronomo_standalone/widgets/share_sheet.dart';
 import 'package:metronomo_standalone/widgets/pattern_keypad.dart';
 import 'package:metronomo_standalone/utils/structure_input.dart';
 import 'package:metronomo_standalone/utils/space_play_shortcut.dart';
@@ -30,14 +30,55 @@ import 'package:metronomo_standalone/widgets/playback_clock.dart';
 import 'package:metronomo_standalone/widgets/sequencer_grid.dart';
 import 'package:metronomo_standalone/widgets/transport_bar.dart';
 
+/// "Tocar": the metronome / session editor.
+///
+/// When hosted in [HomeShell], [onOpenLibrary] switches to the Library tab
+/// (used by "Abrir sesión…"); the shell drives it through the public methods
+/// of [MetronomeScreenState] ([openSession], [addPatternFromLibrary]...).
 class MetronomeScreen extends StatefulWidget {
-  const MetronomeScreen({super.key});
+  final VoidCallback? onOpenLibrary;
+
+  /// Asks the host to bring "Tocar" to the front (e.g. after opening a
+  /// shared session while another tab is visible).
+  final VoidCallback? onShowRequested;
+
+  const MetronomeScreen({super.key, this.onOpenLibrary, this.onShowRequested});
 
   @override
-  State<MetronomeScreen> createState() => _MetronomeScreenState();
+  State<MetronomeScreen> createState() => MetronomeScreenState();
 }
 
-class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObserver, SpacePlayShortcut {
+class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObserver, SpacePlayShortcut {
+  // ── Public API (used by the Library through HomeShell) ─────────────────
+
+  /// Opens [session], protecting unsaved changes first. Returns true if opened.
+  Future<bool> openSession(Session session) async {
+    _closeAllKeyboards();
+    final proceed = await _protectUnsavedSession();
+    if (!proceed || !mounted) return false;
+    final patProvider = context.read<PatternEditorProvider>();
+    await context.read<MetronomeProvider>().loadSession(
+      session,
+      context.read<SettingsProvider>(),
+      getPatternById: (id) async {
+        await patProvider.ensureLoaded;
+        return patProvider.getPatternById(id);
+      },
+    );
+    return true;
+  }
+
+  /// Adds a library pattern to the current session.
+  void addPatternFromLibrary(Pattern pattern) {
+    context.read<MetronomeProvider>().loadPattern(pattern);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('«${pattern.name}» agregado a la sesión'), duration: const Duration(seconds: 2)),
+    );
+  }
+
+  /// Starts a new empty session (protecting unsaved changes).
+  Future<void> newSession() => _newSession();
+
   int? _activePatternIdForKeyboard;
 
   /// Event currently in "volume mode" (long press + vertical drag), or null.
@@ -279,7 +320,12 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
       case _SessionMenu.newSession:
         await _newSession();
       case _SessionMenu.open:
-        _showLoadSessionDialog(context, metronome, settings);
+        if (widget.onOpenLibrary != null) {
+          _closeAllKeyboards();
+          widget.onOpenLibrary!();
+        } else {
+          _showLoadSessionDialog(context, metronome, settings);
+        }
       case _SessionMenu.saveAs:
         await _showSaveSessionDialog(context);
       case _SessionMenu.share:
@@ -341,10 +387,14 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     switch (r.type) {
       case SharedType.pattern:
         final pattern = patProvider.getPatternById(r.localId);
-        if (pattern != null) metronome.newSessionWithPattern(pattern);
+        if (pattern != null) {
+          metronome.newSessionWithPattern(pattern);
+          widget.onShowRequested?.call();
+        }
       case SharedType.session:
         final session = sessionProvider.getSessionById(r.localId);
         if (session != null) {
+          widget.onShowRequested?.call();
           await metronome.loadSession(session, settings, getPatternById: (id) async {
             await patProvider.ensureLoaded;
             return patProvider.getPatternById(id);
@@ -360,30 +410,9 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
 
   // ── Share (export) ─────────────────────────────────────────────────────
 
-  void _sharePattern(Pattern pattern) {
-    showShareSheet(
-      context,
-      heading: 'Compartir patrón',
-      subtitle: '«${pattern.name}» · ${pattern.structure}',
-      createLink: () => DeepLinkService().createPatternLink(pattern),
-    );
-  }
+  void _sharePattern(Pattern pattern) => sharePattern(context, pattern);
 
-  void _shareSession(Session session) {
-    showShareSheet(
-      context,
-      heading: 'Compartir sesión',
-      subtitle: '«${session.name}» · ${session.globalBpm} BPM · ${session.patternsConfig.length} patrones',
-      createLink: () async {
-        // Patterns are embedded in the session; legacy sessions fall back to
-        // the library. The list is still sent for older app versions.
-        final patProvider = context.read<PatternEditorProvider>();
-        await patProvider.ensureLoaded;
-        final embedded = session.withEmbeddedPatterns(patProvider.getPatternById);
-        return DeepLinkService().createSessionLink(embedded, embedded.embeddedPatterns);
-      },
-    );
-  }
+  void _shareSession(Session session) => shareSession(context, session);
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -927,9 +956,12 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
               _menuItem(_SessionMenu.open, Icons.folder_open_rounded, 'Abrir sesión…'),
               _menuItem(_SessionMenu.saveAs, Icons.save_as_rounded, 'Guardar como…'),
               _menuItem(_SessionMenu.share, Icons.share_outlined, 'Compartir sesión'),
-              const PopupMenuDivider(),
-              _menuItem(_SessionMenu.playlists, Icons.queue_music_rounded, 'Playlists'),
-              _menuItem(_SessionMenu.settings, Icons.settings_rounded, 'Ajustes'),
+              // Standalone only: in HomeShell these live in the bottom bar.
+              if (widget.onOpenLibrary == null) ...[
+                const PopupMenuDivider(),
+                _menuItem(_SessionMenu.playlists, Icons.queue_music_rounded, 'Playlists'),
+                _menuItem(_SessionMenu.settings, Icons.settings_rounded, 'Ajustes'),
+              ],
             ],
           ),
         ],

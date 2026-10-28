@@ -157,6 +157,8 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 ### 💾 Gestión de Estado y Flujo de Trabajo
 - **Seguimiento 'Dirty State'** — Detección automática y profunda de alteraciones en vivo (BPM, estructuras, faders, mute/solo). La UI reacciona orgánicamente a los cambios pendientes marcando las sesiones y patrones en cursiva con un asterisco (`*`)
 - **Edición Dinámica de Patrones** — Renombrado in-situ de pistas con cajas delimitadas dinámicamente (`IntrinsicWidth`) y tracking visual milimétrico del asterisco de edición
+- **Navegación** — Barra inferior con *Tocar*, *Biblioteca* y *Ajustes* (riel lateral en pantallas ≥900px). Las pestañas viven en un `IndexedStack`: Tocar conserva su estado. En Android, *atrás* desde otra pestaña vuelve a Tocar
+- **Biblioteca** — Sesiones, patrones de la librería y playlists en un solo lugar, con búsqueda por nombre y el mismo menú ⋮ en cada ítem. Sesiones: tocar = abrir en Tocar (protegiendo cambios sin guardar), compartir, duplicar, renombrar, eliminar (confirmación + DESHACER); la sesión abierta se marca *En Tocar*. Patrones: tocar = agregar a la sesión, compartir, renombrar, eliminar (DESHACER). Playlists: reproducir, editar, compartir, renombrar, eliminar
 - **Guardado simplificado** — 💾 sobrescribe la sesión activa directamente (snackbar con *DESHACER*); si la sesión no existe todavía pide un nombre. *Guardar como…*, *Nueva*, *Abrir*, *Compartir sesión*, *Playlists* y *Ajustes* están en el menú ⋮ de la App Bar
 - **Sesiones independientes de la librería** — Cada sesión guarda una copia de sus patrones (`SessionPatternConfig.name/structure/pulses`). Editar o borrar un patrón de la librería nunca cambia una sesión. Guardar una sesión no toca la librería; para tener un patrón en la librería se usa *Guardar en la librería* desde el menú ⋮ del patrón (actualiza la misma entrada si ya existe). Las sesiones viejas se migran automáticamente al iniciar (`SessionProvider.embedMissingPatterns`, idempotente)
 - **Menú por patrón (⋮)** — Renombrar (también tocando el título), Guardar en la librería, Compartir patrón, Duplicar y Quitar de la sesión (con *DESHACER*)
@@ -186,7 +188,9 @@ lib/
 │   ├── session_provider.dart          # CRUD de la biblioteca de sesiones
 │   └── playlist_provider.dart         # CRUD de playlists + reordenar sesiones internas
 ├── screens/
-│   ├── metronome_screen.dart          # UI: secuenciador, controles, visualizador, edición de estructuras y atajos
+│   ├── home_shell.dart                # Barra inferior (NavigationBar / NavigationRail ≥900px): Tocar · Biblioteca · Ajustes
+│   ├── library_screen.dart            # Biblioteca: pestañas Sesiones / Patrones / Playlists, búsqueda, menú ⋮ por ítem
+│   ├── metronome_screen.dart          # Tocar: secuenciador, controles, visualizador, edición de estructuras y atajos
 │   ├── playlists_screen.dart          # Gestión de playlists: crear, editar, eliminar, reordenar sesiones
 │   ├── playlist_player_screen.dart    # Reproductor: PageView, flechas de navegación, modo solo lectura, toggle edición
 │   ├── auth_gate.dart                 # Gate de autenticación, permisos y fallback offline
@@ -200,6 +204,7 @@ lib/
 │   ├── deep_link_service.dart         # Crear/leer links (Firestore, auth anónima, ID por contenido, captura y dedupe de links entrantes)
 │   ├── deep_link_web.dart             # JS interop: URL (?share=), Web Share API, launchQueue (PWA)
 │   ├── deep_link_stub.dart            # Stub para plataformas no-web
+│   ├── share_actions.dart             # Flujos de compartir patrón / sesión / playlist (usados desde Tocar y Biblioteca)
 │   ├── share_import_service.dart      # Importación idempotente de patrones/sesiones/playlists compartidos
 │   ├── pwa_install_service.dart       # Servicio de instalación PWA
 │   ├── pwa_install_web.dart           # JS interop: beforeinstallprompt
@@ -225,6 +230,7 @@ lib/
     ├── sequencer_grid.dart            # Celdas del secuenciador (tap / long-press de volumen opcionales)
     ├── share_sheet.dart               # Bottom sheet unificado: generar link → Compartir en… / Copiar link
     ├── transport_bar.dart             # Barra inferior: Play/Stop, BPM, slider, TAP
+    ├── undo_snackbar.dart             # DESHACER (snackbar / franja en sheets) + diálogo de confirmación
     └── update_required_screen.dart    # Pantalla bloqueante de actualización obligatoria
 
 packages/native_audio_engine/

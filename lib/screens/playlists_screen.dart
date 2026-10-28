@@ -2,19 +2,23 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
 import 'package:metronomo_standalone/widgets/undo_snackbar.dart';
+import 'package:metronomo_standalone/services/share_actions.dart';
 import 'package:metronomo_standalone/models/playlist_model.dart';
 import 'package:metronomo_standalone/providers/playlist_provider.dart';
 import 'package:metronomo_standalone/providers/session_provider.dart';
-import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
-import 'package:metronomo_standalone/models/session_model.dart';
-import 'package:metronomo_standalone/models/pattern_model.dart';
-import 'package:metronomo_standalone/services/deep_link_service.dart';
 import 'package:metronomo_standalone/screens/playlist_player_screen.dart';
-import 'package:metronomo_standalone/widgets/share_sheet.dart';
 
 /// Management screen for creating, editing, and launching Playlists.
+///
+/// With [embedded] it renders as a tab of the Library (no AppBar, FAB to
+/// create); otherwise as a standalone pushed screen.
 class PlaylistsScreen extends StatefulWidget {
-  const PlaylistsScreen({super.key});
+  final bool embedded;
+
+  /// Lower-case name filter (Library search). Empty = show all.
+  final String searchQuery;
+
+  const PlaylistsScreen({super.key, this.embedded = false, this.searchQuery = ''});
 
   @override
   State<PlaylistsScreen> createState() => _PlaylistsScreenState();
@@ -122,36 +126,18 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
   }
 
   // ── Share playlist ─────────────────────────────────────────────────────
-  void _sharePlaylist(Playlist playlist) {
-    showShareSheet(
-      context,
-      heading: 'Compartir playlist',
-      subtitle: '«${playlist.name}» · ${playlist.sessionIds.length} sesiones',
-      createLink: () async {
-        final sessionProvider = context.read<SessionProvider>();
-        final patProvider = context.read<PatternEditorProvider>();
-        await sessionProvider.ensureLoaded;
-        await patProvider.ensureLoaded;
+  void _sharePlaylist(Playlist playlist) => sharePlaylist(context, playlist);
 
-        // Resolve sessions (with embedded patterns; legacy ones via the
-        // library). The flat pattern list is still sent for older versions.
-        final sessions = <Session>[];
-        final allPatterns = <Pattern>[];
-        final seenPatternIds = <String>{};
-
-        for (var sessionId in playlist.sessionIds) {
-          final stored = sessionProvider.getSessionById(sessionId);
-          if (stored != null) {
-            final session = stored.withEmbeddedPatterns(patProvider.getPatternById);
-            sessions.add(session);
-            for (final pat in session.embeddedPatterns) {
-              if (seenPatternIds.add(pat.id)) allPatterns.add(pat);
-            }
-          }
-        }
-
-        return DeepLinkService().createPlaylistLink(playlist, sessions, allPatterns);
-      },
+  PopupMenuItem<String> _menuItem(String value, IconData icon, String label, {Color? color}) {
+    return PopupMenuItem<String>(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: color ?? AppColors.textSecondary(context)),
+          const SizedBox(width: 12),
+          Text(label, style: color == null ? null : TextStyle(color: color)),
+        ],
+      ),
     );
   }
 
@@ -159,7 +145,16 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background(context),
-      appBar: AppBar(
+      // Embedded in the Library tab: no own AppBar, "new" is a FAB.
+      floatingActionButton: widget.embedded
+          ? FloatingActionButton.extended(
+              heroTag: 'new-playlist',
+              onPressed: () => _showCreatePlaylistDialog(),
+              icon: const Icon(Icons.add),
+              label: const Text('Nueva playlist'),
+            )
+          : null,
+      appBar: widget.embedded ? null : AppBar(
         title: const Text("PLAYLISTS", style: TextStyle(letterSpacing: 2.0)),
         backgroundColor: AppColors.surface(context),
         centerTitle: true,
@@ -179,7 +174,19 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       body: SafeArea(
         child: Consumer<PlaylistProvider>(
           builder: (context, provider, child) {
-            final playlists = provider.playlists;
+            final query = widget.searchQuery;
+            final playlists = query.isEmpty
+                ? provider.playlists
+                : provider.playlists.where((p) => p.name.toLowerCase().contains(query)).toList();
+
+            if (playlists.isEmpty && query.isNotEmpty) {
+              return Center(
+                child: Text(
+                  'Ninguna playlist coincide con la búsqueda',
+                  style: TextStyle(color: AppColors.textSecondary(context), fontSize: 16),
+                ),
+              );
+            }
 
             if (playlists.isEmpty) {
               return Center(
@@ -217,7 +224,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
             return Consumer<SessionProvider>(
               builder: (context, sessionProvider, _) {
                 return ListView.builder(
-                  padding: const EdgeInsets.all(12),
+                  padding: EdgeInsets.fromLTRB(12, 12, 12, widget.embedded ? 88 : 12),
                   itemCount: playlists.length,
                   itemBuilder: (context, index) {
                     final playlist = playlists[index];
@@ -295,27 +302,26 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                                         child: const Icon(Icons.play_arrow, color: Colors.white, size: 24),
                                       ),
                                     ),
-                                  const SizedBox(width: 8),
-                                  // Share
-                                  IconButton(
-                                    icon: Icon(Icons.share_outlined, color: AppColors.textSecondary(context), size: 20),
-                                    onPressed: () => _sharePlaylist(playlist),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                                  ),
-                                  // Edit name
-                                  IconButton(
-                                    icon: Icon(Icons.edit_outlined, color: AppColors.textSecondary(context), size: 20),
-                                    onPressed: () => _showCreatePlaylistDialog(existing: playlist),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-                                  ),
-                                  // Delete
-                                  IconButton(
-                                    icon: Icon(Icons.delete_outline, color: AppColors.accentRed(context), size: 20),
-                                    onPressed: () => _deletePlaylist(playlist),
-                                    padding: EdgeInsets.zero,
-                                    constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                  const SizedBox(width: 4),
+                                  PopupMenuButton<String>(
+                                    tooltip: 'Opciones de la playlist',
+                                    icon: Icon(Icons.more_vert_rounded, color: AppColors.textSecondary(context)),
+                                    onSelected: (action) {
+                                      switch (action) {
+                                        case 'share':
+                                          _sharePlaylist(playlist);
+                                        case 'edit':
+                                          _showCreatePlaylistDialog(existing: playlist);
+                                        case 'delete':
+                                          _deletePlaylist(playlist);
+                                      }
+                                    },
+                                    itemBuilder: (_) => [
+                                      _menuItem('share', Icons.share_outlined, 'Compartir'),
+                                      _menuItem('edit', Icons.edit_outlined, 'Renombrar'),
+                                      const PopupMenuDivider(),
+                                      _menuItem('delete', Icons.delete_outline, 'Eliminar', color: AppColors.accentRed(context)),
+                                    ],
                                   ),
                                 ],
                               ),

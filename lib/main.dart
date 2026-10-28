@@ -12,7 +12,7 @@ import 'package:metronomo_standalone/providers/settings_provider.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
 import 'package:metronomo_standalone/providers/session_provider.dart';
 import 'package:metronomo_standalone/providers/playlist_provider.dart';
-import 'package:metronomo_standalone/screens/metronome_screen.dart';
+import 'package:metronomo_standalone/screens/home_shell.dart';
 import 'package:metronomo_standalone/theme/app_theme.dart';
 import 'package:metronomo_standalone/services/version_check_service.dart';
 import 'package:metronomo_standalone/widgets/update_required_screen.dart';
@@ -87,7 +87,7 @@ class MyApp extends StatelessWidget {
         title: 'Metrónomo',
         themeMode: ThemeMode.dark,
         darkTheme: AppTheme.dark,
-        home: const MetronomeScreen(),
+        home: const HomeShell(),
         debugShowCheckedModeBanner: false,
         builder: (context, child) {
           final settings = context.watch<SettingsProvider>();

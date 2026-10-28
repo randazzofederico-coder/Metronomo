@@ -684,6 +684,14 @@ class MetronomeProvider with ChangeNotifier {
     );
   }
 
+  /// The library renamed a session: keep the title in sync if it's the open one.
+  void onSessionRenamed(String sessionId, String newName) {
+    if (activeSessionId != sessionId) return;
+    activeSessionName = newName;
+    _scheduleDebouncedSave();
+    notifyListeners();
+  }
+
   /// Marks the session as saved. Pattern dirty flags are cleared too: the
   /// session now holds their changes.
   void markSessionClean(String sessionId, String sessionName) {

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show HapticFeedback;
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
@@ -28,6 +29,12 @@ class MetronomeScreen extends StatefulWidget {
 
 class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObserver {
   int? _activePatternIdForKeyboard;
+
+  /// Event currently in "volume mode" (long press + vertical drag), or null.
+  _EventVolumeEdit? _volumeEdit;
+
+  /// Vertical drag distance (logical px) per 5% volume step.
+  static const double _volumePxPerStep = 12.0;
   final Map<int, TextEditingController> _structureControllers = {};
   final Map<int, TextEditingController> _titleControllers = {};
   bool _wasPlayingBeforeBackground = false;
@@ -830,6 +837,14 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                           ],
                         ),
                         
+                        // Per-event volume legend (bottom-right) while in "volume mode"
+                        if (_volumeEdit != null)
+                          Positioned(
+                            right: 16,
+                            bottom: 16,
+                            child: _buildVolumeLegend(context),
+                          ),
+
                         // Custom Keyboard Overlay
                         if (_activePatternIdForKeyboard != null)
                           Positioned(
@@ -1360,61 +1375,68 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                              borderRadius: BorderRadius.circular(6),
                              child: Row(
                                crossAxisAlignment: CrossAxisAlignment.end, // Align to bottom so the "step down" happens from the top
-                               children: List.generate(subdivCount, (subIndex) {
-                                 int currentType = pulse.subdivisions[subIndex];
-                                 bool isHead = subIndex == 0;
-                                 
-                                 return Expanded(
-                                   child: GestureDetector(
-                                     onTap: () {
-                                        int newType = (currentType + 1) % 4;
-                                        onPulseSubdivisionChange(i, subIndex, newType);
-                                     },
-                                     child: Container(
-                                       // Create the height difference step for sub-beats
-                                       margin: EdgeInsets.only(top: isHead ? 0 : 8),
-                                       decoration: BoxDecoration(
-                                         color: currentType == 0 ? AppColors.background(context) : _getColorForType(context, currentType).withOpacity(0.2),
-                                         border: Border(
-                                           right: subIndex < subdivCount - 1 
-                                              ? BorderSide(color: AppColors.background(context), width: 3) // Harder, thicker dark line between sub-cells
-                                              : BorderSide.none,
-                                           top: isHead ? BorderSide.none : BorderSide(color: AppColors.border(context).withOpacity(0.5), width: 1), // Top border for chopped down sub-beats
-                                         )
-                                       ),
-                                       alignment: Alignment.center,
-                                       child: Column(
-                                         mainAxisAlignment: MainAxisAlignment.center,
-                                         children: [
-                                           // Only show the big number on the FIRST subdivision head of the pulse
-                                           if (subIndex == 0)
-                                             Text(
-                                               '${i + 1}', 
-                                               style: TextStyle(
-                                                 color: currentType == 0 ? AppColors.textSecondary(context) : AppColors.textPrimary(context),
-                                                 fontWeight: FontWeight.bold,
-                                                 fontSize: rows == 1 ? 16 : 12
-                                               )
-                                             ),
-                                           if (currentType != 0)
-                                             FittedBox(
-                                               fit: BoxFit.scaleDown,
-                                               child: Text(
-                                                  _getLabelForType(currentType),
-                                                  style: TextStyle(
-                                                     color: _getColorForType(context, currentType),
-                                                     fontSize: 8, // Smaller text for subdivided boxes
-                                                     fontWeight: FontWeight.bold,
-                                                     letterSpacing: -0.5,
-                                                  )
-                                               ),
-                                             )
-                                         ],
-                                       ),
-                                     ),
-                                   ),
-                                 );
-                               }),
+                                children: List.generate(subdivCount, (subIndex) {
+                                  int currentType = pulse.subdivisions[subIndex];
+                                  bool isHead = subIndex == 0;
+                                  final double eventVolume = pulse.volumeAt(subIndex);
+                                  final bool canEditVolume = currentType != 0;
+                                  final edit = _volumeEdit;
+                                  final bool isEditingVolume = edit != null &&
+                                      edit.instanceId == instance.id &&
+                                      edit.pulseIndex == i &&
+                                      edit.subIndex == subIndex;
+                                  
+                                  return Expanded(
+                                    child: GestureDetector(
+                                      // Quick tap: cycle the sound type (unchanged behaviour)
+                                      onTap: () {
+                                         int newType = (currentType + 1) % 4;
+                                         onPulseSubdivisionChange(i, subIndex, newType);
+                                      },
+                                      // Long press: "volume mode" — drag up/down to change the event volume.
+                                      // Only available on events that produce sound.
+                                      onLongPressStart: canEditVolume
+                                          ? (_) => _startVolumeEdit(instance.id, i, subIndex, currentType, eventVolume)
+                                          : null,
+                                      onLongPressMoveUpdate: canEditVolume
+                                          ? (details) => _updateVolumeEdit(details.offsetFromOrigin.dy)
+                                          : null,
+                                      onLongPressEnd: canEditVolume ? (_) => _endVolumeEdit() : null,
+                                      child: Container(
+                                        // Create the height difference step for sub-beats
+                                        margin: EdgeInsets.only(top: isHead ? 0 : 8),
+                                        decoration: BoxDecoration(
+                                          // Color intensity reflects the event volume
+                                          color: currentType == 0
+                                              ? AppColors.background(context)
+                                              : AppColors.eventFill(_getColorForType(context, currentType), eventVolume, 0.2),
+                                          border: Border(
+                                            right: subIndex < subdivCount - 1 
+                                               ? BorderSide(color: AppColors.background(context), width: 3) // Harder, thicker dark line between sub-cells
+                                               : BorderSide.none,
+                                            top: isHead ? BorderSide.none : BorderSide(color: AppColors.border(context).withOpacity(0.5), width: 1), // Top border for chopped down sub-beats
+                                          )
+                                        ),
+                                        foregroundDecoration: isEditingVolume
+                                            ? BoxDecoration(border: Border.all(color: _getColorForType(context, currentType), width: 2))
+                                            : null,
+                                        alignment: Alignment.center,
+                                        // Only show the big number on the FIRST subdivision head of the pulse.
+                                        // The sound type is conveyed by the color alone.
+                                        child: subIndex == 0
+                                            ? Text(
+                                                '${i + 1}', 
+                                                style: TextStyle(
+                                                  color: currentType == 0 ? AppColors.textSecondary(context) : AppColors.textPrimary(context),
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: rows == 1 ? 16 : 12
+                                                )
+                                              )
+                                            : null,
+                                      ),
+                                    ),
+                                  );
+                                }),
                              ),
                            ),
                          ),
@@ -1485,6 +1507,87 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     );
   }
 
+  // --- PER-EVENT VOLUME ("volume mode") ---
+  void _startVolumeEdit(int instanceId, int pulseIndex, int subIndex, int type, double volume) {
+    HapticFeedback.mediumImpact();
+    // Snap the starting point to the 5% grid
+    final start = (volume * 20).round() / 20.0;
+    setState(() {
+      _volumeEdit = _EventVolumeEdit(
+        instanceId: instanceId,
+        pulseIndex: pulseIndex,
+        subIndex: subIndex,
+        type: type,
+        startVolume: start,
+        value: volume,
+      );
+    });
+  }
+
+  void _updateVolumeEdit(double dragDy) {
+    final edit = _volumeEdit;
+    if (edit == null) return;
+    // Dragging up (negative dy) increases the volume
+    final steps = (-dragDy / _volumePxPerStep).round();
+    final maxSteps = (HomeMetronomePulse.maxEventVolume * 20).round();
+    final newValue = ((edit.startVolume * 20).round() + steps).clamp(0, maxSteps) / 20.0;
+    if (newValue == edit.value) return;
+    HapticFeedback.selectionClick();
+    setState(() => edit.value = newValue);
+    context.read<MetronomeProvider>().updateEventVolume(edit.instanceId, edit.pulseIndex, edit.subIndex, newValue);
+  }
+
+  void _endVolumeEdit() {
+    if (_volumeEdit == null) return;
+    setState(() => _volumeEdit = null);
+  }
+
+  /// Floating legend shown in the bottom-right corner while in volume mode.
+  Widget _buildVolumeLegend(BuildContext context) {
+    final edit = _volumeEdit!;
+    final color = _getColorForType(context, edit.type);
+    final percent = (edit.value * 100).round();
+    return IgnorePointer(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.surface(context).withOpacity(0.95),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color, width: 2),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.3), blurRadius: 8)],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              percent == 0 ? Icons.volume_off_rounded : percent > 100 ? Icons.volume_up_rounded : Icons.volume_down_rounded,
+              color: color,
+              size: 22,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '$percent%',
+              style: TextStyle(
+                color: AppColors.textPrimary(context),
+                fontWeight: FontWeight.bold,
+                fontSize: 22,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
+            ),
+            const SizedBox(width: 6),
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.keyboard_arrow_up_rounded, size: 14, color: AppColors.textSecondary(context)),
+                Icon(Icons.keyboard_arrow_down_rounded, size: 14, color: AppColors.textSecondary(context)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Color _getColorForType(BuildContext context, int type) {
      switch (type) {
         case 1: return AppColors.accentRed(context);
@@ -1494,14 +1597,6 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
      }
   }
   
-  String _getLabelForType(int type) {
-     switch (type) {
-        case 1: return "ALTO";
-        case 2: return "BAJO";
-        case 3: return "MEDIO";
-        default: return "";
-     }
-  }
 
   // --- CUSTOM KEYBOARD ---
   /// Builds a formatted structure display where subdivision appears below a divider.
@@ -1880,7 +1975,7 @@ class _MacroCycleVisualizerState extends State<_MacroCycleVisualizer> with Singl
                                            child: Container(
                                                margin: EdgeInsets.only(top: isHead ? 0 : 3),
                                                decoration: BoxDecoration(
-                                                   color: type == 0 ? color : color.withOpacity(0.4),
+                                                   color: type == 0 ? color : AppColors.eventFill(color, pulse.volumeAt(subIndex), 0.4),
                                                    border: Border(
                                                        right: subIndex < pulse.subdivisions.length - 1
                                                            ? BorderSide(color: AppColors.background(context), width: 1.0)
@@ -1938,4 +2033,23 @@ class _MacroCycleVisualizerState extends State<_MacroCycleVisualizer> with Singl
     ),
     );
   }
+}
+
+/// Mutable state of the event being edited in "volume mode".
+class _EventVolumeEdit {
+  _EventVolumeEdit({
+    required this.instanceId,
+    required this.pulseIndex,
+    required this.subIndex,
+    required this.type,
+    required this.startVolume,
+    required this.value,
+  });
+
+  final int instanceId;
+  final int pulseIndex;
+  final int subIndex;
+  final int type;
+  final double startVolume;
+  double value;
 }

@@ -1,29 +1,59 @@
 import 'package:uuid/uuid.dart';
 
 /// Represents a single pulse (subdivisions and duration) in a pattern.
+///
+/// [volumes] holds a per-subdivision gain aligned with [subdivisions]
+/// (1.0 = 100%, range [minEventVolume]..[maxEventVolume]).
 class HomeMetronomePulse {
+  static const double minEventVolume = 0.0;
+  static const double maxEventVolume = 1.5;
+
   List<int> subdivisions;
+  List<double> volumes;
   double durationRatio;
 
-  HomeMetronomePulse([List<int>? subdivisions, this.durationRatio = 1.0])
-      : subdivisions = subdivisions ?? [0];
+  HomeMetronomePulse([List<int>? subdivisions, this.durationRatio = 1.0, List<double>? volumes])
+      : subdivisions = subdivisions ?? [0],
+        volumes = <double>[] {
+    final src = volumes ?? const <double>[];
+    this.volumes = List<double>.generate(
+      this.subdivisions.length,
+      (i) => i < src.length ? src[i].clamp(minEventVolume, maxEventVolume).toDouble() : 1.0,
+    );
+  }
 
-  Map<String, dynamic> toJson() => {
-        'subdivisions': subdivisions,
-        'durationRatio': durationRatio,
-      };
+  /// Volume of subdivision [index] (defaults to 1.0 if out of range).
+  double volumeAt(int index) => index < volumes.length ? volumes[index] : 1.0;
+
+  /// Keeps [volumes] aligned with [subdivisions] (new slots default to 100%).
+  void syncVolumes() {
+    if (volumes.length == subdivisions.length) return;
+    volumes = List<double>.generate(subdivisions.length, (i) => volumeAt(i));
+  }
+
+  Map<String, dynamic> toJson() {
+    syncVolumes();
+    return {
+      'subdivisions': subdivisions,
+      'durationRatio': durationRatio,
+      // Only persisted when customized, so untouched patterns keep the legacy format.
+      if (volumes.any((v) => v != 1.0)) 'volumes': volumes,
+    };
+  }
 
   factory HomeMetronomePulse.fromJson(Map<String, dynamic> json) {
     return HomeMetronomePulse(
       List<int>.from(json['subdivisions'] ?? [0]),
       (json['durationRatio'] as num?)?.toDouble() ?? 1.0,
+      (json['volumes'] as List<dynamic>?)?.map((v) => (v as num).toDouble()).toList(),
     );
   }
 
-  HomeMetronomePulse copyWith({List<int>? subdivisions, double? durationRatio}) {
+  HomeMetronomePulse copyWith({List<int>? subdivisions, double? durationRatio, List<double>? volumes}) {
     return HomeMetronomePulse(
       subdivisions ?? List<int>.from(this.subdivisions),
       durationRatio ?? this.durationRatio,
+      volumes ?? List<double>.from(this.volumes),
     );
   }
 }

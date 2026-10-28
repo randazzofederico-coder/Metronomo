@@ -1,9 +1,8 @@
 import 'dart:async';
-import 'dart:math';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:native_audio_engine/live_mixer.dart';
 
+import '../audio/click_synth.dart';
 import '../models/pattern_model.dart';
 import '../models/session_model.dart';
 import '../providers/settings_provider.dart';
@@ -138,6 +137,9 @@ class MetronomeProvider with ChangeNotifier {
 
   final List<DateTime> _tapTimes = [];
 
+  /// Currently loaded click sound set (see [ClickSynth.soundSets]).
+  String _currentSoundSet = ClickSynth.defaultSoundSet;
+
   String? activeSessionId;
   String? activeSessionName;
   bool _isSessionDirty = false;
@@ -261,9 +263,7 @@ class MetronomeProvider with ChangeNotifier {
       }
     }
     
-    _liveMixer.setMetronomeSound(0, _generateClickSound(1000.0));
-    _liveMixer.setMetronomeSound(1, _generateClickSound(600.0));
-    _liveMixer.setMetronomeSound(2, _generateClickSound(800.0));
+    updateSoundSet(_currentSoundSet);
     _liveMixer.setMetronomeConfig(_bpm);
     _liveMixer.setMasterVolume(1.0);
     _liveMixer.setMetronomePreviewMode(true); // Always isolated preview mode
@@ -279,24 +279,33 @@ class MetronomeProvider with ChangeNotifier {
   }
   
   void _addInstanceToEngine(HomeMetronomeInstance instance) {
-    final flatPattern = <int>[];
-    final subdivisions = <int>[];
-    final durationRatios = <double>[];
-    for (var pulse in instance.pulses) {
-        subdivisions.add(pulse.subdivisions.length);
-        flatPattern.addAll(pulse.subdivisions);
-        durationRatios.add(pulse.durationRatio);
-    }
-    
+    final flat = _flattenPulses(instance.pulses);
     _liveMixer.addMetronomePattern(
         instance.id, 
-        flatPattern,
-        subdivisions,
-        durationRatios,
+        flat.pattern,
+        flat.subdivisions,
+        flat.durationRatios,
         instance.volume, 
         instance.isMuted, 
-        instance.isSolo
+        instance.isSolo,
+        eventVolumes: flat.volumes,
     );
+  }
+
+  /// Flattens pulses into the parallel arrays expected by the audio engine.
+  static ({List<int> pattern, List<int> subdivisions, List<double> durationRatios, List<double> volumes}) _flattenPulses(List<HomeMetronomePulse> pulses) {
+    final pattern = <int>[];
+    final subdivisions = <int>[];
+    final durationRatios = <double>[];
+    final volumes = <double>[];
+    for (final pulse in pulses) {
+      pulse.syncVolumes();
+      subdivisions.add(pulse.subdivisions.length);
+      pattern.addAll(pulse.subdivisions);
+      volumes.addAll(pulse.volumes);
+      durationRatios.add(pulse.durationRatio);
+    }
+    return (pattern: pattern, subdivisions: subdivisions, durationRatios: durationRatios, volumes: volumes);
   }
   
   void removeInstance(int id) {
@@ -443,24 +452,31 @@ class MetronomeProvider with ChangeNotifier {
   }
   
   void _syncInstanceToEngine(HomeMetronomeInstance instance) {
-      final flatPattern = <int>[];
-      final subdivisions = <int>[];
-      final durationRatios = <double>[];
-      for (var pulse in instance.pulses) {
-          subdivisions.add(pulse.subdivisions.length);
-          flatPattern.addAll(pulse.subdivisions);
-          durationRatios.add(pulse.durationRatio);
-      }
-      
+      final flat = _flattenPulses(instance.pulses);
       _liveMixer.updateMetronomePattern(
          instance.id, 
-         flatPattern, 
-         subdivisions,
-         durationRatios,
+         flat.pattern, 
+         flat.subdivisions,
+         flat.durationRatios,
          instance.volume, 
          instance.isMuted, 
-         instance.isSolo
+         instance.isSolo,
+         eventVolumes: flat.volumes,
       );
+  }
+
+  /// Sets the volume (0.0–1.5, i.e. 0–150%) of a single event of a pattern.
+  void updateEventVolume(int id, int pulseIndex, int subIndex, double volume) {
+      final instance = _instances.firstWhere((i) => i.id == id);
+      final pulse = instance.pulses[pulseIndex];
+      pulse.syncVolumes();
+      final clamped = volume.clamp(HomeMetronomePulse.minEventVolume, HomeMetronomePulse.maxEventVolume).toDouble();
+      if (pulse.volumes[subIndex] == clamped) return;
+      pulse.volumes[subIndex] = clamped;
+      instance.isDirty = true;
+      _syncInstanceToEngine(instance);
+      markSessionDirty();
+      notifyListeners();
   }
 
   void setRandomSilencePercent(double percent) {
@@ -528,66 +544,12 @@ class MetronomeProvider with ChangeNotifier {
   }
 
   void updateSoundSet(String setName) {
-    if (setName == "Woodblock") {
-      _liveMixer.setMetronomeSound(0, _generateWoodblockSound(1200.0));
-      _liveMixer.setMetronomeSound(1, _generateWoodblockSound(800.0));
-      _liveMixer.setMetronomeSound(2, _generateWoodblockSound(1000.0));
-    } else if (setName == "Digital") {
-      _liveMixer.setMetronomeSound(0, _generateDigitalSound(1500.0));
-      _liveMixer.setMetronomeSound(1, _generateDigitalSound(800.0));
-      _liveMixer.setMetronomeSound(2, _generateDigitalSound(1200.0));
-    } else {
-      _liveMixer.setMetronomeSound(0, _generateClickSound(1000.0));
-      _liveMixer.setMetronomeSound(1, _generateClickSound(600.0));
-      _liveMixer.setMetronomeSound(2, _generateClickSound(800.0));
+    _currentSoundSet = ClickSynth.normalize(setName);
+    // Generate at the engine's real sample rate (e.g. 48 kHz on most web AudioContexts)
+    final buffers = ClickSynth(_liveMixer.getSampleRate()).buildSet(_currentSoundSet);
+    for (var slot = 0; slot < buffers.length; slot++) {
+      _liveMixer.setMetronomeSound(slot, buffers[slot]);
     }
-  }
-
-  Float32List _generateClickSound(double freq) {
-      final int sampleRate = 44100;
-      final double durationFreq = 0.05; // 50ms click
-      final int samples = (sampleRate * durationFreq).toInt();
-      final Float32List buffer = Float32List(samples);
-      
-      for (int i = 0; i < samples; i++) {
-          final double t = i / sampleRate;
-          final double envelope = exp(-i / (samples * 0.2)); 
-          buffer[i] = (sin(2 * pi * freq * t) * envelope * 0.5); 
-      }
-      return buffer;
-  }
-
-  Float32List _generateWoodblockSound(double freq) {
-      final int sampleRate = 44100;
-      final double durationFreq = 0.08; 
-      final int samples = (sampleRate * durationFreq).toInt();
-      final Float32List buffer = Float32List(samples);
-      
-      for (int i = 0; i < samples; i++) {
-          final double t = i / sampleRate;
-          // Fast decay for woodblock transient
-          final double envelope = exp(-t * 80.0); 
-          // Carrier + Modulator
-          double val = sin(2 * pi * freq * t + 0.5 * sin(2 * pi * (freq * 1.5) * t));
-          buffer[i] = val * envelope * 0.8; 
-      }
-      return buffer;
-  }
-
-  Float32List _generateDigitalSound(double freq) {
-      final int sampleRate = 44100;
-      final double durationFreq = 0.05; 
-      final int samples = (sampleRate * durationFreq).toInt();
-      final Float32List buffer = Float32List(samples);
-      
-      for (int i = 0; i < samples; i++) {
-          final double t = i / sampleRate;
-          final double envelope = exp(-i / (samples * 0.2)); 
-          // Square wave logic for "Digital" sound
-          double val = sin(2 * pi * freq * t) > 0 ? 0.5 : -0.5;
-          buffer[i] = val * envelope * 0.5; 
-      }
-      return buffer;
   }
 
   // --- MACRO CYCLE MATH ---

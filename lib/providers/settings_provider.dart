@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import '../audio/click_synth.dart';
 import '../models/permission_cache.dart';
 
 /// Manages all application-level settings with automatic persistence.
@@ -25,17 +26,13 @@ class SettingsProvider extends ChangeNotifier {
   //  Available Options
   // ─────────────────────────────────────────────────────
 
-  static const List<String> availableSounds = [
-    'Default',
-    'Woodblock',
-    'Digital',
-  ];
+  static const List<String> availableSounds = ClickSynth.soundSets;
 
   // ─────────────────────────────────────────────────────
   //  State
   // ─────────────────────────────────────────────────────
 
-  String _selectedSound = 'Default';
+  String _selectedSound = ClickSynth.defaultSoundSet;
   String get selectedSound => _selectedSound;
 
   double _randomSilencePercentage = 0.0;
@@ -79,8 +76,8 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
 
-    final savedSound = prefs.getString(_prefKeySound) ?? 'Default';
-    _selectedSound = availableSounds.contains(savedSound) ? savedSound : 'Default';
+    final savedSound = prefs.getString(_prefKeySound);
+    _selectedSound = ClickSynth.normalize(savedSound); // also migrates legacy names
     _randomSilencePercentage = prefs.getDouble(_prefKeySilence) ?? 0.0;
     _backgroundPlayback = prefs.getBool(_prefKeyBackground) ?? true;
     _keepScreenOn = prefs.getBool(_prefKeyScreenOn) ?? true;
@@ -124,7 +121,7 @@ class SettingsProvider extends ChangeNotifier {
   // ─────────────────────────────────────────────────────
 
   void updateSound(String sound) {
-    _selectedSound = sound;
+    _selectedSound = ClickSynth.normalize(sound);
     notifyListeners();
     _saveSettings();
   }

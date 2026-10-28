@@ -402,28 +402,26 @@ class LiveMixer {
      _postCmd(msg);
   }
 
-  void addMetronomePattern(int id, List<int>? flatPattern, List<int>? subdivisions, List<double>? durationRatios, double vol, bool mute, bool solo) {
-     if (_isDisposed || !isReady) return;
-     final msg = JSObject();
-     msg.setProperty('cmd'.toJS, 'addMetronomePattern'.toJS);
-     msg.setProperty('id'.toJS, id.toJS);
-     if (flatPattern != null) msg.setProperty('flatPattern'.toJS, Int32List.fromList(flatPattern).toJS);
-     if (subdivisions != null) msg.setProperty('subdivisions'.toJS, Int32List.fromList(subdivisions).toJS);
-     if (durationRatios != null) msg.setProperty('durationRatios'.toJS, Float64List.fromList(durationRatios).toJS);
-     msg.setProperty('vol'.toJS, vol.toJS);
-     msg.setProperty('mute'.toJS, mute.toJS);
-     msg.setProperty('solo'.toJS, solo.toJS);
-     _postCmd(msg);
+  void addMetronomePattern(int id, List<int>? flatPattern, List<int>? subdivisions, List<double>? durationRatios, double vol, bool mute, bool solo, {List<double>? eventVolumes}) {
+     _postPatternCmd('addMetronomePattern', id, flatPattern, subdivisions, durationRatios, eventVolumes, vol, mute, solo);
   }
 
-  void updateMetronomePattern(int id, List<int>? flatPattern, List<int>? subdivisions, List<double>? durationRatios, double vol, bool mute, bool solo) {
+  void updateMetronomePattern(int id, List<int>? flatPattern, List<int>? subdivisions, List<double>? durationRatios, double vol, bool mute, bool solo, {List<double>? eventVolumes}) {
+     _postPatternCmd('updateMetronomePattern', id, flatPattern, subdivisions, durationRatios, eventVolumes, vol, mute, solo);
+  }
+
+  void _postPatternCmd(String cmd, int id, List<int>? flatPattern, List<int>? subdivisions, List<double>? durationRatios, List<double>? eventVolumes, double vol, bool mute, bool solo) {
      if (_isDisposed || !isReady) return;
      final msg = JSObject();
-     msg.setProperty('cmd'.toJS, 'updateMetronomePattern'.toJS);
+     msg.setProperty('cmd'.toJS, cmd.toJS);
      msg.setProperty('id'.toJS, id.toJS);
      if (flatPattern != null) msg.setProperty('flatPattern'.toJS, Int32List.fromList(flatPattern).toJS);
      if (subdivisions != null) msg.setProperty('subdivisions'.toJS, Int32List.fromList(subdivisions).toJS);
      if (durationRatios != null) msg.setProperty('durationRatios'.toJS, Float64List.fromList(durationRatios).toJS);
+     // Per-event volumes must be aligned 1:1 with flatPattern
+     if (eventVolumes != null && flatPattern != null && eventVolumes.length == flatPattern.length) {
+       msg.setProperty('eventVolumes'.toJS, Float32List.fromList(eventVolumes).toJS);
+     }
      msg.setProperty('vol'.toJS, vol.toJS);
      msg.setProperty('mute'.toJS, mute.toJS);
      msg.setProperty('solo'.toJS, solo.toJS);

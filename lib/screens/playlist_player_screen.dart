@@ -353,7 +353,7 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> {
                     return Expanded(child: Container(
                       margin: EdgeInsets.only(top: isHead ? 0 : 8),
                       decoration: BoxDecoration(
-                        color: type == 0 ? AppColors.background(context) : _getColorForType(context, type).withOpacity(0.2),
+                        color: type == 0 ? AppColors.background(context) : AppColors.eventFill(_getColorForType(context, type), pulse.volumeAt(subIndex), 0.2),
                         border: Border(
                           right: subIndex < pulse.subdivisions.length - 1
                               ? BorderSide(color: AppColors.background(context), width: 3)
@@ -681,7 +681,7 @@ class _PlayerMacroCycleState extends State<_PlayerMacroCycle> with SingleTickerP
                         return Expanded(child: Container(
                           margin: EdgeInsets.only(top: isHead ? 0 : 3),
                           decoration: BoxDecoration(
-                            color: type == 0 ? color : color.withOpacity(0.4),
+                            color: type == 0 ? color : AppColors.eventFill(color, pulse.volumeAt(si), 0.4),
                             border: Border(
                               right: si < pulse.subdivisions.length - 1 ? BorderSide(color: AppColors.background(context), width: 1.0) : BorderSide(color: type == 0 ? AppColors.border(context) : color.withOpacity(0.8), width: 1),
                               top: isHead ? BorderSide(color: type == 0 ? AppColors.border(context) : color.withOpacity(0.8), width: 1) : const BorderSide(color: Colors.transparent, width: 1),

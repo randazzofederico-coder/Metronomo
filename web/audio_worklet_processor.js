@@ -189,16 +189,23 @@ class LiveMixerWorkletProcessor extends AudioWorkletProcessor {
                     durPtr = m._malloc(data.durationRatios.length * 8);
                     m.HEAPF64.set(data.durationRatios, durPtr / 8);
                 }
+                // Per-event volumes (Float32Array aligned with flatPattern). 0 = null => 100% for all events.
+                let volPtr = 0;
+                if (data.eventVolumes && data.flatPattern && data.eventVolumes.length === data.flatPattern.length && data.eventVolumes.length > 0) {
+                    volPtr = m._malloc(data.eventVolumes.length * 4);
+                    m.HEAPF32.set(data.eventVolumes, volPtr / 4);
+                }
                 
                 if (data.cmd === 'addMetronomePattern') {
-                    m._live_mixer_add_metronome_pattern(handle, data.id, flatPtr, subPtr, durPtr, numPulses, data.vol, data.mute, data.solo);
+                    m._live_mixer_add_metronome_pattern(handle, data.id, flatPtr, subPtr, durPtr, volPtr, numPulses, data.vol, data.mute, data.solo);
                 } else {
-                    m._live_mixer_update_metronome_pattern(handle, data.id, flatPtr, subPtr, durPtr, numPulses, data.vol, data.mute, data.solo);
+                    m._live_mixer_update_metronome_pattern(handle, data.id, flatPtr, subPtr, durPtr, volPtr, numPulses, data.vol, data.mute, data.solo);
                 }
                 
                 if (flatPtr !== 0) m._free(flatPtr);
                 if (subPtr !== 0) m._free(subPtr);
                 if (durPtr !== 0) m._free(durPtr);
+                if (volPtr !== 0) m._free(volPtr);
                 break;
             }
             case 'removeMetronomePattern':

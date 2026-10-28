@@ -63,8 +63,9 @@ public:
     void setMetronomeSound(int type, const float* data, int numSamples);
     void setMetronomeVolume(float vol34, float vol68); // keeping for backward compat if needed, or remove? Let's remove
     // New dynamic metronome API
-    void addMetronomePattern(int id, const int* flatPatternData, const int* subdivisionsData, const double* durationRatios, int numPulses, float vol, bool mute, bool solo);
-    void updateMetronomePattern(int id, const int* flatPatternData, const int* subdivisionsData, const double* durationRatios, int numPulses, float vol, bool mute, bool solo);
+    // eventVolumes: optional flat array (same length as flatPatternData) with a per-event gain (1.0 = 100%).
+    void addMetronomePattern(int id, const int* flatPatternData, const int* subdivisionsData, const double* durationRatios, const float* eventVolumes, int numPulses, float vol, bool mute, bool solo);
+    void updateMetronomePattern(int id, const int* flatPatternData, const int* subdivisionsData, const double* durationRatios, const float* eventVolumes, int numPulses, float vol, bool mute, bool solo);
     void removeMetronomePattern(int id);
     void clearMetronomePatterns();
     void setMetronomePreviewMode(bool enabled);
@@ -117,6 +118,7 @@ private:
 
    struct MetronomePulse {
        std::vector<int> subdivisions;
+       std::vector<float> volumes; // per-subdivision gain, aligned with subdivisions (1.0 = 100%)
        double durationRatio = 1.0;
    };
 
@@ -130,13 +132,20 @@ private:
    std::vector<MetronomeTrack> _metronomeTracks;
 
    // Track parsing helper for flat FFI arrays
-   void _parseFlatPattern(MetronomeTrack& track, const int* flatData, const int* subdivisions, const double* durationRatios, int numPulses);
+   void _parseFlatPattern(MetronomeTrack& track, const int* flatData, const int* subdivisions, const double* durationRatios, const float* eventVolumes, int numPulses);
 
    struct MetronomeVoice {
        std::vector<float> data;
        int currentPointer = -1;
        float currentVolume = 0.0f;
+       // Tail of the previous hit, faded out when the voice is re-triggered (avoids "pops")
+       int fadePointer = -1;
+       float fadeVolume = 0.0f;
+       int fadeRemaining = 0;
    };
+   int _voiceFadeFrames = 132; // ~3 ms, recomputed from the engine sample rate
+   void _triggerVoice(MetronomeVoice& voice, float volume);
+   float _renderVoice(MetronomeVoice& voice);
    MetronomeVoice _clickHigh; // type 0
    MetronomeVoice _clickLow;  // type 1
    MetronomeVoice _clickNoise;// type 2
@@ -179,8 +188,8 @@ extern "C" {
 
     EXPORT void live_mixer_set_metronome_config(void* mixer, int bpm);
     EXPORT void live_mixer_set_metronome_sound(void* mixer, int type, const float* data, int numSamples);
-    EXPORT void live_mixer_add_metronome_pattern(void* mixer, int id, const int* flatPatternData, const int* subdivisionsData, const double* durationRatios, int numPulses, float vol, bool mute, bool solo);
-    EXPORT void live_mixer_update_metronome_pattern(void* mixer, int id, const int* flatPatternData, const int* subdivisionsData, const double* durationRatios, int numPulses, float vol, bool mute, bool solo);
+    EXPORT void live_mixer_add_metronome_pattern(void* mixer, int id, const int* flatPatternData, const int* subdivisionsData, const double* durationRatios, const float* eventVolumes, int numPulses, float vol, bool mute, bool solo);
+    EXPORT void live_mixer_update_metronome_pattern(void* mixer, int id, const int* flatPatternData, const int* subdivisionsData, const double* durationRatios, const float* eventVolumes, int numPulses, float vol, bool mute, bool solo);
     EXPORT void live_mixer_remove_metronome_pattern(void* mixer, int id);
     EXPORT void live_mixer_clear_metronome_patterns(void* mixer);
     EXPORT void live_mixer_set_metronome_preview_mode(void* mixer, bool enabled);

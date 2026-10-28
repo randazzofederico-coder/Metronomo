@@ -7,7 +7,21 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 ### 🔊 Motor de Audio
 - **Engine nativo C++** — Timing ultra-preciso con [miniaudio](https://miniaud.io/) y procesamiento DSP con [SoundTouch](https://www.surina.net/soundtouch/)
 - **Sample Rate Dinámico** — El engine detecta y adopta automáticamente la frecuencia de muestreo del dispositivo (44.1kHz, 48kHz, etc.) garantizando sincronización perfecta en cualquier hardware, tanto en nativo (vía miniaudio) como en PWA (vía AudioWorklet `sampleRate`)
-- **Sets de Sonidos Sintéticos** — Generación procedural en Dart de clicks clásicos, Woodblock (FM synthesis) y Digital (Square waves)
+- **7 Sets de Sonidos Sintéticos** — Generación procedural en Dart (`lib/audio/click_synth.dart`), cada set con 3 variantes (una por tipo de evento):
+
+  | Set | Variantes | Síntesis |
+  |-----|-----------|----------|
+  | Clásico | agudo · grave · medio (2.5 / 1.5 / 1.9 kHz) | Transiente de ruido + cuerpo con 2 parciales |
+  | Madera | agudo · grave · medio (1600 / 850 / 1150 Hz) | Woodblock modal (parciales inarmónicos 1 · 2.71 · 5.4) |
+  | Claves | agudo · grave · medio (3 / 1.9 / 2.4 kHz) | Seno resonante con sustain + transiente |
+  | Beep | agudo · grave · medio (2 / 1 / 1.5 kHz) | Armónicos impares (cuadrada suavizada) |
+  | Hi-hat | abierto · semiabierto · cerrado | Estilo TR-808: 6 cuadradas inarmónicas + ruido filtrado |
+  | Bombo | grave · medio · agudo (50 / 70 / 100 Hz) | Seno con barrido de pitch + *beater* agudo y saturación (para que se perciba en parlantes de celular) |
+  | Redoblante | con bordona · sin bordona · aro | Parche modal + bordona (ruido filtrado) / cross-stick |
+
+- **Diseño orientado a claridad** — Energía concentrada en 1.5–4 kHz (zona de máxima sensibilidad del oído y de los parlantes de celular), transiente para un ataque preciso, saturación suave (`tanh`) para subir el RMS sin subir el pico y normalización a −1 dBFS. Resultado: entre ~+8 y +16 dB de RMS respecto de los clicks senoidales anteriores (medido con el volumen por defecto). Los sonidos se generan al **sample rate real del engine** (ej. 48 kHz en la web) y los nombres viejos (Default / Woodblock / Digital) migran automáticamente a Clásico / Madera / Beep
+- **Limitador suave en la salida** — Curva lineal hasta 0.8 y rodilla `tanh` hasta 1.0: permite eventos por encima del 100% y golpes superpuestos sin distorsión
+- **Fade de re-disparo (3 ms)** — Si una voz se vuelve a disparar antes de terminar (ej. hi-hat abierto o bombo a tempo rápido), la cola anterior se desvanece en lugar de cortarse, evitando *pops*
 - **Silencios al Azar** — Simulación interna en el loop de renderizado C++ con RNG hardware-level (`std::mt19937`) para entrenar el timing interno. Funcional en todas las plataformas incluyendo PWA (exportado a WASM via `_live_mixer_set_random_silence_percent`)
 - **Pipeline de audio atómica** — Posición de reproducción sincronizada con `std::atomic` para visualización sin latencia
 
@@ -15,7 +29,8 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Multi-patrón simultáneo** — Ejecutá múltiples patrones rítmicos en paralelo, cada uno con su propia estructura y volumen
 - **Birritmia** — Patrones preconfigurados de 3/4 contra 6/8 para práctica de poliritmia
 - **Notación de tuplets** — Sintaxis flexible `A:B/C` (ej: `2:3/3` = 2 pulsos en tiempo de 3, cada uno subdividido en 3)
-- **Subdivisiones con acentos** — Cada subdivisión soporta 4 niveles: Alto (rojo), Bajo (naranja), Medio (verde) y Silencio
+- **Subdivisiones con acentos** — Cada subdivisión soporta 4 estados identificados solo por color: rojo (acento), naranja (pulso), verde (subdivisión) y silencio
+- **Volumen por golpe (0–150%)** — Cada evento tiene su propio volumen. Toque rápido = cambia el tipo de sonido; **mantener apretado** = entra en *modo volumen*: arrastrando hacia arriba sube y hacia abajo baja, en pasos de 5% (con feedback háptico). Una leyenda en la esquina inferior derecha muestra el % y la intensidad/saturación del color de cada evento refleja su volumen (en la grilla, el macro ciclo y el reproductor de playlists). El volumen final de un golpe es `volumen del patrón × volumen del evento`. Se persiste en patrones, sesiones y links compartidos solo cuando difiere de 100% (formato retrocompatible)
 - **Límites seguros** — Máximo 32 pulsos por grupo, 12 subdivisiones por pulso, 64 pulsos totales por patrón
 
 ### 🎛️ Controles
@@ -118,10 +133,12 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 lib/
 ├── main.dart                          # Entry point, tema Material3 y Provider
 ├── firebase_options.dart              # Configuración Firebase auto-generada
+├── audio/
+│   └── click_synth.dart               # Sintetizador procedural de los 7 sets de sonidos (biquads RBJ, modal, 808)
 ├── constants/
-│   └── app_colors.dart                # Paleta de colores adaptativa dark/light
+│   └── app_colors.dart                # Paleta de colores adaptativa dark/light + intensidad de eventos por volumen
 ├── models/
-│   ├── pattern_model.dart             # Modelo de patrón rítmico (estructura, pulsos, subdivisiones)
+│   ├── pattern_model.dart             # Modelo de patrón rítmico (estructura, pulsos, subdivisiones, volumen por evento)
 │   ├── session_model.dart             # Modelo de sesión (patrones, BPM, configuración de mezcla)
 │   ├── playlist_model.dart            # Modelo de playlist (lista ordenada de session IDs)
 │   └── permission_cache.dart          # Cache de permisos para acceso offline (30 días TTL)
@@ -165,8 +182,8 @@ packages/native_audio_engine/
 │   ├── soundtouch_bindings.dart       # Bindings FFI para SoundTouch
 │   └── soundtouch_processor.dart      # Wrapper Dart para pitch shifting
 └── src/
-    ├── live_mixer.cpp                 # Engine C++ (~44KB): scheduling, mixing, metrónomo (sampleRate paramétrico)
-    ├── live_mixer.h                   # Header con API C exportada (_engineSampleRate)
+    ├── live_mixer.cpp                 # Engine C++ (~44KB): scheduling, mixing, metrónomo, volumen por evento, limitador
+    ├── live_mixer.h                   # Header con API C exportada (_engineSampleRate, eventVolumes)
     ├── miniaudio.h                    # Librería de audio multiplataforma
     ├── soundtouch_wrapper.cpp         # Wrapper C para SoundTouch
     ├── Vocoder.cpp/h                  # Procesador vocoder con KissFFT

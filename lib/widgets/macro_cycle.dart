@@ -11,7 +11,10 @@ import 'package:metronomo_standalone/theme/beat_colors.dart';
 class MacroCycle extends StatefulWidget {
   final MetronomeProvider metronome;
 
-  const MacroCycle({super.key, required this.metronome});
+  /// Adds the editing gestures to the legend (tap / hold on cells).
+  final bool showEditHints;
+
+  const MacroCycle({super.key, required this.metronome, this.showEditHints = false});
 
   @override
   State<MacroCycle> createState() => _MacroCycleState();
@@ -135,6 +138,8 @@ class _MacroCycleState extends State<MacroCycle> with SingleTickerProviderStateM
                 );
               },
             ),
+            const SizedBox(height: 2),
+            _BeatLegend(showEditHints: widget.showEditHints),
           ],
         ),
       ),
@@ -196,6 +201,51 @@ class _MacroCycleState extends State<MacroCycle> with SingleTickerProviderStateM
       margin: const EdgeInsets.only(bottom: 6),
       height: 16,
       child: Row(children: cells),
+    );
+  }
+}
+
+/// Legend of the event types (color = type) plus, optionally, the gestures
+/// that edit the cells — they're otherwise undiscoverable.
+class _BeatLegend extends StatelessWidget {
+  final bool showEditHints;
+
+  const _BeatLegend({required this.showEditHints});
+
+  @override
+  Widget build(BuildContext context) {
+    final style = TextStyle(color: AppColors.textSecondary(context), fontSize: 10);
+    Widget swatch(int type, String label) => Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 10,
+              height: 10,
+              decoration: BoxDecoration(
+                color: type == BeatColors.silence ? AppColors.background(context) : BeatColors.of(context, type).withOpacity(0.6),
+                border: Border.all(
+                  color: type == BeatColors.silence ? AppColors.border(context) : BeatColors.of(context, type),
+                ),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(label, style: style),
+          ],
+        );
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 4,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        swatch(BeatColors.accent, 'Acento'),
+        swatch(BeatColors.normal, 'Normal'),
+        swatch(BeatColors.soft, 'Suave'),
+        swatch(BeatColors.silence, 'Silencio'),
+        if (showEditHints)
+          Text('· Tocá una celda para cambiarla · Mantené y arrastrá para el volumen', style: style),
+      ],
     );
   }
 }

@@ -41,7 +41,7 @@ class MixerStrip extends StatelessWidget {
             size: 28,
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         ToggleChipButton(
           label: 'M',
           tooltip: 'Silenciar',
@@ -50,7 +50,6 @@ class MixerStrip extends StatelessWidget {
           activeTextColor: Colors.white,
           onTap: onMuteToggle,
         ),
-        const SizedBox(width: 6),
         ToggleChipButton(
           label: 'S',
           tooltip: 'Solo',
@@ -60,7 +59,7 @@ class MixerStrip extends StatelessWidget {
           onTap: onSoloToggle,
         ),
         if (trailing != null) ...[
-          const SizedBox(width: 6),
+          const SizedBox(width: 2),
           trailing!,
         ],
       ],
@@ -89,23 +88,31 @@ class ToggleChipButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Visual chip stays 32×26; the hit area is 40×40.
     final Widget chip = GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Container(
-        width: 32,
-        height: 26,
-        decoration: BoxDecoration(
-          color: active ? activeColor : Colors.grey.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: AppColors.border(context)),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          label,
-          style: TextStyle(
-            color: active ? activeTextColor : Colors.grey,
-            fontWeight: FontWeight.bold,
-            fontSize: 12,
+      child: SizedBox(
+        width: 40,
+        height: 40,
+        child: Center(
+          child: Container(
+            width: 32,
+            height: 26,
+            decoration: BoxDecoration(
+              color: active ? activeColor : Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: AppColors.border(context)),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              label,
+              style: TextStyle(
+                color: active ? activeTextColor : Colors.grey,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
           ),
         ),
       ),

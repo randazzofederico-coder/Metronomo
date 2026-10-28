@@ -11,6 +11,7 @@ import 'package:metronomo_standalone/widgets/formatted_structure.dart';
 import 'package:metronomo_standalone/widgets/macro_cycle.dart';
 import 'package:metronomo_standalone/widgets/mixer_strip.dart';
 import 'package:metronomo_standalone/widgets/pattern_card.dart';
+import 'package:metronomo_standalone/widgets/playback_clock.dart';
 import 'package:metronomo_standalone/widgets/sequencer_grid.dart';
 import 'package:metronomo_standalone/widgets/transport_bar.dart';
 import 'package:metronomo_standalone/utils/space_play_shortcut.dart';
@@ -238,18 +239,21 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
   Widget _buildSessionPage(BuildContext context) {
     return Consumer<MetronomeProvider>(
       builder: (context, metronome, _) {
-        return ListView(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-          children: [
-            // Macro cycle visualizer
-            MacroCycle(metronome: metronome),
-            const SizedBox(height: 8),
-            // Pattern instances
-            ...metronome.instances.map((instance) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _buildReadOnlyInstance(context, instance, metronome),
-            )),
-          ],
+        return PlaybackClock(
+          metronome: metronome,
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+            children: [
+              // Macro cycle visualizer
+              MacroCycle(metronome: metronome),
+              const SizedBox(height: 8),
+              // Pattern instances
+              ...metronome.instances.map((instance) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _buildReadOnlyInstance(context, instance, metronome),
+              )),
+            ],
+          ),
         );
       },
     );

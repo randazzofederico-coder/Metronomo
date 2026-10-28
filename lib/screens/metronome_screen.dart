@@ -25,6 +25,7 @@ import 'package:metronomo_standalone/widgets/formatted_structure.dart';
 import 'package:metronomo_standalone/widgets/macro_cycle.dart';
 import 'package:metronomo_standalone/widgets/mixer_strip.dart';
 import 'package:metronomo_standalone/widgets/pattern_card.dart';
+import 'package:metronomo_standalone/widgets/playback_clock.dart';
 import 'package:metronomo_standalone/widgets/sequencer_grid.dart';
 import 'package:metronomo_standalone/widgets/transport_bar.dart';
 
@@ -45,7 +46,6 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
   static const double _volumePxPerStep = 12.0;
   final Map<int, TextEditingController> _structureControllers = {};
   final Map<int, FocusNode> _structureFocusNodes = {};
-  final Map<int, TextEditingController> _titleControllers = {};
 
   /// Structure value when editing started (restored on Esc / invalid input).
   String _structureBeforeEdit = '';
@@ -445,9 +445,6 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     for (var controller in _structureControllers.values) {
-      controller.dispose();
-    }
-    for (var controller in _titleControllers.values) {
       controller.dispose();
     }
     for (var node in _structureFocusNodes.values) {
@@ -951,7 +948,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
           },
           child: Consumer<MetronomeProvider>(
             builder: (context, metronome, child) {
-              return Column(
+              return PlaybackClock(metronome: metronome, child: Column(
                 children: [
                   Expanded(
                     child: Stack(
@@ -959,7 +956,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                         ListView(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                           children: [
-                            MacroCycle(metronome: metronome),
+                            MacroCycle(metronome: metronome, showEditHints: true),
                             const SizedBox(height: 8),
                             
                             // Dynamic Instances
@@ -1084,7 +1081,7 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                   // Fixed bottom controls bar
                   _buildGlobalControls(context, metronome),
                 ],
-              );
+              ));
             },
           ),
         ),
@@ -1127,45 +1124,42 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
       header: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
+           // Title (tap to rename)
            Expanded(
              flex: 2,
-             child: Row(
-               mainAxisSize: MainAxisSize.min,
-               children: [
-                 Flexible(
-                   child: IntrinsicWidth(
-                     child: TextField(
-                       controller: _titleControllers.putIfAbsent(instance.id, () => TextEditingController(text: instance.title)),
-                       style: TextStyle(
-                           color: AppColors.textPrimary(context),
-                           fontWeight: FontWeight.bold,
-                           letterSpacing: 1.5,
-                           fontStyle: instance.isDirty ? FontStyle.italic : FontStyle.normal,
+             child: Tooltip(
+               message: 'Tocá para renombrar',
+               child: InkWell(
+                 borderRadius: BorderRadius.circular(4),
+                 onTap: () => _renameInstance(instance),
+                 child: Padding(
+                   padding: const EdgeInsets.symmetric(vertical: 4),
+                   child: Row(
+                     children: [
+                       Flexible(
+                         child: Text(
+                           instance.title,
+                           maxLines: 1,
+                           overflow: TextOverflow.ellipsis,
+                           style: TextStyle(
+                             color: AppColors.textPrimary(context),
+                             fontWeight: FontWeight.bold,
+                             letterSpacing: 1.5,
+                             fontStyle: instance.isDirty ? FontStyle.italic : FontStyle.normal,
+                           ),
+                         ),
                        ),
-                       decoration: const InputDecoration(
-                           border: InputBorder.none,
-                           isDense: true,
-                           contentPadding: EdgeInsets.zero,
-                       ),
-                       onTap: () {
-                           Future.delayed(const Duration(milliseconds: 300), () {
-                             if (context.mounted) Scrollable.ensureVisible(instanceContext, curve: Curves.easeInOut, duration: const Duration(milliseconds: 300));
-                           });
-                       },
-                       onChanged: (val) {
-                           context.read<MetronomeProvider>().renameInstance(instance.id, val);
-                       },
-                     ),
+                       if (instance.isDirty)
+                         Padding(
+                           padding: const EdgeInsets.only(left: 4.0),
+                           child: Text("*", style: TextStyle(color: AppColors.textPrimary(context), fontWeight: FontWeight.bold, fontSize: 18)),
+                         ),
+                       const SizedBox(width: 8),
+                     ],
                    ),
                  ),
-                 if (instance.isDirty)
-                   Padding(
-                     padding: const EdgeInsets.only(left: 4.0),
-                     child: Text("*", style: TextStyle(color: AppColors.textPrimary(context), fontWeight: FontWeight.bold, fontSize: 18)),
-                   ),
-                 const SizedBox(width: 8),
-               ],
-             )
+               ),
+             ),
            ),
            // Grouping Text Field / Formatted Structure Display
            Expanded(
@@ -1192,28 +1186,21 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                ),
              ),
            ),
-           const SizedBox(width: 8),
-           // Botones de acciones de la instancia
-           Row(
-             mainAxisSize: MainAxisSize.min,
-             children: [
-               _cardActionButton(
-                 context,
-                 icon: Icons.save,
-                 color: AppColors.accentGreen(context).withOpacity(0.8),
-                 tooltip: 'Guardar patrón en la librería',
-                 onPressed: () => _savePatternToLibrary(instance),
-               ),
-               const SizedBox(width: 4),
-               _cardActionButton(
-                 context,
-                 icon: Icons.close,
-                 color: AppColors.accentRed(context).withOpacity(0.7),
-                 tooltip: 'Quitar patrón',
-                 onPressed: onRemove,
-               ),
+           const SizedBox(width: 4),
+           // Pattern actions
+           PopupMenuButton<_PatternMenu>(
+             tooltip: 'Opciones del patrón',
+             icon: Icon(Icons.more_vert_rounded, color: AppColors.textSecondary(context)),
+             onSelected: (action) => _onPatternMenu(action, instance, onRemove),
+             itemBuilder: (_) => [
+               _menuItem(_PatternMenu.rename, Icons.edit_outlined, 'Renombrar'),
+               _menuItem(_PatternMenu.saveToLibrary, Icons.library_add_outlined, 'Guardar en la librería'),
+               _menuItem(_PatternMenu.share, Icons.share_outlined, 'Compartir patrón'),
+               _menuItem(_PatternMenu.duplicate, Icons.copy_rounded, 'Duplicar'),
+               const PopupMenuDivider(),
+               _menuItem(_PatternMenu.remove, Icons.close_rounded, 'Quitar de la sesión', color: AppColors.accentRed(context)),
              ],
-           )
+           ),
         ],
       ),
       // Sequencer Cells (Responsive & Auto-Wrapping)
@@ -1248,22 +1235,65 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     );
   }
 
-  /// Small square icon button used in the pattern card header.
-  Widget _cardActionButton(BuildContext context, {required IconData icon, required Color color, required String tooltip, required VoidCallback onPressed}) {
-    return Container(
-      width: 36,
-      height: 36,
-      decoration: BoxDecoration(
-        color: AppColors.background(context).withOpacity(0.5),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: IconButton(
-        padding: EdgeInsets.zero,
-        tooltip: tooltip,
-        icon: Icon(icon, color: color, size: 18),
-        onPressed: onPressed,
-      ),
+  Future<void> _onPatternMenu(_PatternMenu action, HomeMetronomeInstance instance, VoidCallback onRemove) async {
+    _closeAllKeyboards();
+    final metronome = context.read<MetronomeProvider>();
+    switch (action) {
+      case _PatternMenu.rename:
+        await _renameInstance(instance);
+      case _PatternMenu.saveToLibrary:
+        await _savePatternToLibrary(instance);
+      case _PatternMenu.share:
+        _sharePattern(metronome.createPatternFromInstance(instance.id, name: instance.title));
+      case _PatternMenu.duplicate:
+        metronome.duplicateInstance(instance.id);
+      case _PatternMenu.remove:
+        onRemove();
+    }
+  }
+
+  /// Rename dialog for a pattern of the session.
+  Future<void> _renameInstance(HomeMetronomeInstance instance) async {
+    _closeAllKeyboards();
+    final controller = TextEditingController(text: instance.title);
+    controller.selection = TextSelection(baseOffset: 0, extentOffset: controller.text.length);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) {
+        void submit() {
+          final v = controller.text.trim();
+          if (v.isNotEmpty) Navigator.pop(ctx, v);
+        }
+
+        return AlertDialog(
+          title: const Text('Renombrar patrón'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            style: TextStyle(color: AppColors.textPrimary(ctx)),
+            decoration: InputDecoration(
+              labelText: 'Nombre',
+              labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
+              focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary(ctx))),
+            ),
+            onSubmitted: (_) => submit(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text('CANCELAR', style: TextStyle(color: AppColors.textSecondary(ctx))),
+            ),
+            TextButton(
+              onPressed: submit,
+              child: Text('OK', style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold)),
+            ),
+          ],
+        );
+      },
     );
+    if (name != null && name != instance.title && mounted) {
+      context.read<MetronomeProvider>().renameInstance(instance.id, name);
+    }
   }
 
   /// Saves (or updates) the instance as a pattern in the library.
@@ -1495,3 +1525,6 @@ class _EventVolumeEdit {
 
 /// Actions of the session menu (AppBar ⋮).
 enum _SessionMenu { newSession, open, saveAs, share, playlists, settings }
+
+/// Actions of the pattern card menu (⋮).
+enum _PatternMenu { rename, saveToLibrary, share, duplicate, remove }

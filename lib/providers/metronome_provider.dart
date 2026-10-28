@@ -618,6 +618,39 @@ class MetronomeProvider with ChangeNotifier {
     return progress;
   }
 
+  /// Playback position in beats since play started, or -1 when stopped.
+  /// Used to highlight the event currently sounding in each pattern.
+  double get currentBeatPosition {
+    if (!_isPlaying) return -1;
+    final int sampleRate = _liveMixer.getSampleRate();
+    if (sampleRate <= 0 || _bpm <= 0) return -1;
+    final double framesPerBeat = (sampleRate.toDouble() * 60.0) / _bpm;
+    return _liveMixer.getAtomicPosition() / framesPerBeat;
+  }
+
+  /// Inserts a copy of the instance right after it (new pattern, not linked
+  /// to the library).
+  void duplicateInstance(int id) {
+    final index = _instances.indexWhere((i) => i.id == id);
+    if (index < 0) return;
+    final src = _instances[index];
+    final copy = HomeMetronomeInstance(
+      id: _nextId++,
+      title: '${src.title} (copia)',
+      structure: src.structure,
+      pulses: src.pulses.map((p) => p.copyWith()).toList(),
+      volume: src.volume,
+      isMuted: src.isMuted,
+      isSolo: false,
+      isDirty: true,
+      soundSet: src.soundSet,
+    );
+    _instances.insert(index + 1, copy);
+    _addInstanceToEngine(copy);
+    markSessionDirty();
+    notifyListeners();
+  }
+
   // ─────────────────────────────────────────────────────
   //  SESSION AND PATTERN EXPORT / IMPORT
   // ─────────────────────────────────────────────────────

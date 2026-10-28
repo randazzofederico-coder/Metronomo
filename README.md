@@ -35,9 +35,11 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Límites seguros** — Máximo 32 pulsos por grupo, 12 subdivisiones por pulso, 64 pulsos totales por patrón
 
 ### 🎛️ Controles
+- **Golpe actual resaltado** — Mientras suena, la celda del evento que está sonando se ilumina en cada patrón (y en el reproductor de playlists). Un único `Ticker` por pantalla (`widgets/playback_clock.dart`) publica la posición; cada grilla solo se redibuja cuando cambia el evento activo
+- **Leyenda de golpes** — Debajo del ciclo macro: colores de Acento / Normal / Suave / Silencio y los gestos de edición de las celdas
 - **Tap Tempo** — Detecta el BPM tocando rítmicamente (promedio de últimos 4 taps, auto-reset a los 2s)
 - **Rango BPM amplio** — De 1 a 999 BPM con slider logarítmico de 3 zonas para precisión en rangos musicales
-- **Ajuste fino** — Botones de ±1 y ±5 BPM para control preciso
+- **Ajuste fino** — Botones de ±1 y ±5 BPM (mantener apretado repite, acelerando). **Tocar el número de BPM** abre un diálogo para escribir el tempo exacto
 - **Por patrón** — Volumen (knob rotativo), Mute (M) y Solo (S) individuales por cada instancia
 - **Sonido por patrón** — Botón 🎵 junto a M/S en cada patrón: *Global* (sigue el sonido elegido en Configuración, valor por defecto) o cualquiera de los 7 sets. Un patrón con sonido propio muestra el botón resaltado en cyan. Es un atributo de la **sesión** (`SessionPatternConfig.soundSet`), no del patrón de la biblioteca: cambiarlo marca la sesión con `*` pero no el patrón. Se guarda en el estado de trabajo, en sesiones y en links compartidos (solo cuando difiere de *Global*, formato retrocompatible) y se conserva al entrar/salir del reproductor de playlists
 - **Barra espaciadora = Play/Stop** — En el metrónomo y en el reproductor de playlists (mixin `SpacePlayShortcut`, `utils/space_play_shortcut.dart`). Usa `HardwareKeyboard.addHandler`, así no activa el botón que tenga foco. Se ignora mientras se escribe en un campo de texto o se edita una estructura, si hay un diálogo u otra pantalla encima (`ModalRoute.isCurrent`) o con modificadores (Ctrl/Alt/Shift/Meta); el auto-repeat no vuelve a alternar
@@ -89,7 +91,7 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 
 ### 🔗 Compartir Sesiones y Patrones (Deep Links)
 - **Compartir via Deep Link** — Sesiones, patrones y playlists se comparten con URLs limpias tipo `federicorandazzo.com.ar/metronomo/?share=xk9mp2nq&name=chacarera` respaldadas por Firestore
-- **Exportación inteligente** — Al compartir una sesión, se empaquetan automáticamente todos los patrones referenciados como un bundle completo. Al compartir una playlist, se incluyen todas las sesiones y sus patrones
+- **Exportación inteligente** — Las sesiones llevan sus patrones embebidos. Igual se envía la lista plana `patterns` para que versiones anteriores de la app puedan abrir links nuevos. Al importar una sesión/playlist sus patrones quedan dentro de la sesión (no se agregan a la librería de patrones); solo un *patrón* compartido va a la librería
 - **Sheet de compartir unificado** (`widgets/share_sheet.dart`) — Genera el link con spinner y ofrece *Compartir en…* (share sheet nativo / Web Share API, disparado por un tap fresco para respetar la activación de usuario) y *Copiar link*. Errores siempre visibles con reintento
 - **ID por contenido** — El ID del link es un hash SHA-256 (10 chars) del contenido + autor: compartir lo mismo dos veces reutiliza el mismo link
 - **Login anónimo** — Para crear links se usa Firebase Anonymous Auth (lazy, solo al compartir). La cuenta anónima puede promoverse a cuenta formal con `linkWithCredential` conservando el `uid` (`ownerUid` del link)
@@ -155,7 +157,9 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 ### 💾 Gestión de Estado y Flujo de Trabajo
 - **Seguimiento 'Dirty State'** — Detección automática y profunda de alteraciones en vivo (BPM, estructuras, faders, mute/solo). La UI reacciona orgánicamente a los cambios pendientes marcando las sesiones y patrones en cursiva con un asterisco (`*`)
 - **Edición Dinámica de Patrones** — Renombrado in-situ de pistas con cajas delimitadas dinámicamente (`IntrinsicWidth`) y tracking visual milimétrico del asterisco de edición
-- **Guardado Inteligente** — Discriminación contextual en la App Bar: sistema de guardado rápido para sobrescribir (pisar) datos modificados, o "Guardar Como..." (`Uuid().v4()`) para versionado de bibliotecas limpias
+- **Guardado simplificado** — 💾 sobrescribe la sesión activa directamente (snackbar con *DESHACER*); si la sesión no existe todavía pide un nombre. *Guardar como…*, *Nueva*, *Abrir*, *Compartir sesión*, *Playlists* y *Ajustes* están en el menú ⋮ de la App Bar
+- **Sesiones independientes de la librería** — Cada sesión guarda una copia de sus patrones (`SessionPatternConfig.name/structure/pulses`). Editar o borrar un patrón de la librería nunca cambia una sesión. Guardar una sesión no toca la librería; para tener un patrón en la librería se usa *Guardar en la librería* desde el menú ⋮ del patrón (actualiza la misma entrada si ya existe). Las sesiones viejas se migran automáticamente al iniciar (`SessionProvider.embedMissingPatterns`, idempotente)
+- **Menú por patrón (⋮)** — Renombrar (también tocando el título), Guardar en la librería, Compartir patrón, Duplicar y Quitar de la sesión (con *DESHACER*)
 - **Aislamiento de Periféricos (Gestos y Foco)** —
   - **Foco Seguro**: Prevención estricta de superposición de teclados (Android Nativo vs Numérico Métrico) purgando la jerarquía de foco antes de despachar diálogos modales; abrir un diálogo confirma la estructura en edición. Visibilidad garantizada vía `Scrollable.ensureVisible`
   - **Arena de Gestos de Alta Precisión**: Controladores de perillas (Knobs) con monopolio asertivo sobre los arreglos `onVerticalDragUpdate` y `onHorizontalDragUpdate`. Esto neutraliza el reconocedor nativo del `ListView`, inhibiendo el scroll inercial padre mientras se manipulan los parámetros de mezcla
@@ -216,6 +220,7 @@ lib/
     ├── macro_cycle.dart               # Visualizador del ciclo macro con playhead (metrónomo + player)
     ├── mixer_strip.dart               # Volumen + Mute + Solo por patrón
     ├── pattern_card.dart              # Contenedor de patrón: encabezado + secuenciador + mixer
+    ├── playback_clock.dart            # Ticker único que publica la posición de reproducción (resaltado de golpes)
     ├── pattern_keypad.dart            # Keypad de estructuras (barra inferior móvil / popover desktop)
     ├── sequencer_grid.dart            # Celdas del secuenciador (tap / long-press de volumen opcionales)
     ├── share_sheet.dart               # Bottom sheet unificado: generar link → Compartir en… / Copiar link

@@ -67,6 +67,8 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Sincronización Multiplataforma** — Los usuarios comparten la misma cuenta en las versiones Web, Android e iOS
 - **Control de Acceso** — Verificación de permisos basada en Firestore con roles, trial y suscripciones
 - **Período de Prueba** — Trial de 30 días activable por el usuario. Notificación automática al admin vía `consultas_web`
+- **App libre (estado actual)** — El `AuthGate` está desactivado en `main.dart` (`home: MetronomeScreen`); el código de login/permisos se conserva para reactivarlo en el futuro. El único uso de Auth hoy es el **login anónimo** al compartir links
+- **Usuarios reales vs anónimos** — Las reglas de Firestore distinguen cuentas reales (Google/Email) de sesiones anónimas (`sign_in_provider != 'anonymous'`): los anónimos solo pueden crear `shared_links`, nunca `usuarios` ni `consultas_web`
 
 ### 📴 Login Offline
 - **Cache local de permisos** — Después del primer login exitoso, el estado de permisos se cachea en `SharedPreferences` con validez de 30 días
@@ -92,6 +94,31 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Limpieza de URL** — Después de capturar el link, el parámetro `?share=` se elimina de la barra de direcciones con `history.replaceState` para evitar re-importaciones al refrescar
 - **Firestore como backend de links** — Colección `shared_links` (schema v2: `type`, `name`, `ownerUid`, `summary`, `payload` JSON string, `createdAt`, `expiresAt`). Lectura pública por ID, creación autenticada (anónima o formal)
 - **TTL (30 días)** — `expiresAt` se renueva con cada apertura. Como el proyecto está en plan Spark (sin TTL Policies), la limpieza es lazy desde el cliente: hasta 10 links vencidos al crear uno nuevo, y cualquier link vencido que se abra. Las reglas solo permiten listar/borrar docs ya vencidos
+
+#### Prioridad de apertura de un link
+| Plataforma | Comportamiento |
+|---|---|
+| Android con app instalada | Abre la app nativa (App Link verificado; `assetlinks.json` contiene el SHA-256 de la clave de firma de Play) |
+| Android sin app, con PWA | Chrome abre la PWA instalada (WebAPK) |
+| Desktop con PWA instalada | La ventana abierta de la PWA recibe el link (`launchQueue`) |
+| Resto | Versión web |
+| iOS | Siempre Safari: Apple no abre links en PWAs instaladas y no hay app iOS |
+
+#### Reglas de seguridad de `shared_links` (Firestore Console)
+> Las reglas se editan a mano en Firebase Console (no están versionadas en este repo).
+
+| Operación | Permitido a |
+|---|---|
+| `get` | Público (la app y la web/foro pueden abrir cualquier link por ID) |
+| `list` | Admin, o queries que solo devuelvan links ya vencidos (`limit ≤ 20`) |
+| `create` | Usuario autenticado (anónimo o real) con `ownerUid == auth.uid`, `type` válido, `payload` string < 200 KB y `expiresAt` timestamp |
+| `update` | Admin, o cualquiera tocando **solo** `expiresAt` (tope ~31 días) |
+| `delete` | Admin, el dueño, o cualquiera si el link ya venció |
+
+#### Pendiente / ideas a futuro
+- **Foro en la web** — Login formal compartido con la web; los links anónimos quedan atribuidos al usuario al promover la cuenta (`linkWithCredential`). La web puede leer `shared_links/{id}` y mostrar `name`/`type`/`summary` sin depender de la app
+- **Preview dinámico por link** (OG tags tipo "Sesión Chacarera · 3 patrones") — Requiere render server-side (Cloud Function → plan Blaze) o resolverlo desde la web
+- **Banner "Abrir en la app"** para navegadores in-app (Instagram/Facebook), que no disparan App Links
 
 ### 🎶 Playlists (Listas de Reproducción)
 - **Gestión de Playlists** — Crear, renombrar, eliminar y duplicar listas de reproducción. Cada playlist contiene una lista ordenada de sesiones
@@ -157,9 +184,10 @@ lib/
 │   ├── onboarding_screen.dart         # Onboarding para nuevos usuarios
 │   └── settings_screen.dart           # Configuración + sección sesión + logout
 ├── services/
-│   ├── deep_link_service.dart         # Compartir via deep links (Firestore + Web Share API)
-│   ├── deep_link_web.dart             # JS interop: lectura/limpieza de URL (?share=)
+│   ├── deep_link_service.dart         # Crear/leer links (Firestore, auth anónima, ID por contenido, captura y dedupe de links entrantes)
+│   ├── deep_link_web.dart             # JS interop: URL (?share=), Web Share API, launchQueue (PWA)
 │   ├── deep_link_stub.dart            # Stub para plataformas no-web
+│   ├── share_import_service.dart      # Importación idempotente de patrones/sesiones/playlists compartidos
 │   ├── pwa_install_service.dart       # Servicio de instalación PWA
 │   ├── pwa_install_web.dart           # JS interop: beforeinstallprompt
 │   ├── pwa_install_stub.dart          # Stub para plataformas no-web
@@ -171,6 +199,7 @@ lib/
 │   └── playlist_repository.dart       # Persistencia de playlists (SharedPreferences)
 └── widgets/
     ├── knob_control.dart              # Control rotativo con CustomPainter
+    ├── share_sheet.dart               # Bottom sheet unificado: generar link → Compartir en… / Copiar link
     └── update_required_screen.dart    # Pantalla bloqueante de actualización obligatoria
 
 packages/native_audio_engine/

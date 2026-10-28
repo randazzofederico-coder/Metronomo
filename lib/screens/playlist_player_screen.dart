@@ -181,38 +181,81 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
           ],
         ),
         body: SafeArea(
-          child: Column(
-            children: [
-              // Session position indicator
-              _buildPositionIndicator(context, totalSessions),
-              // Main content with swipe. Swiping is disabled while playing so an
-              // accidental gesture on stage can't switch sessions and cut the
-              // audio; the arrows below still work.
-              Expanded(
-                child: Selector<MetronomeProvider, bool>(
-                  selector: (_, m) => m.isPlaying,
-                  builder: (context, isPlaying, _) => PageView.builder(
-                    controller: _pageController,
-                    physics: isPlaying ? const NeverScrollableScrollPhysics() : null,
-                    itemCount: totalSessions,
-                    onPageChanged: (page) async {
-                      context.read<MetronomeProvider>().stop();
-                      await _loadSession(page);
-                    },
-                    itemBuilder: (context, index) {
-                      return _buildSessionPage(context);
-                    },
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final bool twoColumns = constraints.maxWidth >= _twoColumnBreakpoint;
+              final pages = Column(
+                children: [
+                  // Session position indicator
+                  _buildPositionIndicator(context, totalSessions),
+                  // Main content with swipe. Swiping is disabled while playing so an
+                  // accidental gesture on stage can't switch sessions and cut the
+                  // audio; the arrows below still work.
+                  Expanded(
+                    child: Selector<MetronomeProvider, bool>(
+                      selector: (_, m) => m.isPlaying,
+                      builder: (context, isPlaying, _) => PageView.builder(
+                        controller: _pageController,
+                        physics: isPlaying ? const NeverScrollableScrollPhysics() : null,
+                        itemCount: totalSessions,
+                        onPageChanged: (page) async {
+                          context.read<MetronomeProvider>().stop();
+                          await _loadSession(page);
+                        },
+                        itemBuilder: (context, index) {
+                          return _buildSessionPage(context, includeMacro: !twoColumns);
+                        },
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              // Bottom controls
-              _buildBottomControls(context),
-            ],
+                ],
+              );
+
+              if (!twoColumns) {
+                return Column(
+                  children: [
+                    Expanded(child: pages),
+                    // Bottom controls
+                    _buildBottomControls(context),
+                  ],
+                );
+              }
+
+              // Wide screens: sessions on the left; macro cycle and transport
+              // in a side panel (same layout as Tocar).
+              final double panelWidth = (constraints.maxWidth * 0.36).clamp(340.0, 440.0);
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: pages),
+                  VerticalDivider(width: 1, color: AppColors.border(context)),
+                  SizedBox(
+                    width: panelWidth,
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: Consumer<MetronomeProvider>(
+                            builder: (context, metronome, _) => ListView(
+                              padding: const EdgeInsets.all(12),
+                              children: [MacroCycle(metronome: metronome)],
+                            ),
+                          ),
+                        ),
+                        _buildBottomControls(context),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),
     );
   }
+
+  /// From this width on, the player uses two columns (like Tocar).
+  static const double _twoColumnBreakpoint = 840;
 
   Widget _buildPositionIndicator(BuildContext context, int total) {
     return Container(
@@ -237,7 +280,7 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
     );
   }
 
-  Widget _buildSessionPage(BuildContext context) {
+  Widget _buildSessionPage(BuildContext context, {required bool includeMacro}) {
     return Consumer<MetronomeProvider>(
       builder: (context, metronome, _) {
         return PlaybackClock(
@@ -245,9 +288,11 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
           child: ListView(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             children: [
-              // Macro cycle visualizer
-              MacroCycle(metronome: metronome),
-              const SizedBox(height: 8),
+              // Macro cycle visualizer (in the side panel on wide screens)
+              if (includeMacro) ...[
+                MacroCycle(metronome: metronome),
+                const SizedBox(height: 8),
+              ],
               // Pattern instances
               ...metronome.instances.map((instance) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),

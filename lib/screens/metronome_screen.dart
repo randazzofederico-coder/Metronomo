@@ -974,147 +974,193 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
           },
           child: Consumer<MetronomeProvider>(
             builder: (context, metronome, child) {
-              return PlaybackClock(metronome: metronome, child: Column(
-                children: [
-                  Expanded(
-                    child: Stack(
+              return PlaybackClock(
+                metronome: metronome,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final bool twoColumns = constraints.maxWidth >= _twoColumnBreakpoint;
+                    final editor = Stack(
                       children: [
-                        ListView(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-                          children: [
-                            MacroCycle(metronome: metronome, showEditHints: true),
-                            const SizedBox(height: 8),
-                            
-                            // Dynamic Instances
-                            ...metronome.instances.map((instance) {
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 8),
-                                child: Builder(
-                                  builder: (instanceContext) {
-                                    return _buildMetronomeInstance(
-                                      context: context,
-                                      instanceContext: instanceContext,
-                                      instance: instance,
-                                      onStructureChange: (newStructure) => metronome.updateInstanceStructure(instance.id, newStructure),
-                                      onPulseSubdivisionChange: (pulseIndex, subIndex, newType) {
-                                          final newPulses = List<HomeMetronomePulse>.from(instance.pulses);
-                                          newPulses[pulseIndex].subdivisions[subIndex] = newType;
-                                          metronome.updateInstancePulses(instance.id, newPulses);
-                                      },
-                                      onVolChanged: (val) => metronome.updateInstanceVolume(instance.id, val),
-                                      onMuteToggle: () => metronome.toggleInstanceMute(instance.id),
-                                      onSoloToggle: () => metronome.toggleInstanceSolo(instance.id),
-                                       onRemove: () => _removeInstanceWithUndo(instance),
-                                    );
-                                  }
-                                ),
-                              );
-                            }).toList(),
-                            
-                            // Add / Load Pattern Buttons
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: () {
-                                      metronome.addInstance(title: "Patrón ${metronome.instances.length + 1}");
-                                    },
-                                    icon: const Icon(Icons.add),
-                                    label: const Text("AÑADIR"),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.surfaceHighlight(context),
-                                      foregroundColor: AppColors.textPrimary(context),
-                                      padding: const EdgeInsets.symmetric(vertical: 10),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                        side: BorderSide(color: AppColors.border(context)),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: ElevatedButton.icon(
-                                    onPressed: () {
-                                      _showLoadPatternDialog(context, metronome);
-                                    },
-                                    icon: const Icon(Icons.library_music),
-                                    label: const Text("LIBRERÍA"),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.surfaceHighlight(context),
-                                      foregroundColor: AppColors.textPrimary(context),
-                                      padding: const EdgeInsets.symmetric(vertical: 10),
-                                      shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16),
-                                        side: BorderSide(color: AppColors.border(context)),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            // Room below the field being edited for the keypad.
-                            SizedBox(height: _activePatternIdForKeyboard != null ? 260 : 80),
-                          ],
-                        ),
-                        
-                        // Per-event volume legend (bottom-right) while in "volume mode"
-                        if (_volumeEdit != null)
-                          Positioned(
-                            right: 16,
-                            bottom: 16,
-                            child: _buildVolumeLegend(context),
-                          ),
-
-                        // Pattern structure keypad: popover next to the field on
-                        // wide screens, full-width bar at the bottom on mobile.
-                        if (_activePatternIdForKeyboard != null &&
-                            _structureControllers[_activePatternIdForKeyboard!] != null)
-                          if (_isWideLayout(context))
-                            Positioned(
-                              left: 0,
-                              top: 0,
-                              child: CompositedTransformFollower(
-                                link: _keypadLink,
-                                showWhenUnlinked: false,
-                                targetAnchor: Alignment.bottomLeft,
-                                followerAnchor: Alignment.topLeft,
-                                // Target is the text inside the field box: compensate
-                                // its padding (12/6) + border (2) to align with the box.
-                                offset: const Offset(-14, 14),
-                                child: PatternKeypad(
-                                  style: PatternKeypadStyle.popover,
-                                  controller: _structureControllers[_activePatternIdForKeyboard!]!,
-                                  onSubmit: _confirmStructureEdit,
-                                ),
-                              ),
-                            )
-                          else
-                            Positioned(
-                              left: 0,
-                              right: 0,
-                              bottom: 0,
-                              child: PatternKeypad(
-                                style: PatternKeypadStyle.docked,
-                                controller: _structureControllers[_activePatternIdForKeyboard!]!,
-                                onSubmit: _confirmStructureEdit,
-                              ),
-                            ),
+                        _buildPatternList(context, metronome, includeMacro: !twoColumns),
+                        ..._buildEditorOverlays(context),
                       ],
-                    ),
-                  ),
-                  // Fixed bottom controls bar
-                  _buildGlobalControls(context, metronome),
-                ],
-              ));
+                    );
+
+                    if (!twoColumns) {
+                      return Column(
+                        children: [
+                          Expanded(child: editor),
+                          // Fixed bottom controls bar
+                          _buildGlobalControls(context, metronome),
+                        ],
+                      );
+                    }
+
+                    // Wide screens: patterns on the left; macro cycle and
+                    // transport in a side panel, always at hand.
+                    final double panelWidth = (constraints.maxWidth * 0.36).clamp(340.0, 440.0);
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: editor),
+                        VerticalDivider(width: 1, color: AppColors.border(context)),
+                        SizedBox(
+                          width: panelWidth,
+                          child: Column(
+                            children: [
+                              Expanded(
+                                child: ListView(
+                                  padding: const EdgeInsets.all(12),
+                                  children: [MacroCycle(metronome: metronome, showEditHints: true)],
+                                ),
+                              ),
+                              _buildGlobalControls(context, metronome),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              );
             },
           ),
         ),
       ),
     );
   }
+  /// From this width on, Tocar uses two columns (patterns | macro + transport).
+  static const double _twoColumnBreakpoint = 840;
 
+  /// Scrollable list of patterns (+ add buttons). On narrow layouts the macro
+  /// cycle goes on top of it; on wide ones it lives in the side panel.
+  Widget _buildPatternList(BuildContext context, MetronomeProvider metronome, {required bool includeMacro}) {
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      children: [
+        if (includeMacro) ...[
+          MacroCycle(metronome: metronome, showEditHints: true),
+          const SizedBox(height: 8),
+        ],
+
+        // Dynamic Instances
+        ...metronome.instances.map((instance) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Builder(
+              builder: (instanceContext) {
+                return _buildMetronomeInstance(
+                  context: context,
+                  instanceContext: instanceContext,
+                  instance: instance,
+                  onStructureChange: (newStructure) => metronome.updateInstanceStructure(instance.id, newStructure),
+                  onPulseSubdivisionChange: (pulseIndex, subIndex, newType) {
+                      final newPulses = List<HomeMetronomePulse>.from(instance.pulses);
+                      newPulses[pulseIndex].subdivisions[subIndex] = newType;
+                      metronome.updateInstancePulses(instance.id, newPulses);
+                  },
+                  onVolChanged: (val) => metronome.updateInstanceVolume(instance.id, val),
+                  onMuteToggle: () => metronome.toggleInstanceMute(instance.id),
+                  onSoloToggle: () => metronome.toggleInstanceSolo(instance.id),
+                  onRemove: () => _removeInstanceWithUndo(instance),
+                );
+              }
+            ),
+          );
+        }),
+
+        // Add / Load Pattern Buttons
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  metronome.addInstance(title: "Patrón ${metronome.instances.length + 1}");
+                },
+                icon: const Icon(Icons.add),
+                label: const Text("AÑADIR"),
+                style: _addButtonStyle(context),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  _showLoadPatternDialog(context, metronome);
+                },
+                icon: const Icon(Icons.library_music),
+                label: const Text("LIBRERÍA"),
+                style: _addButtonStyle(context),
+              ),
+            ),
+          ],
+        ),
+        // Room below the field being edited for the keypad.
+        SizedBox(height: _activePatternIdForKeyboard != null ? 260 : 80),
+      ],
+    );
+  }
+
+  ButtonStyle _addButtonStyle(BuildContext context) => ElevatedButton.styleFrom(
+        backgroundColor: AppColors.surfaceHighlight(context),
+        foregroundColor: AppColors.textPrimary(context),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: AppColors.border(context)),
+        ),
+      );
+
+  /// Floating layers over the pattern list: per-event volume legend and the
+  /// structure keypad.
+  List<Widget> _buildEditorOverlays(BuildContext context) {
+    return [
+      // Per-event volume legend (bottom-right) while in "volume mode"
+      if (_volumeEdit != null)
+        Positioned(
+          right: 16,
+          bottom: 16,
+          child: _buildVolumeLegend(context),
+        ),
+
+      // Pattern structure keypad: popover next to the field on
+      // wide screens, full-width bar at the bottom on mobile.
+      if (_activePatternIdForKeyboard != null &&
+          _structureControllers[_activePatternIdForKeyboard!] != null)
+        if (_isWideLayout(context))
+          Positioned(
+            left: 0,
+            top: 0,
+            child: CompositedTransformFollower(
+              link: _keypadLink,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.bottomLeft,
+              followerAnchor: Alignment.topLeft,
+              // Target is the text inside the field box: compensate its
+              // horizontal padding (8) + border (2), and its vertical
+              // centering (5) + border (2) + a 6px gap.
+              offset: const Offset(-10, 13),
+              child: PatternKeypad(
+                style: PatternKeypadStyle.popover,
+                controller: _structureControllers[_activePatternIdForKeyboard!]!,
+                onSubmit: _confirmStructureEdit,
+              ),
+            ),
+          )
+        else
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: PatternKeypad(
+              style: PatternKeypadStyle.docked,
+              controller: _structureControllers[_activePatternIdForKeyboard!]!,
+              onSubmit: _confirmStructureEdit,
+            ),
+          ),
+    ];
+  }
   Widget _buildGlobalControls(BuildContext context, MetronomeProvider metronome) {
     return TransportBar(
       isPlaying: metronome.isPlaying,

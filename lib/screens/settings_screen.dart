@@ -39,10 +39,22 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
-        title: const Text('Configuración'),
+        // Same name as its tab in the bottom bar.
+        title: const Text('AJUSTES', style: TextStyle(letterSpacing: 2.0)),
         backgroundColor: AppColors.surface(context),
       ),
-      body: ListView(
+      // On wide screens keep the settings at a readable width.
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 720),
+          child: _buildList(context, controller),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildList(BuildContext context, SettingsProvider controller) {
+    return ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         children: [
           // ── Playback & Screen ──
@@ -200,7 +212,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildAboutSection(context),
           const SizedBox(height: 24),
         ],
-      ),
     );
   }
 

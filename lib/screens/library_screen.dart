@@ -101,13 +101,19 @@ class LibraryScreenState extends State<LibraryScreen> with SingleTickerProviderS
           ],
         ),
       ),
-      body: TabBarView(
-        controller: _tabs,
-        children: [
-          _buildSessionsTab(context),
-          _buildPatternsTab(context),
-          PlaylistsScreen(embedded: true, searchQuery: _query),
-        ],
+      // On wide screens keep lists at a readable width.
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 900),
+          child: TabBarView(
+            controller: _tabs,
+            children: [
+              _buildSessionsTab(context),
+              _buildPatternsTab(context),
+              PlaylistsScreen(embedded: true, searchQuery: _query),
+            ],
+          ),
+        ),
       ),
     );
   }

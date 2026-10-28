@@ -68,11 +68,22 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
       final metronome = context.read<MetronomeProvider>();
       final settings = context.read<SettingsProvider>();
       metronome.initializeWorkingState(settings);
+      _migrateLegacySessions();
 
       _checkForSharedLink();
       // Links arriving while the app runs (App Links / PWA launchQueue).
       DeepLinkService().listenIncomingLinks(_handleShareId);
     });
+  }
+
+  /// One-time migration: sessions saved before patterns were embedded get a
+  /// copy of their library patterns, so they stop depending on the library.
+  Future<void> _migrateLegacySessions() async {
+    final patProvider = context.read<PatternEditorProvider>();
+    final sessionProvider = context.read<SessionProvider>();
+    await patProvider.ensureLoaded;
+    final migrated = await sessionProvider.embedMissingPatterns(patProvider.getPatternById);
+    if (migrated > 0) debugPrint('Migrated $migrated legacy session(s) to embedded patterns');
   }
 
   Future<void> _checkForSharedLink() async {
@@ -209,7 +220,6 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
   /// Cancel. Returns true when it's OK to replace the current session.
   Future<bool> _protectUnsavedSession() async {
     final metronome = context.read<MetronomeProvider>();
-    final settings = context.read<SettingsProvider>();
     if (!metronome.isSessionDirty) return true;
 
     final name = metronome.activeSessionName ?? 'Sin Título';
@@ -240,9 +250,9 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
       case 'discard':
         return true;
       case 'save':
-        return metronome.activeSessionId != null
-            ? _showQuickSaveDialog(context, metronome, settings)
-            : _showSaveSessionDialog(context, metronome, settings);
+        if (await _overwriteActiveSession(offerUndo: false)) return true;
+        if (!mounted) return false;
+        return _showSaveSessionDialog(context);
       default:
         return false;
     }
@@ -268,6 +278,46 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
       ),
     );
     return ok == true;
+  }
+
+  PopupMenuItem<T> _menuItem<T>(T value, IconData icon, String label, {Color? color}) {
+    return PopupMenuItem<T>(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: color ?? AppColors.textSecondary(context)),
+          const SizedBox(width: 12),
+          Text(label, style: color == null ? null : TextStyle(color: color)),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _onSessionMenu(_SessionMenu action) async {
+    final metronome = context.read<MetronomeProvider>();
+    final settings = context.read<SettingsProvider>();
+    switch (action) {
+      case _SessionMenu.newSession:
+        await _newSession();
+      case _SessionMenu.open:
+        _showLoadSessionDialog(context, metronome, settings);
+      case _SessionMenu.saveAs:
+        await _showSaveSessionDialog(context);
+      case _SessionMenu.share:
+        // Shares what's on screen (saved or not).
+        final session = metronome.createSession(
+          metronome.activeSessionName ?? 'Sesión',
+          '',
+          settings,
+        );
+        _shareSession(metronome.activeSessionId != null ? session.copyWith(id: metronome.activeSessionId) : session);
+      case _SessionMenu.playlists:
+        _closeAllKeyboards();
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const PlaylistsScreen()));
+      case _SessionMenu.settings:
+        _closeAllKeyboards();
+        Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+    }
   }
 
   /// Starts a new empty session, protecting unsaved changes first.
@@ -356,16 +406,12 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
       heading: 'Compartir sesión',
       subtitle: '«${session.name}» · ${session.globalBpm} BPM · ${session.patternsConfig.length} patrones',
       createLink: () async {
+        // Patterns are embedded in the session; legacy sessions fall back to
+        // the library. The list is still sent for older app versions.
         final patProvider = context.read<PatternEditorProvider>();
         await patProvider.ensureLoaded;
-        final patterns = <Pattern>[];
-        final seen = <String>{};
-        for (var config in session.patternsConfig) {
-          if (!seen.add(config.patternId)) continue;
-          final pat = patProvider.getPatternById(config.patternId);
-          if (pat != null) patterns.add(pat);
-        }
-        return DeepLinkService().createSessionLink(session, patterns);
+        final embedded = session.withEmbeddedPatterns(patProvider.getPatternById);
+        return DeepLinkService().createSessionLink(embedded, embedded.embeddedPatterns);
       },
     );
   }
@@ -562,149 +608,136 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
     });
   }
 
-  /// Returns true if the session ended up saved (overwrite or "save as").
-  Future<bool> _showQuickSaveDialog(BuildContext context, MetronomeProvider metronome, SettingsProvider settings) async {
-    _closeAllKeyboards();
-    final result = await showDialog<Object>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text("Guardar Cambios"),
-        content: Text("¿Deseas sobrescribir la sesión actual '${metronome.activeSessionName}' o guardar como una nueva sesión?"),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text("CANCELAR", style: TextStyle(color: AppColors.textSecondary(ctx))),
-          ),
-          TextButton(
-            onPressed: () {
-               Navigator.pop(ctx, 'saveAs');
-            },
-            child: Text("GUARDAR COMO...", style: TextStyle(color: AppColors.primary(ctx))),
-          ),
-          TextButton(
-            onPressed: () async {
-               final patProvider = context.read<PatternEditorProvider>();
-               final sessionProvider = context.read<SessionProvider>();
-               final sessionName = metronome.activeSessionName ?? "Sesión";
-               
-               final session = await metronome.createSession(
-                 sessionName,
-                 "",
-                 settings,
-                 ensurePatternSaved: (instance) async {
-                   final pat = metronome.createPatternFromInstance(instance.id, name: instance.title);
-                   if (instance.originalPatternId != null) {
-                       await patProvider.updatePattern(pat);
-                   } else {
-                       await patProvider.addPattern(pat);
-                   }
-                   metronome.markInstanceClean(instance.id, pat.id);
-                   return pat.id;
-                 }
-               );
-               
-               // Reuse the active session ID
-               final updatedSession = session.copyWith(id: metronome.activeSessionId);
-               await sessionProvider.updateSession(updatedSession);
-               metronome.markSessionClean(updatedSession.id, updatedSession.name);
-               
-               if (ctx.mounted) {
-                  Navigator.pop(ctx, true);
-                  ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Sesión sobrescrita')));
-               }
-            },
-            child: Text("SOBRESCRIBIR", style: TextStyle(color: AppColors.accentGreen(ctx), fontWeight: FontWeight.bold)),
-          ),
-        ],
-      )
-    );
-    if (result == 'saveAs' && context.mounted) {
-      return _showSaveSessionDialog(context, metronome, settings);
-    }
-    return result == true;
+  // --- SAVING ---
+  // Sessions embed their patterns: saving a session never touches the
+  // pattern library (patterns go there only via "Guardar en librería").
+
+  /// Overwrites the active session with the current state.
+  /// Returns false if there's no active session in the library (e.g. it was
+  /// deleted): callers should fall back to "save as".
+  Future<bool> _overwriteActiveSession({bool offerUndo = true}) async {
+    final metronome = context.read<MetronomeProvider>();
+    final settings = context.read<SettingsProvider>();
+    final sessionProvider = context.read<SessionProvider>();
+    final id = metronome.activeSessionId;
+    final previous = id == null ? null : sessionProvider.getSessionById(id);
+    if (previous == null) return false;
+
+    final session = metronome
+        .createSession(metronome.activeSessionName ?? previous.name, previous.description, settings)
+        .copyWith(id: previous.id, createdAt: previous.createdAt);
+    await sessionProvider.updateSession(session);
+    metronome.markSessionClean(session.id, session.name);
+
+    if (!mounted) return true;
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(
+      content: Text('«${session.name}» guardada'),
+      duration: const Duration(seconds: 3),
+      persist: false,
+      action: offerUndo
+          ? SnackBarAction(
+              label: 'DESHACER',
+              onPressed: () async {
+                // Restore the previous version in the library; the current
+                // work stays on screen, marked as unsaved again.
+                await sessionProvider.updateSession(previous);
+                metronome.markSessionDirty();
+              },
+            )
+          : null,
+    ));
+    return true;
   }
 
-  /// Returns true if a new session was saved.
-  Future<bool> _showSaveSessionDialog(BuildContext context, MetronomeProvider metronome, SettingsProvider settings) async {
+  /// Saves the current state as a new session. Returns true if saved.
+  Future<bool> _saveSessionAs(String name, String description) async {
+    final metronome = context.read<MetronomeProvider>();
+    final settings = context.read<SettingsProvider>();
+    final sessionProvider = context.read<SessionProvider>();
+
+    // New id: "save as" must never overwrite the original session.
+    final session = metronome.createSession(name, description, settings).copyWith(id: const Uuid().v4());
+    await sessionProvider.addSession(session);
+    metronome.markSessionClean(session.id, session.name);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('«${session.name}» guardada')));
+    }
+    return true;
+  }
+
+  /// 💾 action: overwrite directly if the session exists, otherwise ask a name.
+  Future<bool> _saveSession() async {
     _closeAllKeyboards();
-    final nameController = TextEditingController();
+    if (await _overwriteActiveSession()) return true;
+    if (!mounted) return false;
+    return _showSaveSessionDialog(context);
+  }
+
+  /// "Guardar como…" dialog. Returns true if a new session was saved.
+  Future<bool> _showSaveSessionDialog(BuildContext context) async {
+    _closeAllKeyboards();
+    final metronome = context.read<MetronomeProvider>();
+    final nameController = TextEditingController(text: metronome.activeSessionName ?? '');
     final descController = TextEditingController();
 
-    final saved = await showDialog<bool>(
+    final result = await showDialog<(String, String)>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text("Guardar Sesión"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameController,
-              autofocus: true,
-              style: TextStyle(color: AppColors.textPrimary(ctx)),
-              decoration: InputDecoration(
-                labelText: "Nombre de la Sesión",
-                labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.border(ctx))),
-                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary(ctx))),
+      builder: (ctx) {
+        void submit() {
+          final name = nameController.text.trim();
+          if (name.isEmpty) return;
+          Navigator.pop(ctx, (name, descController.text.trim()));
+        }
+
+        return AlertDialog(
+          title: const Text("Guardar Sesión"),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameController,
+                autofocus: true,
+                textInputAction: TextInputAction.next,
+                style: TextStyle(color: AppColors.textPrimary(ctx)),
+                decoration: InputDecoration(
+                  labelText: "Nombre de la Sesión",
+                  labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.border(ctx))),
+                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary(ctx))),
+                ),
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: descController,
+                onSubmitted: (_) => submit(),
+                style: TextStyle(color: AppColors.textPrimary(ctx)),
+                decoration: InputDecoration(
+                  labelText: "Descripción (opcional)",
+                  labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
+                  enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.border(ctx))),
+                  focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary(ctx))),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text("CANCELAR", style: TextStyle(color: AppColors.textSecondary(ctx))),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: descController,
-              style: TextStyle(color: AppColors.textPrimary(ctx)),
-              decoration: InputDecoration(
-                labelText: "Descripción (opcional)",
-                labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.border(ctx))),
-                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary(ctx))),
-              ),
+            TextButton(
+              onPressed: submit,
+              child: Text("GUARDAR", style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold)),
             ),
           ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text("CANCELAR", style: TextStyle(color: AppColors.textSecondary(ctx))),
-          ),
-          TextButton(
-            onPressed: () async {
-              if (nameController.text.trim().isEmpty) return;
-              
-              final patProvider = context.read<PatternEditorProvider>();
-              final sessionProvider = context.read<SessionProvider>();
-
-              final session = await metronome.createSession(
-                nameController.text.trim(),
-                descController.text.trim(),
-                settings,
-                ensurePatternSaved: (instance) async {
-                  final pat = metronome.createPatternFromInstance(instance.id, name: instance.title);
-                  if (instance.originalPatternId != null) {
-                      await patProvider.updatePattern(pat);
-                  } else {
-                      await patProvider.addPattern(pat);
-                  }
-                  metronome.markInstanceClean(instance.id, pat.id);
-                  return pat.id;
-                }
-              );
-
-              // Clear ID to force a new creation in case we are "Save As"ing
-              final newSession = session.copyWith(id: Uuid().v4());
-              await sessionProvider.addSession(newSession);
-              metronome.markSessionClean(newSession.id, newSession.name);
-
-              if (ctx.mounted) {
-                 Navigator.pop(ctx, true);
-                 ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Sesión guardada')));
-              }
-            },
-            child: Text("GUARDAR", style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
+        );
+      },
     );
-    return saved == true;
+    if (result == null || !mounted) return false;
+    return _saveSessionAs(result.$1, result.$2);
   }
 
   void _showLoadSessionDialog(BuildContext context, MetronomeProvider metronome, SettingsProvider settings) {
@@ -831,20 +864,15 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
                                     icon: Icon(Icons.delete_outline, color: AppColors.accentRed(ctx)),
                                     tooltip: 'Eliminar patrón',
                                     onPressed: () async {
-                                      // Sessions reference library patterns by id: warn if in use.
-                                      final usedBy = ctx.read<SessionProvider>().sessions
-                                          .where((s) => s.patternsConfig.any((c) => c.patternId == pat.id))
-                                          .map((s) => s.name)
-                                          .toList();
-                                      final warning = usedBy.isEmpty
-                                          ? ''
-                                          : '\n\n⚠ Lo usan ${usedBy.length == 1 ? 'la sesión' : '${usedBy.length} sesiones'}: ${usedBy.take(3).map((n) => '«$n»').join(', ')}${usedBy.length > 3 ? '…' : ''}. Esas sesiones perderán este patrón.';
                                       final ok = await _confirmDelete(
                                         ctx,
                                         title: 'Eliminar patrón',
-                                        message: '¿Eliminar «${pat.name}» de la librería?$warning',
+                                        message: '¿Eliminar «${pat.name}» de la librería?\n\nLas sesiones que lo usan no cambian: tienen su propia copia.',
                                       );
-                                      if (ok) patProvider.deletePattern(pat.id);
+                                      if (!ok) return;
+                                      // Safety net: make sure no legacy session still depends on it.
+                                      await ctx.read<SessionProvider>().embedMissingPatterns(patProvider.getPatternById);
+                                      await patProvider.deletePattern(pat.id);
                                     },
                                   ),
                                 ],
@@ -895,51 +923,23 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
         elevation: 0,
         actions: [
           IconButton(
-            icon: Icon(Icons.add_circle_outline, color: AppColors.textSecondary(context)),
-            onPressed: _newSession,
-            tooltip: "Nueva Sesión",
-          ),
-          IconButton(
-            icon: Icon(Icons.folder_open_rounded, color: AppColors.textSecondary(context)),
-            onPressed: () {
-              final metronome = context.read<MetronomeProvider>();
-              final settings = context.read<SettingsProvider>();
-              _showLoadSessionDialog(context, metronome, settings);
-            },
-            tooltip: "Cargar Sesión",
-          ),
-          IconButton(
             icon: Icon(Icons.save_rounded, color: AppColors.textSecondary(context)),
-            onPressed: () {
-              final metronome = context.read<MetronomeProvider>();
-              final settings = context.read<SettingsProvider>();
-              if (metronome.activeSessionId != null && metronome.isSessionDirty) {
-                _showQuickSaveDialog(context, metronome, settings);
-              } else {
-                _showSaveSessionDialog(context, metronome, settings);
-              }
-            },
-            tooltip: "Guardar Sesión",
+            onPressed: _saveSession,
+            tooltip: "Guardar sesión",
           ),
-          IconButton(
-            icon: Icon(Icons.queue_music_rounded, color: AppColors.textSecondary(context)),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const PlaylistsScreen()),
-              );
-            },
-            tooltip: "Playlists",
-          ),
-          IconButton(
-            icon: Icon(Icons.settings_rounded, color: AppColors.textSecondary(context)),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const SettingsScreen()),
-              );
-            },
-            tooltip: "Ajustes",
+          PopupMenuButton<_SessionMenu>(
+            icon: Icon(Icons.more_vert_rounded, color: AppColors.textSecondary(context)),
+            tooltip: 'Más opciones',
+            onSelected: _onSessionMenu,
+            itemBuilder: (_) => [
+              _menuItem(_SessionMenu.newSession, Icons.add_circle_outline, 'Nueva sesión'),
+              _menuItem(_SessionMenu.open, Icons.folder_open_rounded, 'Abrir sesión…'),
+              _menuItem(_SessionMenu.saveAs, Icons.save_as_rounded, 'Guardar como…'),
+              _menuItem(_SessionMenu.share, Icons.share_outlined, 'Compartir sesión'),
+              const PopupMenuDivider(),
+              _menuItem(_SessionMenu.playlists, Icons.queue_music_rounded, 'Playlists'),
+              _menuItem(_SessionMenu.settings, Icons.settings_rounded, 'Ajustes'),
+            ],
           ),
         ],
       ),
@@ -1267,22 +1267,22 @@ class _MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingOb
   }
 
   /// Saves (or updates) the instance as a pattern in the library.
+  /// The pattern keeps its id, so saving again updates the same library entry.
   Future<void> _savePatternToLibrary(HomeMetronomeInstance instance) async {
     final patProvider = context.read<PatternEditorProvider>();
     final metronome = context.read<MetronomeProvider>();
     final pat = metronome.createPatternFromInstance(instance.id, name: instance.title);
+    final existed = patProvider.getPatternById(pat.id) != null;
 
-    if (instance.originalPatternId != null) {
-      await patProvider.updatePattern(pat);
-    } else {
-      await patProvider.addPattern(pat);
-    }
-
+    await patProvider.upsertPattern(pat);
     metronome.markInstanceClean(instance.id, pat.id);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Patrón guardado'), duration: Duration(seconds: 1)),
+        SnackBar(
+          content: Text(existed ? '«${pat.name}» actualizado en la librería' : '«${pat.name}» guardado en la librería'),
+          duration: const Duration(seconds: 2),
+        ),
       );
     }
   }
@@ -1492,3 +1492,6 @@ class _EventVolumeEdit {
   final double startVolume;
   double value;
 }
+
+/// Actions of the session menu (AppBar ⋮).
+enum _SessionMenu { newSession, open, saveAs, share, playlists, settings }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../models/pattern_model.dart';
 import '../models/session_model.dart';
 import '../services/session_repository.dart';
 
@@ -76,5 +77,26 @@ class SessionProvider extends ChangeNotifier {
     } catch (_) {
       return null;
     }
+  }
+
+  /// One-time migration: embeds library patterns into legacy sessions so they
+  /// no longer depend on the pattern library. Idempotent. Returns how many
+  /// sessions were migrated.
+  Future<int> embedMissingPatterns(Pattern? Function(String patternId) lookup) async {
+    await _loadCompleter.future;
+    var migrated = 0;
+    for (var i = 0; i < _sessions.length; i++) {
+      final session = _sessions[i];
+      if (!session.needsEmbedding) continue;
+      final updated = session.withEmbeddedPatterns(lookup);
+      if (updated.needsEmbedding && updated.patternsConfig.every((c) => !c.hasEmbeddedPattern)) {
+        continue; // nothing could be resolved
+      }
+      _sessions[i] = updated;
+      await _repository.updateSession(updated);
+      migrated++;
+    }
+    if (migrated > 0) notifyListeners();
+    return migrated;
   }
 }

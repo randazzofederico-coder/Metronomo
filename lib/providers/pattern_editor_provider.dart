@@ -121,6 +121,16 @@ class PatternEditorProvider extends ChangeNotifier {
     }
   }
 
+  /// Updates the pattern if its id is already in the library, otherwise adds it.
+  Future<void> upsertPattern(Pattern pattern) async {
+    await _loadCompleter.future;
+    if (getPatternById(pattern.id) != null) {
+      await updatePattern(pattern);
+    } else {
+      await addPattern(pattern);
+    }
+  }
+
   /// Deletes a pattern from the library.
   ///
   /// **STRICT RULE**: If the deleted pattern is the one currently being

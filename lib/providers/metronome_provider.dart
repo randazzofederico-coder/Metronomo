@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:native_audio_engine/live_mixer.dart';
+import 'package:uuid/uuid.dart';
 
 import '../audio/click_synth.dart';
 import '../models/pattern_model.dart';
 import '../models/session_model.dart';
 import '../providers/settings_provider.dart';
 import '../services/working_state_repository.dart';
+
+const _uuid = Uuid();
 
 class HomeMetronomeInstance {
   final int id;
@@ -648,10 +651,15 @@ class MetronomeProvider with ChangeNotifier {
     );
   }
 
+  /// Marks the session as saved. Pattern dirty flags are cleared too: the
+  /// session now holds their changes.
   void markSessionClean(String sessionId, String sessionName) {
     activeSessionId = sessionId;
     activeSessionName = sessionName;
     _isSessionDirty = false;
+    for (final inst in _instances) {
+      inst.isDirty = false;
+    }
     _scheduleDebouncedSave();
     notifyListeners();
   }
@@ -698,7 +706,8 @@ class MetronomeProvider with ChangeNotifier {
       ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
       
     for (var config in configs) {
-       Pattern? pattern = await getPatternById(config.patternId);
+       // Embedded pattern (current format) or library lookup (legacy sessions).
+       final Pattern? pattern = config.embeddedPattern ?? await getPatternById(config.patternId);
        if (pattern != null) {
           int newId = _nextId++;
           final instance = HomeMetronomeInstance(
@@ -723,23 +732,30 @@ class MetronomeProvider with ChangeNotifier {
   }
 
   /// Creates a Session model capturing the current state.
-  Future<Session> createSession(
+  ///
+  /// Patterns are embedded in the session (the library is not touched).
+  /// Instances without a stable id get one, so the same pattern keeps its id
+  /// across saves and "save to library" can link to it.
+  /// Doesn't change dirty flags: see [markSessionClean].
+  Session createSession(
     String name, 
     String description, 
-    SettingsProvider settings, {
-    required Future<String> Function(HomeMetronomeInstance instance) ensurePatternSaved
-  }) async {
+    SettingsProvider settings,
+  ) {
      List<SessionPatternConfig> patternsConfig = [];
      for (int i = 0; i < _instances.length; i++) {
         final instance = _instances[i];
-        String patternId = await ensurePatternSaved(instance);
+        instance.originalPatternId ??= _uuid.v4();
         patternsConfig.add(SessionPatternConfig(
-           patternId: patternId,
+           patternId: instance.originalPatternId!,
            volume: instance.volume,
            isMuted: instance.isMuted,
            isSolo: instance.isSolo,
            orderIndex: i,
            soundSet: instance.soundSet,
+           name: instance.title,
+           structure: instance.structure,
+           pulses: instance.pulses.map((p) => p.copyWith()).toList(),
         ));
      }
      

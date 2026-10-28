@@ -141,20 +141,19 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         await sessionProvider.ensureLoaded;
         await patProvider.ensureLoaded;
 
-        // Resolve sessions and their patterns
+        // Resolve sessions (with embedded patterns; legacy ones via the
+        // library). The flat pattern list is still sent for older versions.
         final sessions = <Session>[];
         final allPatterns = <Pattern>[];
         final seenPatternIds = <String>{};
 
         for (var sessionId in playlist.sessionIds) {
-          final session = sessionProvider.getSessionById(sessionId);
-          if (session != null) {
+          final stored = sessionProvider.getSessionById(sessionId);
+          if (stored != null) {
+            final session = stored.withEmbeddedPatterns(patProvider.getPatternById);
             sessions.add(session);
-            for (var config in session.patternsConfig) {
-              if (seenPatternIds.add(config.patternId)) {
-                final pat = patProvider.getPatternById(config.patternId);
-                if (pat != null) allPatterns.add(pat);
-              }
+            for (final pat in session.embeddedPatterns) {
+              if (seenPatternIds.add(pat.id)) allPatterns.add(pat);
             }
           }
         }

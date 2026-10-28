@@ -68,18 +68,23 @@ class ShareImportService {
     var addedSomething = false;
 
     // ── Patterns ──
+    // Only a shared *pattern* goes to the pattern library. Patterns that come
+    // with a session/playlist are embedded in their sessions instead (the
+    // flat list exists for links created by older versions).
     final patternJsons = bundle.type == SharedType.pattern
         ? [bundle.data]
         : bundle.patterns;
+    final bundlePatterns = <String, Pattern>{};
     for (final json in patternJsons) {
       final pattern = Pattern.fromJson(json);
+      bundlePatterns[pattern.id] = pattern;
       if (patterns.getPatternById(pattern.id) != null) {
         patternIdMap[pattern.id] = pattern.id;
         continue;
       }
       final localId = _derivedId(bundle.shareId, pattern.id);
       patternIdMap[pattern.id] = localId;
-      if (patterns.getPatternById(localId) == null) {
+      if (bundle.type == SharedType.pattern && patterns.getPatternById(localId) == null) {
         await patterns.addPattern(pattern.copyWith(id: localId));
         addedSomething = true;
       }
@@ -98,7 +103,11 @@ class ShareImportService {
       final localId = _derivedId(bundle.shareId, session.id);
       sessionIdMap[session.id] = localId;
       if (sessions.getSessionById(localId) == null) {
-        final configs = session.patternsConfig
+        // Embed patterns from the bundle (links from older versions only have
+        // ids), then remap ids.
+        final configs = session
+            .withEmbeddedPatterns((id) => bundlePatterns[id])
+            .patternsConfig
             .map((c) => c.copyWith(
                 patternId: patternIdMap[c.patternId] ?? c.patternId))
             .toList();

@@ -1,9 +1,20 @@
 import 'package:uuid/uuid.dart';
 
+import 'pattern_model.dart';
+
 /// Configuration for a single pattern within a session.
 ///
 /// Each pattern in a session has its own independent volume, mute and solo states,
 /// an optional sound set, plus an order index for arranging the sequence.
+///
+/// The session **embeds** the pattern itself ([name], [structure], [pulses]),
+/// so it doesn't depend on the pattern library: deleting or editing a library
+/// pattern never changes a saved session. [patternId] is a stable id for the
+/// pattern inside the session; if a library pattern has the same id, saving
+/// the pattern to the library updates that one.
+///
+/// Legacy sessions (before embedding) only have [patternId]: they are resolved
+/// against the library and migrated (see [Session.withEmbeddedPatterns]).
 class SessionPatternConfig {
   final String patternId;
   final double volume;
@@ -15,6 +26,11 @@ class SessionPatternConfig {
   /// `null` = follows the session's global sound set.
   final String? soundSet;
 
+  /// Embedded pattern data (null in legacy sessions).
+  final String? name;
+  final String? structure;
+  final List<HomeMetronomePulse>? pulses;
+
   SessionPatternConfig({
     required this.patternId,
     this.volume = 1.0,
@@ -22,7 +38,31 @@ class SessionPatternConfig {
     this.isSolo = false,
     this.orderIndex = 0,
     this.soundSet,
+    this.name,
+    this.structure,
+    this.pulses,
   });
+
+  /// True if the pattern data is stored in the session itself.
+  bool get hasEmbeddedPattern => structure != null && pulses != null;
+
+  /// The embedded pattern as a [Pattern] (id = [patternId]), or null for
+  /// legacy configs.
+  Pattern? get embeddedPattern => hasEmbeddedPattern
+      ? Pattern(
+          id: patternId,
+          name: name ?? 'Patrón',
+          structure: structure!,
+          pulses: pulses!.map((p) => p.copyWith()).toList(),
+        )
+      : null;
+
+  /// Returns a copy with [pattern] embedded (keeps [patternId]).
+  SessionPatternConfig embedding(Pattern pattern) => copyWith(
+        name: pattern.name,
+        structure: pattern.structure,
+        pulses: pattern.pulses.map((p) => p.copyWith()).toList(),
+      );
 
   static const Object _unset = Object();
 
@@ -34,6 +74,9 @@ class SessionPatternConfig {
     bool? isSolo,
     int? orderIndex,
     Object? soundSet = _unset,
+    String? name,
+    String? structure,
+    List<HomeMetronomePulse>? pulses,
   }) {
     return SessionPatternConfig(
       patternId: patternId ?? this.patternId,
@@ -42,6 +85,9 @@ class SessionPatternConfig {
       isSolo: isSolo ?? this.isSolo,
       orderIndex: orderIndex ?? this.orderIndex,
       soundSet: identical(soundSet, _unset) ? this.soundSet : soundSet as String?,
+      name: name ?? this.name,
+      structure: structure ?? this.structure,
+      pulses: pulses ?? this.pulses?.map((p) => p.copyWith()).toList(),
     );
   }
 
@@ -53,6 +99,9 @@ class SessionPatternConfig {
     'orderIndex': orderIndex,
     // Only persisted when overridden, so untouched sessions keep the legacy format.
     if (soundSet != null) 'soundSet': soundSet,
+    if (name != null) 'name': name,
+    if (structure != null) 'structure': structure,
+    if (pulses != null) 'pulses': pulses!.map((p) => p.toJson()).toList(),
   };
 
   factory SessionPatternConfig.fromJson(Map<String, dynamic> json) {
@@ -63,6 +112,11 @@ class SessionPatternConfig {
       isSolo: json['isSolo'] as bool? ?? false,
       orderIndex: json['orderIndex'] as int? ?? 0,
       soundSet: json['soundSet'] as String?,
+      name: json['name'] as String?,
+      structure: json['structure'] as String?,
+      pulses: (json['pulses'] as List<dynamic>?)
+          ?.map((p) => HomeMetronomePulse.fromJson(p as Map<String, dynamic>))
+          .toList(),
     );
   }
 
@@ -182,6 +236,37 @@ class Session {
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
     );
+  }
+
+  /// True if some pattern still depends on the library (legacy format).
+  bool get needsEmbedding => patternsConfig.any((c) => !c.hasEmbeddedPattern);
+
+  /// Returns a copy where every legacy config gets its pattern embedded,
+  /// resolved through [lookup] (usually the library). Configs whose pattern
+  /// can't be found are kept as they are.
+  Session withEmbeddedPatterns(Pattern? Function(String patternId) lookup) {
+    if (!needsEmbedding) return this;
+    return copyWith(
+      updatedAt: updatedAt,
+      patternsConfig: patternsConfig.map((c) {
+        if (c.hasEmbeddedPattern) return c.copyWith();
+        final pattern = lookup(c.patternId);
+        return pattern == null ? c.copyWith() : c.embedding(pattern);
+      }).toList(),
+    );
+  }
+
+  /// The session's patterns as [Pattern] objects (one per distinct id).
+  ///
+  /// Shared links still include them in the bundle's `patterns` list so that
+  /// older app versions (that resolve sessions through the library) can open
+  /// links created by newer versions.
+  List<Pattern> get embeddedPatterns {
+    final seen = <String>{};
+    return [
+      for (final c in patternsConfig)
+        if (seen.add(c.patternId) && c.embeddedPattern != null) c.embeddedPattern!,
+    ];
   }
 
   Map<String, dynamic> toJson() => {

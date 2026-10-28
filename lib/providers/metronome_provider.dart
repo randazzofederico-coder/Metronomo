@@ -464,9 +464,11 @@ class MetronomeProvider with ChangeNotifier {
       notifyListeners();
   }
 
-  void setRandomSilencePercent(double percent) {
+  /// Sets the random-silence percentage in the engine. [markDirty] is false
+  /// when just syncing a stored value (startup, loading a session).
+  void setRandomSilencePercent(double percent, {bool markDirty = true}) {
     _liveMixer.setRandomSilencePercent(percent);
-    markSessionDirty();
+    if (markDirty) markSessionDirty();
   }
 
   void updateBPM(int newBpm) {
@@ -735,12 +737,15 @@ class MetronomeProvider with ChangeNotifier {
     
     activeSessionId = session.id;
     activeSessionName = session.name;
-    _isSessionDirty = false;
-    
-    updateBPM(session.globalBpm);
+
+    // Apply the session's tempo/sound/silence without marking it dirty.
+    _bpm = session.globalBpm.clamp(1, 999);
+    _liveMixer.setMetronomeConfig(_bpm);
     settings.updateSound(session.soundSet);
     settings.updateSilence(session.randomSilencePercentage);
     updateSoundSet(session.soundSet);
+    setRandomSilencePercent(session.randomSilencePercentage, markDirty: false);
+    _isSessionDirty = false;
     
     // Sort configurations by orderIndex
     final configs = List<SessionPatternConfig>.from(session.patternsConfig)

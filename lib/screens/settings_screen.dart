@@ -22,10 +22,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final settings = context.read<SettingsProvider>();
       await settings.loadSettings();
-      // Sync current silence value to the engine
+      // Sync current silence value to the engine (not a user edit: the
+      // session must not become dirty — this screen is built at startup).
       if (mounted) {
         final metronome = context.read<MetronomeProvider>();
-        metronome.setRandomSilencePercent(settings.randomSilencePercentage);
+        metronome.setRandomSilencePercent(settings.randomSilencePercentage, markDirty: false);
         metronome.updateSoundSet(settings.selectedSound);
       }
     });

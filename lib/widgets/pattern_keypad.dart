@@ -19,11 +19,16 @@ class PatternKeypad extends StatelessWidget {
     required this.controller,
     required this.onSubmit,
     this.style = PatternKeypadStyle.docked,
+    this.display,
   });
 
   final TextEditingController controller;
   final VoidCallback onSubmit;
   final PatternKeypadStyle style;
+
+  /// Optional row shown above the keys (docked style): the text field being
+  /// edited, so it's big and readable on phones.
+  final Widget? display;
 
   /// Width of the popover variant.
   static const double popoverWidth = 232;
@@ -79,7 +84,26 @@ class PatternKeypad extends StatelessWidget {
         heightFactor: 1,
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: dockedMaxWidth),
-          child: body,
+          child: display == null
+              ? body
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Text display row showing what's being typed
+                    Container(
+                      margin: const EdgeInsets.fromLTRB(4, 2, 4, 4),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: AppColors.background(context),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.primary(context).withOpacity(0.5)),
+                      ),
+                      child: display,
+                    ),
+                    body,
+                  ],
+                ),
         ),
       ),
     );

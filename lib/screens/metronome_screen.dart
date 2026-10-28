@@ -89,6 +89,9 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
   final Map<int, TextEditingController> _structureControllers = {};
   final Map<int, FocusNode> _structureFocusNodes = {};
 
+  /// Build context of each pattern card (to scroll it into view while editing).
+  final Map<int, BuildContext> _instanceContexts = {};
+
   /// Structure value when editing started (restored on Esc / invalid input).
   String _structureBeforeEdit = '';
 
@@ -512,8 +515,9 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
       controller.selection = _isWideLayout(context)
           ? TextSelection(baseOffset: 0, extentOffset: controller.text.length)
           : TextSelection.collapsed(offset: controller.text.length);
-      final fieldContext = node.context;
-      if (fieldContext != null) {
+      // Phones: the field is in the docked keypad, so scroll the card itself.
+      final fieldContext = _isWideLayout(context) ? node.context : (_instanceContexts[id] ?? node.context);
+      if (fieldContext != null && fieldContext.mounted) {
         Scrollable.ensureVisible(
           fieldContext,
           alignment: 0.1,
@@ -597,6 +601,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
   void _disposeStructureState(int id) {
     final controller = _structureControllers.remove(id);
     final node = _structureFocusNodes.remove(id);
+    _instanceContexts.remove(id);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       controller?.dispose();
       node?.dispose();
@@ -1049,6 +1054,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
             padding: const EdgeInsets.only(bottom: 8),
             child: Builder(
               builder: (instanceContext) {
+                _instanceContexts[instance.id] = instanceContext;
                 return _buildMetronomeInstance(
                   context: context,
                   instanceContext: instanceContext,
@@ -1097,7 +1103,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
           ],
         ),
         // Room below the field being edited for the keypad.
-        SizedBox(height: _activePatternIdForKeyboard != null ? 260 : 80),
+        SizedBox(height: _activePatternIdForKeyboard != null ? 320 : 80),
       ],
     );
   }
@@ -1155,6 +1161,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
             bottom: 0,
             child: PatternKeypad(
               style: PatternKeypadStyle.docked,
+              display: _buildStructureEditor(context, _activePatternIdForKeyboard!, large: true),
               controller: _structureControllers[_activePatternIdForKeyboard!]!,
               onSubmit: _confirmStructureEdit,
             ),
@@ -1204,18 +1211,22 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
           borderRadius: BorderRadius.circular(4),
           onTap: () => _renameInstance(instance),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
+            padding: const EdgeInsets.symmetric(vertical: 2),
             child: Row(
               children: [
                 Flexible(
+                  // Up to 2 lines with a smaller font, so long names stay
+                  // readable in the compact header.
                   child: Text(
                     instance.title,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: accent,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2,
+                      fontSize: 13,
+                      height: 1.15,
+                      letterSpacing: 0.8,
                       fontStyle: instance.isDirty ? FontStyle.italic : FontStyle.normal,
                     ),
                   ),
@@ -1246,7 +1257,18 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
               borderRadius: BorderRadius.circular(4),
           ),
           child: isEditing
-            ? _buildStructureEditor(context, instance.id)
+            // Wide: edit inline (keypad popover next to it). Phone: the text
+            // field lives above the docked keypad; here a live formatted preview.
+            ? (_isWideLayout(context)
+                ? _buildStructureEditor(context, instance.id)
+                : ListenableBuilder(
+                    listenable: _structureControllers[instance.id]!,
+                    builder: (context, _) => FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: FormattedStructure(_structureControllers[instance.id]!.text),
+                    ),
+                  ))
             : FittedBox(
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
@@ -1514,12 +1536,13 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
   /// Inline editor for the pattern structure. Accepts the physical keyboard
   /// (filtered by [StructureInputFormatter]) without opening the OS soft
   /// keyboard; on touch devices the [PatternKeypad] is the input method.
-  Widget _buildStructureEditor(BuildContext context, int instanceId) {
+  /// [large]: bigger variant shown above the docked keypad on phones.
+  Widget _buildStructureEditor(BuildContext context, int instanceId, {bool large = false}) {
     final controller = _structureControllers[instanceId]!;
     return CompositedTransformTarget(
       link: _keypadLink,
       child: SizedBox(
-        height: 24,
+        height: large ? 30 : 24,
         child: ListenableBuilder(
           listenable: controller,
           builder: (context, child) {
@@ -1541,7 +1564,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
               style: TextStyle(
                 color: color,
                 fontWeight: FontWeight.bold,
-                fontSize: 14,
+                fontSize: large ? 20 : 14,
                 letterSpacing: 2.0,
               ),
               decoration: InputDecoration(

@@ -19,7 +19,7 @@ class PatternCard extends StatelessWidget {
   final Widget sequencer;
 
   /// Minimum inner width to fit the mixer in the header row.
-  static const double singleRowMinWidth = 300;
+  static const double singleRowMinWidth = 340;
 
   const PatternCard({
     super.key,

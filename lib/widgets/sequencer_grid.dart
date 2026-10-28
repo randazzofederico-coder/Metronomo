@@ -181,7 +181,8 @@ class _SequencerGridState extends State<SequencerGrid> {
                   return Expanded(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 1, left: 3, right: 3),
-                      child: DecoratedBox(
+                      // Container (not a childless DecoratedBox, which sizes to 0x0).
+                      child: Container(
                         decoration: BoxDecoration(
                           color: on ? AppColors.textPrimary(context) : Colors.transparent,
                           borderRadius: BorderRadius.circular(2),

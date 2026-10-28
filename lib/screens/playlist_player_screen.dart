@@ -315,12 +315,14 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
           Flexible(
             child: Text(
               instance.title,
-              maxLines: 1,
+              maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: accent,
                 fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
+                fontSize: 13,
+                height: 1.15,
+                letterSpacing: 0.8,
                 fontStyle: instance.isDirty ? FontStyle.italic : FontStyle.normal,
               ),
             ),

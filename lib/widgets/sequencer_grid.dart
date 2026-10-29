@@ -212,9 +212,7 @@ class _SequencerGridState extends State<SequencerGrid> {
       margin: EdgeInsets.only(top: isHead ? 0 : 8),
       decoration: BoxDecoration(
         // Color intensity reflects the event volume.
-        color: sounds
-            ? AppColors.eventFill(typeColor, pulse.volumeAt(subIndex), 0.2)
-            : AppColors.background(context),
+        color: BeatColors.fill(context, type, pulse.volumeAt(subIndex)),
         border: Border(
           right: subIndex < pulse.subdivisions.length - 1
               ? BorderSide(color: AppColors.background(context), width: 3)

@@ -185,34 +185,34 @@ class _MacroCycleState extends State<MacroCycle> with SingleTickerProviderStateM
         cells.add(
           Expanded(
             flex: (pulse.durationRatio * 100).round().clamp(1, 10000),
+            // Same look as the sequencer cells: neutral pulse box, fill =
+            // type color with intensity = volume, background separators.
             child: Container(
               margin: const EdgeInsets.symmetric(horizontal: 1),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: List.generate(pulse.subdivisions.length, (subIndex) {
-                  final int type = pulse.subdivisions[subIndex];
-                  final bool isHead = subIndex == 0;
-                  final Color color = type == 0 ? AppColors.background(context) : BeatColors.of(context, type);
-                  final Color edge = type == 0 ? AppColors.border(context) : color.withOpacity(0.8);
-                  const transparent = BorderSide(color: Colors.transparent, width: 1);
-
-                  return Expanded(
-                    child: Container(
-                      margin: EdgeInsets.only(top: isHead ? 0 : 3),
-                      decoration: BoxDecoration(
-                        color: type == 0 ? color : AppColors.eventFill(color, pulse.volumeAt(subIndex), 0.4),
-                        border: Border(
-                          right: subIndex < pulse.subdivisions.length - 1
-                              ? BorderSide(color: AppColors.background(context), width: 1.0)
-                              : BorderSide(color: edge, width: 1),
-                          top: isHead ? BorderSide(color: edge, width: 1) : transparent,
-                          bottom: BorderSide(color: edge, width: 1),
-                          left: isHead ? BorderSide(color: edge, width: 1) : transparent,
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.border(context), width: 1),
+                borderRadius: BorderRadius.circular(2),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(1),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: List.generate(pulse.subdivisions.length, (subIndex) {
+                    final int type = pulse.subdivisions[subIndex];
+                    final bool isHead = subIndex == 0;
+                    return Expanded(
+                      child: Container(
+                        margin: EdgeInsets.only(top: isHead ? 0 : 3),
+                        decoration: BoxDecoration(
+                          color: BeatColors.fill(context, type, pulse.volumeAt(subIndex)),
+                          border: subIndex < pulse.subdivisions.length - 1
+                              ? Border(right: BorderSide(color: AppColors.background(context), width: 1))
+                              : null,
                         ),
                       ),
-                    ),
-                  );
-                }),
+                    );
+                  }),
+                ),
               ),
             ),
           ),
@@ -244,11 +244,10 @@ class _BeatLegend extends StatelessWidget {
             Container(
               width: 10,
               height: 10,
+              // Same fill and neutral border as the cells.
               decoration: BoxDecoration(
-                color: type == BeatColors.silence ? AppColors.background(context) : BeatColors.of(context, type).withOpacity(0.6),
-                border: Border.all(
-                  color: type == BeatColors.silence ? AppColors.border(context) : BeatColors.of(context, type),
-                ),
+                color: BeatColors.fill(context, type, 1.0),
+                border: Border.all(color: AppColors.border(context)),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),

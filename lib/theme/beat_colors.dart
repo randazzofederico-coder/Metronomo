@@ -19,6 +19,17 @@ class BeatColors {
   /// Number of event types; tapping a cell cycles through them.
   static const int typeCount = 4;
 
+  /// Fill opacity of a sounding event at 100% volume. Single value for the
+  /// sequencer cells, the macro cycle and the legend.
+  static const double baseFillOpacity = 0.4;
+
+  /// Fill color of an event cell: type color with intensity = [volume]
+  /// (0.0–1.5). Silence uses the background color. Same everywhere.
+  static Color fill(BuildContext context, int type, double volume) {
+    if (type == silence) return AppColors.background(context);
+    return AppColors.eventFill(of(context, type), volume, baseFillOpacity);
+  }
+
   /// Base color for an event [type]. Silence returns the highlight surface.
   static Color of(BuildContext context, int type) {
     switch (type) {

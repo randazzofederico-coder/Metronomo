@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/widgets/knob_control.dart';
 
 /// Compact per-pattern mixer: volume knob, Mute and Solo, plus an optional
@@ -31,7 +32,7 @@ class MixerStrip extends StatelessWidget {
       children: [
         // Compact knob (no text label; tooltip + color say it's the volume).
         Tooltip(
-          message: 'Volumen ${(volume * 100).round()}% (arrastrá)',
+          message: context.l10n.mixerVolumeTooltip((volume * 100).round()),
           child: SizedBox(
             width: 32,
             height: 36,
@@ -51,7 +52,7 @@ class MixerStrip extends StatelessWidget {
         ),
         ToggleChipButton(
           label: 'M',
-          tooltip: 'Silenciar',
+          tooltip: context.l10n.mixerMute,
           active: isMuted,
           activeColor: AppColors.accentRed(context),
           activeTextColor: Colors.white,
@@ -59,7 +60,7 @@ class MixerStrip extends StatelessWidget {
         ),
         ToggleChipButton(
           label: 'S',
-          tooltip: 'Solo',
+          tooltip: context.l10n.mixerSolo,
           active: isSolo,
           activeColor: AppColors.primary(context),
           activeTextColor: Colors.black,

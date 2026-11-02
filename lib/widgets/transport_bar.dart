@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter, LengthLimitingTextInputFormatter;
 import 'package:metronomo_standalone/constants/app_colors.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/utils/bpm_scale.dart';
 
 /// Fixed bottom bar: Play/Stop, BPM display with ±1/±5 steppers and tempo
@@ -73,10 +74,10 @@ class TransportBar extends StatelessWidget {
               _stepper(context, -5),
               _stepper(context, -1),
               Tooltip(
-                message: 'Tocá para escribir el tempo',
+                message: context.l10n.transportTapToTypeTempo,
                 child: Semantics(
                   button: true,
-                  label: 'Tempo $bpm BPM. Tocá para escribirlo',
+                  label: context.l10n.transportTempoSemantics(bpm),
                   child: InkWell(
                     borderRadius: BorderRadius.circular(8),
                     onTap: () => _editBpm(context),
@@ -118,7 +119,9 @@ class TransportBar extends StatelessWidget {
   Widget _stepper(BuildContext context, int delta) {
     return _RepeatStepButton(
       label: delta > 0 ? '+$delta' : '$delta',
-      semanticLabel: '${delta > 0 ? 'Subir' : 'Bajar'} ${delta.abs()} BPM (mantené para repetir)',
+      semanticLabel: delta > 0
+          ? context.l10n.transportStepUp(delta.abs())
+          : context.l10n.transportStepDown(delta.abs()),
       onStep: () => onBpmChanged(bpm + delta),
     );
   }
@@ -137,7 +140,7 @@ class TransportBar extends StatelessWidget {
         }
 
         return AlertDialog(
-          title: const Text('Tempo'),
+          title: Text(ctx.l10n.transportTempoTitle),
           content: TextField(
             controller: controller,
             autofocus: true,
@@ -155,11 +158,11 @@ class TransportBar extends StatelessWidget {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('CANCELAR', style: TextStyle(color: AppColors.textSecondary(ctx))),
+              child: Text(ctx.l10n.commonCancel.toUpperCase(), style: TextStyle(color: AppColors.textSecondary(ctx))),
             ),
             TextButton(
               onPressed: submit,
-              child: Text('OK', style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold)),
+              child: Text(ctx.l10n.commonOk, style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -254,7 +257,7 @@ class PlayStopButton extends StatelessWidget {
     final color = isPlaying ? AppColors.accentRed(context) : AppColors.primary(context);
     return Semantics(
       button: true,
-      label: isPlaying ? 'Detener' : 'Reproducir',
+      label: isPlaying ? context.l10n.transportStop : context.l10n.transportPlay,
       child: GestureDetector(
         onTap: onTap,
         child: Container(
@@ -284,7 +287,7 @@ class TapTempoButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: 'Tap tempo',
+      label: context.l10n.transportTapTempo,
       child: GestureDetector(
         onTap: onTap,
         child: Container(
@@ -301,7 +304,7 @@ class TapTempoButton extends StatelessWidget {
               Icon(Icons.touch_app, color: AppColors.textPrimary(context), size: 20),
               const SizedBox(height: 1),
               Text(
-                "TAP",
+                context.l10n.transportTap,
                 style: TextStyle(
                   color: AppColors.textPrimary(context),
                   fontWeight: FontWeight.bold,

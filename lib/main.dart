@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 
 import 'package:metronomo_standalone/firebase_options.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/services/pwa_install_service.dart';
 import 'package:metronomo_standalone/services/deep_link_service.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
@@ -83,20 +84,31 @@ class MyApp extends StatelessWidget {
           return provider;
         }),
       ],
-      child: MaterialApp(
-        title: 'Metrónomo',
-        themeMode: ThemeMode.dark,
-        darkTheme: AppTheme.dark,
-        home: const HomeShell(),
-        debugShowCheckedModeBanner: false,
-        builder: (context, child) {
-          final settings = context.watch<SettingsProvider>();
-          final data = MediaQuery.of(context);
-          return MediaQuery(
-            data: data.copyWith(
-              textScaler: TextScaler.linear(settings.uiScale),
-            ),
-            child: child!,
+      child: Builder(
+        builder: (context) {
+          final locale = context.select<SettingsProvider, Locale?>((s) => s.locale);
+          return MaterialApp(
+            onGenerateTitle: (context) => context.l10n.appTitle,
+            locale: locale,
+            supportedLocales: kSupportedLocales,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localeListResolutionCallback: (deviceLocales, _) => resolveAppLocale(deviceLocales),
+            themeMode: ThemeMode.dark,
+            darkTheme: AppTheme.dark,
+            home: const HomeShell(),
+            debugShowCheckedModeBanner: false,
+            builder: (context, child) {
+              // Keep the context-free accessor in sync with the active locale.
+              L10n.current = context.l10n;
+              final settings = context.watch<SettingsProvider>();
+              final data = MediaQuery.of(context);
+              return MediaQuery(
+                data: data.copyWith(
+                  textScaler: TextScaler.linear(settings.uiScale),
+                ),
+                child: child!,
+              );
+            },
           );
         },
       ),

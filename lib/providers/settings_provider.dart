@@ -21,6 +21,7 @@ class SettingsProvider extends ChangeNotifier {
   static const String _prefKeyTrainingInterval = 'settings_training_interval';
   static const String _prefKeyTrainingRepetitions = 'settings_training_reps';
   static const String _prefKeyUiScale = 'settings_ui_scale';
+  static const String _prefKeyLanguage = 'settings_language';
 
   // ─────────────────────────────────────────────────────
   //  Available Options
@@ -68,6 +69,13 @@ class SettingsProvider extends ChangeNotifier {
   double _uiScale = 1.0;
   double get uiScale => _uiScale;
 
+  /// UI language code ('es', 'en') or null to follow the system language.
+  String? _languageCode;
+  String? get languageCode => _languageCode;
+
+  /// Locale forced by the user, or null to follow the system.
+  Locale? get locale => _languageCode == null ? null : Locale(_languageCode!);
+
   // ─────────────────────────────────────────────────────
   //  Persistence
   // ─────────────────────────────────────────────────────
@@ -89,6 +97,7 @@ class SettingsProvider extends ChangeNotifier {
     _trainingIntervalSeconds = prefs.getInt(_prefKeyTrainingInterval) ?? 60;
     _trainingRepetitions = prefs.getInt(_prefKeyTrainingRepetitions) ?? 1;
     _uiScale = prefs.getDouble(_prefKeyUiScale) ?? 1.0;
+    _languageCode = prefs.getString(_prefKeyLanguage);
 
     if (_keepScreenOn) {
       WakelockPlus.enable();
@@ -114,6 +123,11 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setInt(_prefKeyTrainingInterval, _trainingIntervalSeconds);
     await prefs.setInt(_prefKeyTrainingRepetitions, _trainingRepetitions);
     await prefs.setDouble(_prefKeyUiScale, _uiScale);
+    if (_languageCode == null) {
+      await prefs.remove(_prefKeyLanguage);
+    } else {
+      await prefs.setString(_prefKeyLanguage, _languageCode!);
+    }
   }
 
   // ─────────────────────────────────────────────────────
@@ -184,6 +198,13 @@ class SettingsProvider extends ChangeNotifier {
 
   void updateUiScale(double scale) {
     _uiScale = scale.clamp(0.8, 1.5);
+    notifyListeners();
+    _saveSettings();
+  }
+
+  /// Sets the UI language ('es', 'en') or null to follow the system.
+  void updateLanguage(String? code) {
+    _languageCode = code;
     notifyListeners();
     _saveSettings();
   }

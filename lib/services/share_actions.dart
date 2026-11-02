@@ -7,14 +7,15 @@ import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
 import 'package:metronomo_standalone/providers/session_provider.dart';
 import 'package:metronomo_standalone/services/deep_link_service.dart';
 import 'package:metronomo_standalone/widgets/share_sheet.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 
 /// Share flows used from several screens (Tocar, Biblioteca).
 
 void sharePattern(BuildContext context, Pattern pattern) {
   showShareSheet(
     context,
-    heading: 'Compartir patrón',
-    subtitle: '«${pattern.name}» · ${pattern.structure}',
+    heading: context.l10n.shareHeadingPattern,
+    subtitle: context.l10n.shareSubtitlePattern(pattern.name, pattern.structure),
     createLink: () => DeepLinkService().createPatternLink(pattern),
   );
 }
@@ -23,8 +24,9 @@ void shareSession(BuildContext context, Session session) {
   final patProvider = context.read<PatternEditorProvider>();
   showShareSheet(
     context,
-    heading: 'Compartir sesión',
-    subtitle: '«${session.name}» · ${session.globalBpm} BPM · ${session.patternsConfig.length} patrones',
+    heading: context.l10n.shareHeadingSession,
+    subtitle: context.l10n.shareSubtitleSession(
+        session.name, session.globalBpm, session.patternsConfig.length),
     createLink: () async {
       // Patterns are embedded in the session; legacy sessions fall back to
       // the library. The list is still sent for older app versions.
@@ -40,8 +42,8 @@ void sharePlaylist(BuildContext context, Playlist playlist) {
   final patProvider = context.read<PatternEditorProvider>();
   showShareSheet(
     context,
-    heading: 'Compartir playlist',
-    subtitle: '«${playlist.name}» · ${playlist.sessionIds.length} sesiones',
+    heading: context.l10n.shareHeadingPlaylist,
+    subtitle: context.l10n.shareSubtitlePlaylist(playlist.name, playlist.sessionIds.length),
     createLink: () async {
       await sessionProvider.ensureLoaded;
       await patProvider.ensureLoaded;

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/version_check_service.dart';
@@ -55,6 +56,18 @@ class _UpdateRequiredScreenState extends State<UpdateRequiredScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      supportedLocales: kSupportedLocales,
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localeListResolutionCallback: (locales, _) => resolveAppLocale(locales),
+      // Builder so `context.l10n` resolves below the MaterialApp.
+      home: Builder(builder: _buildScaffold),
+    );
+  }
+
+  Widget _buildScaffold(BuildContext context) {
+    final l10n = context.l10n;
     // Constants matching Metrónomo's palette (no BuildContext-dependent
     // colors because this screen is outside the themed MaterialApp).
     const background = Color(0xFF1E1A17);
@@ -63,149 +76,152 @@ class _UpdateRequiredScreenState extends State<UpdateRequiredScreen> {
     const textPrimary = Color(0xFFF2EBE5);
     const textSecondary = Color(0xFFBCAAA4);
 
-    final message = widget.result.updateMessage ??
-        'Hay una nueva versión disponible.\nActualizá para seguir usando Metrónomo.';
+    final message = widget.result.updateMessage ?? l10n.updateDefaultMessage;
 
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      home: Scaffold(
-        backgroundColor: background,
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // ── Icon ──
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: surface,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: const Icon(
-                    Icons.system_update_rounded,
-                    color: primary,
-                    size: 44,
-                  ),
+    return Scaffold(
+      backgroundColor: background,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // ── Icon ──
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: surface,
+                  borderRadius: BorderRadius.circular(20),
                 ),
-
-                const SizedBox(height: 28),
-
-                // ── Title ──
-                const Text(
-                  'Actualización Necesaria',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: textPrimary,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
-                  ),
+                child: const Icon(
+                  Icons.system_update_rounded,
+                  color: primary,
+                  size: 44,
                 ),
+              ),
 
-                const SizedBox(height: 16),
+              const SizedBox(height: 28),
 
-                // ── Message ──
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    color: textSecondary,
-                    fontSize: 15,
-                    height: 1.5,
-                  ),
+              // ── Title ──
+              Text(
+                l10n.updateRequiredTitle,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: textPrimary,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
                 ),
+              ),
 
-                const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
-                // ── Version info ──
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: surface,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        'v${widget.result.currentVersion}',
-                        style: const TextStyle(
-                          color: textSecondary,
-                          fontSize: 14,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 10),
-                        child: Icon(Icons.arrow_forward_rounded,
-                            color: primary, size: 18),
-                      ),
-                      Text(
-                        'v${widget.result.minVersion}',
-                        style: const TextStyle(
-                          color: primary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                    ],
-                  ),
+              // ── Message ──
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: textSecondary,
+                  fontSize: 15,
+                  height: 1.5,
                 ),
+              ),
 
-                const SizedBox(height: 32),
+              const SizedBox(height: 20),
 
-                // ── Action area ──
-                if (kIsWeb || _isUpdating)
-                  // Web: auto-updating with progress indicator
-                  const Column(
-                    children: [
-                      SizedBox(
-                        width: 36,
-                        height: 36,
-                        child: CircularProgressIndicator(
-                          color: primary,
-                          strokeWidth: 3,
-                        ),
+              // ── Version info ──
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: surface,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'v${widget.result.currentVersion}',
+                      style: const TextStyle(
+                        color: textSecondary,
+                        fontSize: 14,
+                        fontFamily: 'monospace',
                       ),
-                      SizedBox(height: 14),
-                      Text(
-                        'Descargando actualización…',
-                        style: TextStyle(
-                          color: textSecondary,
-                          fontSize: 14,
-                        ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 10),
+                      child: Icon(
+                        Icons.arrow_forward_rounded,
+                        color: primary,
+                        size: 18,
                       ),
-                    ],
-                  )
-                else
-                  // Mobile/desktop: button to open the store
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton.icon(
-                      onPressed: _openStore,
-                      icon: const Icon(Icons.download_rounded),
-                      label: const Text(
-                        'Actualizar',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                    Text(
+                      'v${widget.result.minVersion}',
+                      style: const TextStyle(
+                        color: primary,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'monospace',
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: primary,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 32),
+
+              // ── Action area ──
+              if (kIsWeb || _isUpdating)
+                // Web: auto-updating with progress indicator
+                Column(
+                  children: [
+                    const SizedBox(
+                      width: 36,
+                      height: 36,
+                      child: CircularProgressIndicator(
+                        color: primary,
+                        strokeWidth: 3,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      l10n.updateDownloading,
+                      style: const TextStyle(
+                        color: textSecondary,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                )
+              else
+                // Mobile/desktop: button to open the store
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: _openStore,
+                    icon: const Icon(Icons.download_rounded),
+                    label: Text(
+                      l10n.updateButton,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: primary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
                       ),
                     ),
                   ),
-              ],
-            ),
+                ),
+            ],
           ),
         ),
       ),

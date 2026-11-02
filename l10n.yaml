@@ -1,0 +1,8 @@
+# Localization config (flutter gen-l10n).
+# Source strings live in lib/l10n/app_<locale>.arb; Spanish is the template.
+# Code is generated into lib/l10n/ on `flutter pub get` / `flutter run`.
+arb-dir: lib/l10n
+template-arb-file: app_es.arb
+output-localization-file: app_localizations.dart
+output-class: AppLocalizations
+nullable-getter: false

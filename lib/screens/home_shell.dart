@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/models/pattern_model.dart';
 import 'package:metronomo_standalone/models/session_model.dart';
 import 'package:metronomo_standalone/screens/library_screen.dart';
@@ -55,14 +56,18 @@ class _HomeShellState extends State<HomeShell> {
     await _metronomeKey.currentState?.newSession();
   }
 
-  static const _destinations = [
-    (icon: Icons.graphic_eq_outlined, selected: Icons.graphic_eq_rounded, label: 'Tocar'),
-    (icon: Icons.library_music_outlined, selected: Icons.library_music_rounded, label: 'Biblioteca'),
-    (icon: Icons.settings_outlined, selected: Icons.settings_rounded, label: 'Ajustes'),
-  ];
+  static List<({IconData icon, IconData selected, String label})> _destinationsFor(
+    AppLocalizations l10n,
+  ) =>
+      [
+        (icon: Icons.graphic_eq_outlined, selected: Icons.graphic_eq_rounded, label: l10n.homeTabPlay),
+        (icon: Icons.library_music_outlined, selected: Icons.library_music_rounded, label: l10n.homeTabLibrary),
+        (icon: Icons.settings_outlined, selected: Icons.settings_rounded, label: l10n.homeTabSettings),
+      ];
 
   @override
   Widget build(BuildContext context) {
+    final destinations = _destinationsFor(context.l10n);
     final body = IndexedStack(
       index: _index,
       children: [
@@ -105,7 +110,7 @@ class _HomeShellState extends State<HomeShell> {
                     selectedLabelTextStyle: TextStyle(color: AppColors.primary(context), fontWeight: FontWeight.bold),
                     unselectedLabelTextStyle: TextStyle(color: AppColors.textSecondary(context)),
                     destinations: [
-                      for (final d in _destinations)
+                      for (final d in destinations)
                         NavigationRailDestination(
                           icon: Icon(d.icon),
                           selectedIcon: Icon(d.selected),
@@ -128,7 +133,7 @@ class _HomeShellState extends State<HomeShell> {
                 indicatorColor: AppColors.primary(context).withOpacity(0.2),
                 labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
                 destinations: [
-                  for (final d in _destinations)
+                  for (final d in destinations)
                     NavigationDestination(
                       icon: Icon(d.icon, color: AppColors.textSecondary(context)),
                       selectedIcon: Icon(d.selected, color: AppColors.primary(context)),

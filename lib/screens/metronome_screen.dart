@@ -3,6 +3,7 @@ import 'package:flutter/services.dart' show HapticFeedback, HardwareKeyboard, Ke
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/widgets/undo_snackbar.dart';
 import 'package:metronomo_standalone/services/share_actions.dart';
 import 'package:metronomo_standalone/audio/click_synth.dart';
@@ -72,7 +73,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
   void addPatternFromLibrary(Pattern pattern) {
     context.read<MetronomeProvider>().loadPattern(pattern);
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('«${pattern.name}» agregado a la sesión'), duration: const Duration(seconds: 2)),
+      SnackBar(content: Text(context.l10n.metronomePatternAddedToSession(pattern.name)), duration: const Duration(seconds: 2)),
     );
   }
 
@@ -171,7 +172,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
               ),
             ),
             const SizedBox(width: 12),
-            Text('Abriendo link compartido...', style: TextStyle(color: AppColors.textPrimary(context))),
+            Text(context.l10n.metronomeOpeningSharedLink, style: TextStyle(color: AppColors.textPrimary(context))),
           ],
         ),
         backgroundColor: AppColors.surfaceHighlight(context),
@@ -184,7 +185,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
     messenger.hideCurrentSnackBar();
 
     if (bundle == null) {
-      _showErrorSnack('El enlace compartido no es válido o ha expirado.');
+      _showErrorSnack(context.l10n.metronomeShareInvalid);
       return;
     }
 
@@ -197,7 +198,8 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
       ).import(bundle);
     } catch (e) {
       debugPrint('Share import error: $e');
-      _showErrorSnack('No se pudo importar el contenido compartido.');
+      if (!mounted) return;
+      _showErrorSnack(context.l10n.metronomeShareImportFailed);
       return;
     }
     if (!mounted) return;
@@ -225,36 +227,36 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
 
   /// "Added to your library — open now?" dialog.
   Future<bool?> _askOpenImported(ShareImportResult r) {
-    final (label, icon) = switch (r.type) {
-      SharedType.pattern => ('Patrón', Icons.graphic_eq_rounded),
-      SharedType.session => ('Sesión', Icons.library_music_rounded),
-      SharedType.playlist => ('Playlist', Icons.queue_music_rounded),
-    };
-    final details = switch (r.type) {
-      SharedType.pattern => '',
-      SharedType.session => ' (${r.patternCount} patrones)',
-      SharedType.playlist => ' (${r.sessionCount} sesiones, ${r.patternCount} patrones)',
+    final l10n = context.l10n;
+    final (title, icon) = switch (r.type) {
+      SharedType.pattern => (l10n.metronomeReceivedPattern, Icons.graphic_eq_rounded),
+      SharedType.session => (l10n.metronomeReceivedSession, Icons.library_music_rounded),
+      SharedType.playlist => (l10n.metronomeReceivedPlaylist, Icons.queue_music_rounded),
     };
     final status = r.alreadyInLibrary
-        ? 'Ya estaba en tu biblioteca.'
-        : 'Se agregó a tu biblioteca$details.';
+        ? l10n.metronomeImportAlreadyInLibrary
+        : switch (r.type) {
+            SharedType.pattern => l10n.metronomeImportAddedPattern,
+            SharedType.session => l10n.metronomeImportAddedSession(r.patternCount),
+            SharedType.playlist => l10n.metronomeImportAddedPlaylist(r.sessionCount, r.patternCount),
+          };
 
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         icon: Icon(icon, color: AppColors.primary(ctx)),
-        title: Text('$label recibido'),
-        content: Text('«${r.name}»\n$status\n\n¿Querés abrirlo ahora?',
+        title: Text(title),
+        content: Text(l10n.metronomeImportOpenPrompt(r.name, status),
             textAlign: TextAlign.center,
             style: TextStyle(color: AppColors.textSecondary(ctx))),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('SOLO GUARDAR', style: TextStyle(color: AppColors.textSecondary(ctx))),
+            child: Text(l10n.metronomeImportSaveOnly, style: TextStyle(color: AppColors.textSecondary(ctx))),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text('ABRIR', style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold)),
+            child: Text(l10n.metronomeImportOpen, style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -267,24 +269,25 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
     final metronome = context.read<MetronomeProvider>();
     if (!metronome.isSessionDirty) return true;
 
-    final name = metronome.activeSessionName ?? 'Sin Título';
+    final l10n = context.l10n;
+    final name = metronome.activeSessionName ?? l10n.metronomeUntitled;
     final choice = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('Cambios sin guardar'),
-        content: Text('La sesión «$name» tiene cambios sin guardar. ¿Qué querés hacer antes de continuar?'),
+        title: Text(l10n.metronomeUnsavedTitle),
+        content: Text(l10n.metronomeUnsavedMessage(name)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, 'cancel'),
-            child: Text('CANCELAR', style: TextStyle(color: AppColors.textSecondary(ctx))),
+            child: Text(l10n.commonCancel.toUpperCase(), style: TextStyle(color: AppColors.textSecondary(ctx))),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, 'discard'),
-            child: Text('DESCARTAR', style: TextStyle(color: AppColors.accentRed(ctx))),
+            child: Text(l10n.metronomeDiscard, style: TextStyle(color: AppColors.accentRed(ctx))),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, 'save'),
-            child: Text('GUARDAR', style: TextStyle(color: AppColors.accentGreen(ctx), fontWeight: FontWeight.bold)),
+            child: Text(l10n.commonSave.toUpperCase(), style: TextStyle(color: AppColors.accentGreen(ctx), fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -334,7 +337,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
       case _SessionMenu.share:
         // Shares what's on screen (saved or not).
         final session = metronome.createSession(
-          metronome.activeSessionName ?? 'Sesión',
+          metronome.activeSessionName ?? context.l10n.metronomeDefaultSessionName,
           '',
           settings,
         );
@@ -356,7 +359,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
     context.read<MetronomeProvider>().clearSession();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Sesión nueva'),
+        content: Text(context.l10n.metronomeNewSessionSnack),
         duration: const Duration(seconds: 1),
       ),
     );
@@ -376,7 +379,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
 
     showUndoSnackBar(
       context,
-      message: '«${instance.title}» quitado de la sesión',
+      message: context.l10n.metronomePatternRemoved(instance.title),
       onUndo: () => metronome.restoreInstance(instance, index),
     );
   }
@@ -633,12 +636,12 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
     final messenger = ScaffoldMessenger.of(context);
     messenger.hideCurrentSnackBar();
     messenger.showSnackBar(SnackBar(
-      content: Text('«${session.name}» guardada'),
+      content: Text(context.l10n.metronomeSessionSaved(session.name)),
       duration: const Duration(seconds: 3),
       persist: false,
       action: offerUndo
           ? SnackBarAction(
-              label: 'DESHACER',
+              label: context.l10n.commonUndo.toUpperCase(),
               onPressed: () async {
                 // Restore the previous version in the library; the current
                 // work stays on screen, marked as unsaved again.
@@ -663,7 +666,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
     metronome.markSessionClean(session.id, session.name);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('«${session.name}» guardada')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.metronomeSessionSaved(session.name))));
     }
     return true;
   }
@@ -693,7 +696,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
         }
 
         return AlertDialog(
-          title: const Text("Guardar Sesión"),
+          title: Text(ctx.l10n.metronomeSaveSessionTitle),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -703,7 +706,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
                 textInputAction: TextInputAction.next,
                 style: TextStyle(color: AppColors.textPrimary(ctx)),
                 decoration: InputDecoration(
-                  labelText: "Nombre de la Sesión",
+                  labelText: ctx.l10n.metronomeSessionNameLabel,
                   labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
                   enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.border(ctx))),
                   focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary(ctx))),
@@ -715,7 +718,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
                 onSubmitted: (_) => submit(),
                 style: TextStyle(color: AppColors.textPrimary(ctx)),
                 decoration: InputDecoration(
-                  labelText: "Descripción (opcional)",
+                  labelText: ctx.l10n.metronomeDescriptionLabel,
                   labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
                   enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.border(ctx))),
                   focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary(ctx))),
@@ -726,11 +729,11 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text("CANCELAR", style: TextStyle(color: AppColors.textSecondary(ctx))),
+              child: Text(ctx.l10n.commonCancel.toUpperCase(), style: TextStyle(color: AppColors.textSecondary(ctx))),
             ),
             TextButton(
               onPressed: submit,
-              child: Text("GUARDAR", style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold)),
+              child: Text(ctx.l10n.commonSave.toUpperCase(), style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -760,11 +763,11 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
                 children: [
                    Padding(
                      padding: const EdgeInsets.all(16.0),
-                     child: Text("Cargar Sesión", style: TextStyle(color: AppColors.textPrimary(ctx), fontSize: 18, fontWeight: FontWeight.bold)),
+                     child: Text(ctx.l10n.metronomeLoadSessionTitle, style: TextStyle(color: AppColors.textPrimary(ctx), fontSize: 18, fontWeight: FontWeight.bold)),
                    ),
                    if (deleted != null)
                      UndoStrip(
-                       message: '«${deleted.$1.name}» eliminada',
+                       message: ctx.l10n.metronomeSessionDeleted(deleted.$1.name),
                        onUndo: () async {
                          await sessionProvider.restoreSession(deleted.$1, deleted.$2);
                          setSheetState(() => lastDeleted = null);
@@ -773,7 +776,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
                    if (sessions.isEmpty)
                       Padding(
                         padding: const EdgeInsets.all(32.0),
-                        child: Text("No hay sesiones guardadas.", style: TextStyle(color: AppColors.textSecondary(ctx))),
+                        child: Text(ctx.l10n.metronomeNoSessions, style: TextStyle(color: AppColors.textSecondary(ctx))),
                       )
                    else
                       Expanded(
@@ -783,13 +786,13 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
                             final session = sessions[index];
                             return ListTile(
                               title: Text(session.name, style: TextStyle(color: AppColors.textPrimary(ctx), fontWeight: FontWeight.bold)),
-                              subtitle: Text("${session.globalBpm} BPM • ${session.patternsConfig.length} pistas", style: TextStyle(color: AppColors.textSecondary(ctx))),
+                              subtitle: Text(ctx.l10n.metronomeSessionSubtitle(session.globalBpm, session.patternsConfig.length), style: TextStyle(color: AppColors.textSecondary(ctx))),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   IconButton(
                                     icon: Icon(Icons.share_outlined, color: AppColors.textSecondary(ctx)),
-                                    tooltip: 'Compartir sesión',
+                                    tooltip: ctx.l10n.metronomeShareSession,
                                     onPressed: () {
                                       Navigator.pop(ctx);
                                       _shareSession(session);
@@ -798,12 +801,12 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
                                   const SizedBox(width: 4),
                                   IconButton(
                                     icon: Icon(Icons.delete_outline, color: AppColors.accentRed(ctx)),
-                                    tooltip: 'Eliminar sesión',
+                                    tooltip: ctx.l10n.metronomeDeleteSession,
                                     onPressed: () async {
                                       final ok = await confirmDelete(
                                         ctx,
-                                        title: 'Eliminar sesión',
-                                        message: '¿Eliminar «${session.name}» de tu biblioteca?',
+                                        title: ctx.l10n.metronomeDeleteSession,
+                                        message: ctx.l10n.metronomeDeleteSessionConfirm(session.name),
                                       );
                                       if (!ok) return;
                                       final removed = await sessionProvider.deleteSession(session.id);
@@ -853,11 +856,11 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
                 children: [
                    Padding(
                      padding: const EdgeInsets.all(16.0),
-                     child: Text("Cargar Patrón", style: TextStyle(color: AppColors.textPrimary(ctx), fontSize: 18, fontWeight: FontWeight.bold)),
+                     child: Text(ctx.l10n.metronomeLoadPatternTitle, style: TextStyle(color: AppColors.textPrimary(ctx), fontSize: 18, fontWeight: FontWeight.bold)),
                    ),
                    if (deleted != null)
                      UndoStrip(
-                       message: '«${deleted.$1.name}» eliminado de la librería',
+                       message: ctx.l10n.metronomePatternDeletedFromLibrary(deleted.$1.name),
                        onUndo: () async {
                          await patProvider.restorePattern(deleted.$1, deleted.$2);
                          setSheetState(() => lastDeleted = null);
@@ -866,7 +869,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
                    if (patterns.isEmpty)
                       Padding(
                         padding: const EdgeInsets.all(32.0),
-                        child: Text("No hay patrones en la librería.", style: TextStyle(color: AppColors.textSecondary(ctx))),
+                        child: Text(ctx.l10n.metronomeNoPatterns, style: TextStyle(color: AppColors.textSecondary(ctx))),
                       )
                    else
                       Expanded(
@@ -876,13 +879,13 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
                             final pat = patterns[index];
                             return ListTile(
                               title: Text(pat.name, style: TextStyle(color: AppColors.textPrimary(ctx), fontWeight: FontWeight.bold)),
-                              subtitle: Text("Estructura: ${pat.structure}", style: TextStyle(color: AppColors.textSecondary(ctx))),
+                              subtitle: Text(ctx.l10n.metronomeStructureLabel(pat.structure), style: TextStyle(color: AppColors.textSecondary(ctx))),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
                                   IconButton(
                                     icon: Icon(Icons.share_outlined, color: AppColors.textSecondary(ctx)),
-                                    tooltip: 'Compartir patrón',
+                                    tooltip: ctx.l10n.metronomeSharePattern,
                                     onPressed: () {
                                       Navigator.pop(ctx);
                                       _sharePattern(pat);
@@ -891,7 +894,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
                                   const SizedBox(width: 4),
                                   IconButton(
                                     icon: Icon(Icons.delete_outline, color: AppColors.accentRed(ctx)),
-                                    tooltip: 'Eliminar patrón de la librería',
+                                    tooltip: ctx.l10n.metronomeDeletePatternFromLibrary,
                                     onPressed: () async {
                                       // Safety net: make sure no legacy session still depends on it.
                                       await ctx.read<SessionProvider>().embedMissingPatterns(patProvider.getPatternById);
@@ -930,9 +933,9 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
             if (metronome.activeSessionName != null) {
               titleText = "${metronome.activeSessionName}${metronome.isSessionDirty ? '*' : ''}";
             } else if (metronome.isSessionDirty) {
-              titleText = "Sin Título *";
+              titleText = "${context.l10n.metronomeUntitled} *";
             } else {
-              titleText = "METRÓNOMO";
+              titleText = context.l10n.metronomeTitle;
             }
             return Text(
               titleText, 
@@ -950,22 +953,22 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
           IconButton(
             icon: Icon(Icons.save_rounded, color: AppColors.textSecondary(context)),
             onPressed: _saveSession,
-            tooltip: "Guardar sesión",
+            tooltip: context.l10n.metronomeSaveSessionTooltip,
           ),
           PopupMenuButton<_SessionMenu>(
             icon: Icon(Icons.more_vert_rounded, color: AppColors.textSecondary(context)),
-            tooltip: 'Más opciones',
+            tooltip: context.l10n.metronomeMoreOptions,
             onSelected: _onSessionMenu,
             itemBuilder: (_) => [
-              _menuItem(_SessionMenu.newSession, Icons.add_circle_outline, 'Nueva sesión'),
-              _menuItem(_SessionMenu.open, Icons.folder_open_rounded, 'Abrir sesión…'),
-              _menuItem(_SessionMenu.saveAs, Icons.save_as_rounded, 'Guardar como…'),
-              _menuItem(_SessionMenu.share, Icons.share_outlined, 'Compartir sesión'),
+              _menuItem(_SessionMenu.newSession, Icons.add_circle_outline, context.l10n.metronomeMenuNewSession),
+              _menuItem(_SessionMenu.open, Icons.folder_open_rounded, context.l10n.metronomeMenuOpenSession),
+              _menuItem(_SessionMenu.saveAs, Icons.save_as_rounded, context.l10n.metronomeMenuSaveAs),
+              _menuItem(_SessionMenu.share, Icons.share_outlined, context.l10n.metronomeShareSession),
               // Standalone only: in HomeShell these live in the bottom bar.
               if (widget.onOpenLibrary == null) ...[
                 const PopupMenuDivider(),
-                _menuItem(_SessionMenu.playlists, Icons.queue_music_rounded, 'Playlists'),
-                _menuItem(_SessionMenu.settings, Icons.settings_rounded, 'Ajustes'),
+                _menuItem(_SessionMenu.playlists, Icons.queue_music_rounded, context.l10n.metronomeMenuPlaylists),
+                _menuItem(_SessionMenu.settings, Icons.settings_rounded, context.l10n.metronomeMenuSettings),
               ],
             ],
           ),
@@ -1082,10 +1085,10 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
             Expanded(
               child: ElevatedButton.icon(
                 onPressed: () {
-                  metronome.addInstance(title: "Patrón ${metronome.instances.length + 1}");
+                  metronome.addInstance(title: context.l10n.metronomeDefaultPatternName(metronome.instances.length + 1));
                 },
                 icon: const Icon(Icons.add),
-                label: const Text("AÑADIR"),
+                label: Text(context.l10n.metronomeAdd),
                 style: _addButtonStyle(context),
               ),
             ),
@@ -1096,7 +1099,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
                   _showLoadPatternDialog(context, metronome);
                 },
                 icon: const Icon(Icons.library_music),
-                label: const Text("LIBRERÍA"),
+                label: Text(context.l10n.metronomeLibrary),
                 style: _addButtonStyle(context),
               ),
             ),
@@ -1206,7 +1209,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
       accent: accent,
       // Title (tap to rename)
       title: Tooltip(
-        message: 'Tocá para renombrar',
+        message: context.l10n.metronomeTapToRename,
         child: InkWell(
           borderRadius: BorderRadius.circular(4),
           onTap: () => _renameInstance(instance),
@@ -1290,17 +1293,17 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
       menu: SizedBox(
         width: 32,
         child: PopupMenuButton<_PatternMenu>(
-          tooltip: 'Opciones del patrón',
+          tooltip: context.l10n.metronomePatternOptions,
           padding: EdgeInsets.zero,
           icon: Icon(Icons.more_vert_rounded, color: AppColors.textSecondary(context)),
           onSelected: (action) => _onPatternMenu(action, instance, onRemove),
           itemBuilder: (_) => [
-            _menuItem(_PatternMenu.rename, Icons.edit_outlined, 'Renombrar'),
-            _menuItem(_PatternMenu.saveToLibrary, Icons.library_add_outlined, 'Guardar en la librería'),
-            _menuItem(_PatternMenu.share, Icons.share_outlined, 'Compartir patrón'),
-            _menuItem(_PatternMenu.duplicate, Icons.copy_rounded, 'Duplicar'),
+            _menuItem(_PatternMenu.rename, Icons.edit_outlined, context.l10n.commonRename),
+            _menuItem(_PatternMenu.saveToLibrary, Icons.library_add_outlined, context.l10n.metronomeSaveToLibrary),
+            _menuItem(_PatternMenu.share, Icons.share_outlined, context.l10n.metronomeSharePattern),
+            _menuItem(_PatternMenu.duplicate, Icons.copy_rounded, context.l10n.metronomeDuplicate),
             const PopupMenuDivider(),
-            _menuItem(_PatternMenu.remove, Icons.close_rounded, 'Quitar de la sesión', color: AppColors.accentRed(context)),
+            _menuItem(_PatternMenu.remove, Icons.close_rounded, context.l10n.metronomeRemoveFromSession, color: AppColors.accentRed(context)),
           ],
         ),
       ),
@@ -1357,13 +1360,13 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
         }
 
         return AlertDialog(
-          title: const Text('Renombrar patrón'),
+          title: Text(ctx.l10n.metronomeRenamePatternTitle),
           content: TextField(
             controller: controller,
             autofocus: true,
             style: TextStyle(color: AppColors.textPrimary(ctx)),
             decoration: InputDecoration(
-              labelText: 'Nombre',
+              labelText: ctx.l10n.commonName,
               labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
               focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary(ctx))),
             ),
@@ -1372,11 +1375,11 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: Text('CANCELAR', style: TextStyle(color: AppColors.textSecondary(ctx))),
+              child: Text(ctx.l10n.commonCancel.toUpperCase(), style: TextStyle(color: AppColors.textSecondary(ctx))),
             ),
             TextButton(
               onPressed: submit,
-              child: Text('OK', style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold)),
+              child: Text(ctx.l10n.commonOk, style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold)),
             ),
           ],
         );
@@ -1401,7 +1404,9 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(existed ? '«${pat.name}» actualizado en la librería' : '«${pat.name}» guardado en la librería'),
+          content: Text(existed
+              ? context.l10n.metronomePatternUpdatedInLibrary(pat.name)
+              : context.l10n.metronomePatternSavedToLibrary(pat.name)),
           duration: const Duration(seconds: 2),
         ),
       );
@@ -1411,22 +1416,23 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
   /// Per-pattern sound set selector ("Global" = follows the sound chosen in Settings).
   Widget _buildInstanceSoundSelector(BuildContext context, HomeMetronomeInstance instance) {
     final metronome = context.read<MetronomeProvider>();
+    final l10n = context.l10n;
     final hasOverride = instance.soundSet != null;
-    final label = metronome.effectiveSoundSet(instance);
+    final label = soundSetLabel(l10n, metronome.effectiveSoundSet(instance));
     const globalValue = '__global__';
     final accent = AppColors.primary(context);
 
     return PopupMenuButton<String>(
-      tooltip: hasOverride ? 'Sonido del patrón: $label' : 'Sonido: $label (global)',
+      tooltip: hasOverride ? l10n.metronomePatternSoundTooltip(label) : l10n.metronomeGlobalSoundTooltip(label),
       initialValue: instance.soundSet ?? globalValue,
       onSelected: (val) => metronome.updateInstanceSoundSet(instance.id, val == globalValue ? null : val),
       itemBuilder: (_) => [
         PopupMenuItem(
           value: globalValue,
-          child: Text('Global (${metronome.currentSoundSet})'),
+          child: Text(l10n.metronomeSoundGlobal(soundSetLabel(l10n, metronome.currentSoundSet))),
         ),
         const PopupMenuDivider(),
-        ...ClickSynth.soundSets.map((s) => PopupMenuItem(value: s, child: Text(s))),
+        ...ClickSynth.soundSets.map((s) => PopupMenuItem(value: s, child: Text(soundSetLabel(l10n, s)))),
       ],
       // Compact: icon only (highlighted when the pattern has its own sound);
       // the sound name is in the tooltip and the menu.
@@ -1571,7 +1577,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
-                hintText: "Ej. 3+2",
+                hintText: context.l10n.metronomeStructureHint,
                 hintStyle: TextStyle(
                   color: AppColors.textSecondary(context).withOpacity(0.5),
                 ),

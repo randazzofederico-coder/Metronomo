@@ -71,6 +71,16 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Mantener Pantalla Encendida** — Activada por defecto. Integración nativa con `wakelock_plus` para evitar bloqueos del dispositivo durante ensayos y prácticas
 - **Storage persistente** — Guardado automático de configuraciones, sets y patrones vía `shared_preferences`
 
+### 🌍 Idiomas (i18n)
+- **Español e inglés** — Toda la interfaz está localizada con el sistema oficial de Flutter (`flutter_localizations` + `intl`, `flutter gen-l10n`). Los textos viven en `lib/l10n/app_es.arb` (plantilla) y `lib/l10n/app_en.arb`
+- **Idioma automático** — Al abrir la app se usa el idioma del sistema/navegador: español para cualquier `es_*`, inglés para cualquier otro idioma (fallback)
+- **Selector en Ajustes** — Sección *Idioma*: *Idioma del sistema* / *Español* / *English*. Se guarda en `SettingsProvider` (`settings_language`; sin valor = seguir al sistema)
+- **Uso en código** — En widgets `context.l10n.clave`; en providers/servicios sin `BuildContext`, `L10n.current` (se sincroniza desde el `builder` del `MaterialApp`). Plurales y variables con formato ICU
+- **Datos persistidos no se traducen** — Los IDs de los sets de sonido siguen en español (`'Clásico'`, `'Madera'`…) porque se guardan en preferencias, sesiones y links compartidos; solo se traduce la etiqueta (`soundSetLabel`). Los nombres por defecto (ej. *Patrón 1*) se crean en el idioma activo y luego quedan como dato del usuario
+- **Nombre de la app** — Android: *Metronome* (default) / *Metrónomo* (`values-es`). En web el título de la pestaña sigue el idioma (`onGenerateTitle`)
+- **Test de paridad** — `test/l10n_test.dart` verifica que todos los idiomas tengan las mismas claves y placeholders que la plantilla
+- **Agregar un idioma** — Crear `lib/l10n/app_xx.arb` con las mismas claves, sumar `Locale('xx')` a `kSupportedLocales` (`lib/l10n/l10n.dart`) y la opción al selector de Ajustes
+
 ### ☁️ Cloud & Autenticación
 - **Firebase Auth** — Sistema de autenticación integrado con Google Sign-In y Email/Password
 - **Sincronización Multiplataforma** — Los usuarios comparten la misma cuenta en las versiones Web, Android e iOS
@@ -176,6 +186,11 @@ lib/
 ├── firebase_options.dart              # Configuración Firebase auto-generada
 ├── audio/
 │   └── click_synth.dart               # Sintetizador procedural de los 7 sets de sonidos (biquads RBJ, modal, 808)
+├── l10n/
+│   ├── app_es.arb                     # Textos en español (plantilla de traducciones)
+│   ├── app_en.arb                     # Textos en inglés
+│   ├── app_localizations*.dart        # Generado por `flutter gen-l10n` (no editar a mano)
+│   └── l10n.dart                      # context.l10n, L10n.current, locales soportados, resolución de idioma, soundSetLabel
 ├── constants/
 │   └── app_colors.dart                # Paleta de colores (solo tema oscuro) + intensidad de eventos por volumen
 ├── models/
@@ -185,7 +200,7 @@ lib/
 │   └── permission_cache.dart          # Cache de permisos para acceso offline (30 días TTL)
 ├── providers/
 │   ├── metronome_provider.dart        # Estado global, parser de estructuras, tap tempo, macro ciclo
-│   ├── settings_provider.dart         # Configuración persistente + cache de permisos offline
+│   ├── settings_provider.dart         # Configuración persistente (incl. idioma) + cache de permisos offline
 │   ├── pattern_editor_provider.dart   # CRUD de la biblioteca de patrones
 │   ├── session_provider.dart          # CRUD de la biblioteca de sesiones
 │   └── playlist_provider.dart         # CRUD de playlists + reordenar sesiones internas
@@ -198,7 +213,7 @@ lib/
 │   ├── auth_gate.dart                 # Gate de autenticación, permisos y fallback offline
 │   ├── login_screen.dart              # Login (Google/Email) con detección de errores de red
 │   ├── onboarding_screen.dart         # Onboarding para nuevos usuarios
-│   └── settings_screen.dart           # Configuración + sección sesión + logout
+│   └── settings_screen.dart           # Configuración (sonido, idioma, escala UI…) + sección sesión + logout
 ├── theme/
 │   ├── app_theme.dart                 # ThemeData oscuro + component themes (diálogos, snackbars, bottom sheets)
 │   └── beat_colors.dart               # Colores por tipo de evento (silencio/acento/normal/suave)

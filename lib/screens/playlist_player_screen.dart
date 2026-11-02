@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/theme/beat_colors.dart';
 import 'package:metronomo_standalone/models/pattern_model.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
@@ -123,7 +124,7 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
     if (playlist == null) {
       return Scaffold(
         backgroundColor: AppColors.background(context),
-        body: Center(child: Text("Playlist no encontrada", style: TextStyle(color: AppColors.textSecondary(context)))),
+        body: Center(child: Text(context.l10n.playlistsNotFoundTitle, style: TextStyle(color: AppColors.textSecondary(context)))),
       );
     }
     final totalSessions = playlist.sessionIds.length;

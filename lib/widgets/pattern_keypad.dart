@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/utils/structure_input.dart';
 
 /// On-screen keypad for editing a pattern structure (`3+2`, `2:3/4`...).
@@ -147,7 +148,7 @@ class PatternKeypad extends StatelessWidget {
           Expanded(
             flex: 2,
             child: _KeypadButton(
-              label: 'OK',
+              label: context.l10n.commonOk,
               height: keyHeight,
               color: AppColors.primary(context),
               enabled: canSubmit,
@@ -159,7 +160,7 @@ class PatternKeypad extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 2),
             child: Text(
-              'Enter confirma · Esc cancela · Tab siguiente',
+              context.l10n.keypadShortcutsHint,
               style: TextStyle(fontSize: 10, color: AppColors.textSecondary(context)),
             ),
           ),

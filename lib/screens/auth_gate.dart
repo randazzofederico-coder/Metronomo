@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'login_screen.dart';
 import 'onboarding_screen.dart';
 import 'metronome_screen.dart';
@@ -31,6 +32,9 @@ class AuthGate extends StatelessWidget {
   }
 }
 
+/// Why the app needs to go online before granting access (localized in UI).
+enum _NeedsInternetReason { firstTime, expired, noProfile, noAccess }
+
 class _PermissionChecker extends StatefulWidget {
   final User user;
   const _PermissionChecker({required this.user});
@@ -53,7 +57,7 @@ class _PermissionCheckerState extends State<_PermissionChecker> {
   bool _isOffline = false;
   int _daysUntilExpiry = 30;
   bool _needsInternet = false;
-  String _needsInternetReason = '';
+  _NeedsInternetReason _needsInternetReason = _NeedsInternetReason.firstTime;
 
   // Metronomo warm colors
   static const Color _accentOrange = Color(0xFFF98533);
@@ -164,8 +168,7 @@ class _PermissionCheckerState extends State<_PermissionChecker> {
       setState(() {
         _isLoading = false;
         _needsInternet = true;
-        _needsInternetReason =
-            'Necesitás conectarte a internet al menos una vez para verificar tu acceso.';
+        _needsInternetReason = _NeedsInternetReason.firstTime;
       });
       return;
     }
@@ -175,9 +178,7 @@ class _PermissionCheckerState extends State<_PermissionChecker> {
       setState(() {
         _isLoading = false;
         _needsInternet = true;
-        _needsInternetReason =
-            'Han pasado más de 30 días desde tu última verificación. '
-            'Conectate a internet para revalidar tu acceso.';
+        _needsInternetReason = _NeedsInternetReason.expired;
       });
       return;
     }
@@ -187,9 +188,7 @@ class _PermissionCheckerState extends State<_PermissionChecker> {
       setState(() {
         _isLoading = false;
         _needsInternet = true;
-        _needsInternetReason =
-            'Tu perfil no fue creado todavía. '
-            'Conectate a internet para completar el registro.';
+        _needsInternetReason = _NeedsInternetReason.noProfile;
       });
       return;
     }
@@ -199,9 +198,7 @@ class _PermissionCheckerState extends State<_PermissionChecker> {
       setState(() {
         _isLoading = false;
         _needsInternet = true;
-        _needsInternetReason =
-            'Tu acceso no estaba habilitado en la última verificación. '
-            'Conectate a internet para verificar si cambió tu estado.';
+        _needsInternetReason = _NeedsInternetReason.noAccess;
       });
       return;
     }
@@ -299,10 +296,10 @@ class _OfflineWarningWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dayText = daysLeft == 1 ? 'día' : 'días';
+    final l10n = context.l10n;
     final message = daysLeft == 0
-        ? 'Conectate a internet hoy para revalidar tu acceso'
-        : 'Conectate a internet para revalidar tu acceso · $daysLeft $dayText restantes';
+        ? l10n.authOfflineRevalidateToday
+        : l10n.authOfflineRevalidateDaysLeft(daysLeft);
 
     return Column(
       children: [
@@ -347,7 +344,7 @@ class _OfflineWarningWrapper extends StatelessWidget {
 // Needs Internet Screen — shown when no cache or expired cache
 // ---------------------------------------------------------------------------
 class _NeedsInternetScreen extends StatelessWidget {
-  final String reason;
+  final _NeedsInternetReason reason;
   final VoidCallback onRetry;
   final VoidCallback onSignOut;
 
@@ -365,8 +362,22 @@ class _NeedsInternetScreen extends StatelessWidget {
   static const Color _textPrimary = Color(0xFFF2EBE5);
   static const Color _textSecondary = Color(0xFFBCAAA4);
 
+  String _reasonText(AppLocalizations l10n) {
+    switch (reason) {
+      case _NeedsInternetReason.firstTime:
+        return l10n.authNeedsInternetFirstTime;
+      case _NeedsInternetReason.expired:
+        return l10n.authNeedsInternetExpired;
+      case _NeedsInternetReason.noProfile:
+        return l10n.authNeedsInternetNoProfile;
+      case _NeedsInternetReason.noAccess:
+        return l10n.authNeedsInternetNoAccess;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
       backgroundColor: _accentDark,
       body: Center(
@@ -422,9 +433,9 @@ class _NeedsInternetScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 20),
 
-                  const Text(
-                    "Conexión necesaria",
-                    style: TextStyle(
+                  Text(
+                    l10n.authConnectionRequired,
+                    style: const TextStyle(
                       fontSize: 22,
                       fontWeight: FontWeight.bold,
                       color: _textPrimary,
@@ -433,7 +444,7 @@ class _NeedsInternetScreen extends StatelessWidget {
                   const SizedBox(height: 16),
 
                   Text(
-                    reason,
+                    _reasonText(l10n),
                     style: TextStyle(
                       fontSize: 14,
                       color: _textSecondary.withOpacity(0.7),
@@ -450,9 +461,9 @@ class _NeedsInternetScreen extends StatelessWidget {
                     child: ElevatedButton.icon(
                       onPressed: onRetry,
                       icon: const Icon(Icons.refresh_rounded, size: 20),
-                      label: const Text(
-                        "Reintentar",
-                        style: TextStyle(
+                      label: Text(
+                        l10n.commonRetry,
+                        style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 15,
                         ),
@@ -481,9 +492,9 @@ class _NeedsInternetScreen extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: const Text(
-                        "Cerrar sesión",
-                        style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                      child: Text(
+                        l10n.authSignOut,
+                        style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
                       ),
                     ),
                   ),
@@ -528,7 +539,7 @@ class _TrialBannerWrapper extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      "Período de prueba · $daysLeft ${daysLeft == 1 ? 'día' : 'días'} restantes",
+                      context.l10n.authTrialBanner(daysLeft),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 13,
@@ -544,9 +555,9 @@ class _TrialBannerWrapper extends StatelessWidget {
                         color: Colors.white.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text(
-                        "Suscribirse",
-                        style: TextStyle(
+                      child: Text(
+                        context.l10n.authSubscribe,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
@@ -661,7 +672,7 @@ class _PendingAccessScreenState extends State<_PendingAccessScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Error al activar prueba: $e"),
+            content: Text(context.l10n.authTrialActivationError('$e')),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -755,9 +766,9 @@ class _PendingAccessScreenState extends State<_PendingAccessScreen>
           ),
           const SizedBox(height: 20),
 
-          const Text(
-            "Solicitud Enviada",
-            style: TextStyle(
+          Text(
+            context.l10n.authRequestSent,
+            style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
               color: _textPrimary,
@@ -785,7 +796,7 @@ class _PendingAccessScreenState extends State<_PendingAccessScreen>
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  "El administrador fue notificado",
+                  context.l10n.authAdminNotified,
                   style: TextStyle(
                     color: const Color(0xFF4CAF50).withOpacity(0.9),
                     fontSize: 13,
@@ -798,9 +809,7 @@ class _PendingAccessScreenState extends State<_PendingAccessScreen>
           const SizedBox(height: 16),
 
           Text(
-            "Tu solicitud de acceso al Metrónomo está siendo revisada. "
-            "Mientras tanto, podés iniciar un período de prueba gratuito "
-            "o suscribirte directamente.",
+            context.l10n.authRequestUnderReview,
             style: TextStyle(
               fontSize: 14,
               color: _textSecondary.withOpacity(0.7),
@@ -814,6 +823,7 @@ class _PendingAccessScreenState extends State<_PendingAccessScreen>
   }
 
   Widget _buildTrialCard() {
+    final l10n = context.l10n;
     final bool canTrial = !widget.trialUsed;
 
     return Container(
@@ -865,10 +875,10 @@ class _PendingAccessScreenState extends State<_PendingAccessScreen>
                   children: [
                     Text(
                       canTrial
-                          ? "Prueba Gratuita"
+                          ? l10n.authFreeTrial
                           : widget.trialExpired
-                              ? "Prueba Finalizada"
-                              : "Prueba no disponible",
+                              ? l10n.authTrialEnded
+                              : l10n.authTrialUnavailable,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -878,8 +888,8 @@ class _PendingAccessScreenState extends State<_PendingAccessScreen>
                     const SizedBox(height: 2),
                     Text(
                       canTrial
-                          ? "30 días de acceso completo, sin compromiso"
-                          : "Tu período de prueba de 30 días ha expirado",
+                          ? l10n.authFreeTrialDescription
+                          : l10n.authTrialExpiredDescription,
                       style: TextStyle(
                         fontSize: 12,
                         color: _textSecondary.withOpacity(0.6),
@@ -928,8 +938,8 @@ class _PendingAccessScreenState extends State<_PendingAccessScreen>
                         const SizedBox(width: 8),
                         Text(
                           canTrial
-                              ? "Comenzar prueba gratuita"
-                              : "Prueba utilizada",
+                              ? l10n.authStartFreeTrial
+                              : l10n.authTrialUsed,
                           style: const TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 15,
@@ -945,6 +955,7 @@ class _PendingAccessScreenState extends State<_PendingAccessScreen>
   }
 
   Widget _buildSubscriptionCard() {
+    final l10n = context.l10n;
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -974,9 +985,9 @@ class _PendingAccessScreenState extends State<_PendingAccessScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      "Suscripción",
-                      style: TextStyle(
+                    Text(
+                      l10n.authSubscription,
+                      style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
                         color: _textPrimary,
@@ -984,7 +995,7 @@ class _PendingAccessScreenState extends State<_PendingAccessScreen>
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      "Acceso completo y permanente al Metrónomo",
+                      l10n.authSubscriptionDescription,
                       style: TextStyle(
                         fontSize: 12,
                         color: _textSecondary.withOpacity(0.6),
@@ -1012,14 +1023,14 @@ class _PendingAccessScreenState extends State<_PendingAccessScreen>
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.open_in_new_rounded, size: 18),
-                  SizedBox(width: 8),
+                  const Icon(Icons.open_in_new_rounded, size: 18),
+                  const SizedBox(width: 8),
                   Text(
-                    "Ver opciones de suscripción",
-                    style: TextStyle(
+                    l10n.authViewSubscriptionOptions,
+                    style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 15,
                     ),
@@ -1034,6 +1045,7 @@ class _PendingAccessScreenState extends State<_PendingAccessScreen>
   }
 
   Widget _buildBottomActions() {
+    final l10n = context.l10n;
     return Column(
       children: [
         SizedBox(
@@ -1042,9 +1054,9 @@ class _PendingAccessScreenState extends State<_PendingAccessScreen>
           child: TextButton.icon(
             onPressed: widget.onRetry,
             icon: const Icon(Icons.refresh_rounded, size: 18),
-            label: const Text(
-              "Verificar acceso de nuevo",
-              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+            label: Text(
+              l10n.authCheckAccessAgain,
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
             ),
             style: TextButton.styleFrom(
               foregroundColor: _textSecondary,
@@ -1066,9 +1078,9 @@ class _PendingAccessScreenState extends State<_PendingAccessScreen>
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text(
-              "Cerrar sesión",
-              style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+            child: Text(
+              l10n.authSignOut,
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
             ),
           ),
         ),

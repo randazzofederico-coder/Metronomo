@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -102,7 +103,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Error: $e"),
+            content: Text(context.l10n.authErrorWithDetails('$e')),
             backgroundColor: Colors.redAccent,
           ),
         );
@@ -146,14 +147,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   Widget _buildForm() {
+    final l10n = context.l10n;
     return Form(
       key: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            "¡Ya casi estamos!",
-            style: TextStyle(
+          Text(
+            l10n.onboardingTitle,
+            style: const TextStyle(
               fontSize: 28,
               fontWeight: FontWeight.bold,
               color: _textPrimary,
@@ -161,7 +163,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            "Contame brevemente qué te trae por acá (clases, apps, etc.) así puedo habilitarte la cuenta.",
+            l10n.onboardingSubtitle,
             style: TextStyle(
               fontSize: 14,
               color: _textSecondary.withOpacity(0.7),
@@ -171,25 +173,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 28),
 
           // Nombre
-          _buildLabel("TU NOMBRE"),
+          _buildLabel(l10n.onboardingNameLabel),
           const SizedBox(height: 6),
           TextFormField(
             controller: _nameController,
             style: const TextStyle(color: _textPrimary),
-            decoration: _inputDecoration("¿Cómo te llamás?"),
-            validator: (v) => v == null || v.trim().isEmpty ? 'Campo requerido' : null,
+            decoration: _inputDecoration(l10n.onboardingNameHint),
+            validator: (v) => v == null || v.trim().isEmpty ? l10n.authFieldRequired : null,
           ),
           const SizedBox(height: 20),
 
           // Interés
-          _buildLabel("¿QUÉ ESTÁS BUSCANDO?"),
+          _buildLabel(l10n.onboardingInterestLabel),
           const SizedBox(height: 6),
           TextFormField(
             controller: _interestController,
             style: const TextStyle(color: _textPrimary),
             maxLines: 4,
-            decoration: _inputDecoration("Ej: Quiero usar el metrónomo, tomar clases..."),
-            validator: (v) => v == null || v.trim().isEmpty ? 'Campo requerido' : null,
+            decoration: _inputDecoration(l10n.onboardingInterestHint),
+            validator: (v) => v == null || v.trim().isEmpty ? l10n.authFieldRequired : null,
           ),
           const SizedBox(height: 24),
 
@@ -216,9 +218,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         color: Color(0xFF09090B),
                       ),
                     )
-                  : const Text(
-                      "Enviar solicitud",
-                      style: TextStyle(
+                  : Text(
+                      l10n.onboardingSubmit,
+                      style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
                       ),
@@ -245,9 +247,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           child: const Icon(Icons.check, color: Color(0xFF4CAF50), size: 32),
         ),
         const SizedBox(height: 20),
-        const Text(
-          "¡Solicitud enviada!",
-          style: TextStyle(
+        Text(
+          context.l10n.onboardingSuccessTitle,
+          style: const TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.bold,
             color: _textPrimary,
@@ -255,7 +257,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ),
         const SizedBox(height: 12),
         Text(
-          "Te habilitaremos a la brevedad. Recibirás un aviso en cuanto tu cuenta esté activa.",
+          context.l10n.onboardingSuccessMessage,
           style: TextStyle(
             fontSize: 14,
             color: _textSecondary.withOpacity(0.7),

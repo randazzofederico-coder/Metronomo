@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:share_plus/share_plus.dart';
 
+import 'package:metronomo_standalone/l10n/l10n.dart';
+
 import '../constants/app_colors.dart';
 import '../services/deep_link_service.dart';
 
@@ -79,8 +81,8 @@ class _ShareSheetState extends State<_ShareSheet> {
         mailToFallbackEnabled: false,
       ));
     } catch (_) {
-      await _copy(link,
-          info: 'No se pudo abrir el menú de compartir. Copiamos el link.');
+      if (!mounted) return;
+      await _copy(link, info: context.l10n.shareNativeFailedCopied);
     }
   }
 
@@ -131,7 +133,7 @@ class _ShareSheetState extends State<_ShareSheet> {
                               strokeWidth: 2.5, color: accent),
                         ),
                         const SizedBox(height: 12),
-                        Text('Generando link…',
+                        Text(context.l10n.shareGeneratingLink,
                             style: TextStyle(color: textSecondary)),
                       ],
                     ),
@@ -141,7 +143,7 @@ class _ShareSheetState extends State<_ShareSheet> {
                 if (snap.hasError) {
                   final msg = snap.error is ShareException
                       ? snap.error.toString()
-                      : 'No se pudo crear el link.';
+                      : context.l10n.shareLinkCreateFailed;
                   return Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -157,7 +159,7 @@ class _ShareSheetState extends State<_ShareSheet> {
                       OutlinedButton.icon(
                         onPressed: _retry,
                         icon: const Icon(Icons.refresh),
-                        label: const Text('REINTENTAR'),
+                        label: Text(context.l10n.commonRetry.toUpperCase()),
                       ),
                     ],
                   );
@@ -191,14 +193,16 @@ class _ShareSheetState extends State<_ShareSheet> {
                       FilledButton.icon(
                         onPressed: () => _nativeShare(link),
                         icon: const Icon(Icons.ios_share),
-                        label: const Text('COMPARTIR EN…'),
+                        label: Text(context.l10n.shareShareVia),
                       ),
                       const SizedBox(height: 10),
                     ],
                     OutlinedButton.icon(
                       onPressed: () => _copy(link),
                       icon: Icon(_copied ? Icons.check : Icons.copy_rounded),
-                      label: Text(_copied ? '¡LINK COPIADO!' : 'COPIAR LINK'),
+                      label: Text(_copied
+                          ? context.l10n.shareLinkCopied
+                          : context.l10n.shareCopyLink),
                     ),
                     if (_info != null) ...[
                       const SizedBox(height: 10),

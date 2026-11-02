@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:native_audio_engine/live_mixer.dart';
 import 'package:uuid/uuid.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 
 import '../audio/click_synth.dart';
 import '../models/pattern_model.dart';
@@ -241,7 +242,7 @@ class MetronomeProvider with ChangeNotifier {
   void _addDefaultInstance() {
     final instance = HomeMetronomeInstance(
       id: _nextId++,
-      title: 'Patrón 1',
+      title: L10n.current.patternNumbered(1),
       structure: '1',
     );
     _instances.add(instance);
@@ -638,7 +639,7 @@ class MetronomeProvider with ChangeNotifier {
     final src = _instances[index];
     final copy = HomeMetronomeInstance(
       id: _nextId++,
-      title: '${src.title} (copia)',
+      title: L10n.current.patternCopyName(src.title),
       structure: src.structure,
       pulses: src.pulses.map((p) => p.copyWith()).toList(),
       volume: src.volume,

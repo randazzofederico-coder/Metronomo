@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/widgets/undo_snackbar.dart';
 import 'package:metronomo_standalone/services/share_actions.dart';
 import 'package:metronomo_standalone/models/playlist_model.dart';
@@ -35,7 +36,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(
-          existing != null ? "Editar Playlist" : "Nueva Playlist",
+          existing != null ? ctx.l10n.playlistsEditTitle : ctx.l10n.playlistsNewTitle,
           style: TextStyle(color: AppColors.textPrimary(ctx)),
         ),
         content: Column(
@@ -46,7 +47,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
               autofocus: true,
               style: TextStyle(color: AppColors.textPrimary(ctx)),
               decoration: InputDecoration(
-                labelText: "Nombre",
+                labelText: ctx.l10n.commonName,
                 labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
                 enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.border(ctx))),
                 focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary(ctx))),
@@ -57,7 +58,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
               controller: descController,
               style: TextStyle(color: AppColors.textPrimary(ctx)),
               decoration: InputDecoration(
-                labelText: "Descripción (opcional)",
+                labelText: ctx.l10n.playlistsDescriptionLabel,
                 labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
                 enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.border(ctx))),
                 focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary(ctx))),
@@ -68,7 +69,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text("CANCELAR", style: TextStyle(color: AppColors.textSecondary(ctx))),
+            child: Text(ctx.l10n.commonCancel.toUpperCase(), style: TextStyle(color: AppColors.textSecondary(ctx))),
           ),
           TextButton(
             onPressed: () async {
@@ -88,7 +89,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
               if (ctx.mounted) Navigator.pop(ctx);
             },
             child: Text(
-              existing != null ? "ACTUALIZAR" : "CREAR",
+              existing != null ? ctx.l10n.playlistsUpdateButton : ctx.l10n.commonCreate.toUpperCase(),
               style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold),
             ),
           ),
@@ -101,8 +102,8 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
   Future<void> _deletePlaylist(Playlist playlist) async {
     final ok = await confirmDelete(
       context,
-      title: 'Eliminar playlist',
-      message: '¿Eliminar «${playlist.name}»? Las sesiones que contiene no se borran.',
+      title: context.l10n.playlistsDeleteTitle,
+      message: context.l10n.playlistsDeleteConfirm(playlist.name),
     );
     if (!ok || !mounted) return;
     final provider = context.read<PlaylistProvider>();
@@ -110,7 +111,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
     if (removed == null || !mounted) return;
     showUndoSnackBar(
       context,
-      message: '«${playlist.name}» eliminada',
+      message: context.l10n.playlistsDeleted(playlist.name),
       onUndo: () => provider.restorePlaylist(removed.$1, removed.$2),
     );
   }
@@ -151,11 +152,11 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
               heroTag: 'new-playlist',
               onPressed: () => _showCreatePlaylistDialog(),
               icon: const Icon(Icons.add),
-              label: const Text('Nueva playlist'),
+              label: Text(context.l10n.playlistsNewButton),
             )
           : null,
       appBar: widget.embedded ? null : AppBar(
-        title: const Text("PLAYLISTS", style: TextStyle(letterSpacing: 2.0)),
+        title: Text(context.l10n.playlistsTitle, style: TextStyle(letterSpacing: 2.0)),
         backgroundColor: AppColors.surface(context),
         centerTitle: true,
         elevation: 0,
@@ -167,7 +168,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
           IconButton(
             icon: Icon(Icons.add_circle_outline, color: AppColors.primary(context)),
             onPressed: () => _showCreatePlaylistDialog(),
-            tooltip: "Nueva Playlist",
+            tooltip: context.l10n.playlistsNewTitle,
           ),
         ],
       ),
@@ -182,7 +183,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
             if (playlists.isEmpty && query.isNotEmpty) {
               return Center(
                 child: Text(
-                  'Ninguna playlist coincide con la búsqueda',
+                  context.l10n.playlistsNoMatch,
                   style: TextStyle(color: AppColors.textSecondary(context), fontSize: 16),
                 ),
               );
@@ -196,19 +197,19 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                     Icon(Icons.queue_music, size: 64, color: AppColors.textSecondary(context).withOpacity(0.3)),
                     const SizedBox(height: 16),
                     Text(
-                      "No hay playlists",
+                      context.l10n.playlistsEmpty,
                       style: TextStyle(color: AppColors.textSecondary(context), fontSize: 16),
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      "Creá una playlist para organizar tus sesiones",
+                      context.l10n.playlistsEmptyHint,
                       style: TextStyle(color: AppColors.textSecondary(context).withOpacity(0.6), fontSize: 13),
                     ),
                     const SizedBox(height: 24),
                     ElevatedButton.icon(
                       onPressed: () => _showCreatePlaylistDialog(),
                       icon: const Icon(Icons.add),
-                      label: const Text("CREAR PLAYLIST"),
+                      label: Text(context.l10n.playlistsCreateButton),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.primary(context),
                         foregroundColor: Colors.white,
@@ -231,9 +232,9 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                     final sessionCount = playlist.sessionIds.length;
 
                     // Resolve session names for subtitle
-                    final sessionNames = playlist.sessionIds.map((id) {
+                    final sessionNames = playlist.sessionIds.map<String?>((id) {
                       final s = sessionProvider.getSessionById(id);
-                      return s?.name ?? '(eliminada)';
+                      return s?.name; // null = deleted session
                     }).toList();
 
                     return Container(
@@ -268,7 +269,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                                         ),
                                         const SizedBox(height: 2),
                                         Text(
-                                          "$sessionCount ${sessionCount == 1 ? 'sesión' : 'sesiones'}",
+                                          context.l10n.playlistsSessionCount(sessionCount),
                                           style: TextStyle(color: AppColors.textSecondary(context), fontSize: 12),
                                         ),
                                       ],
@@ -304,7 +305,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                                     ),
                                   const SizedBox(width: 4),
                                   PopupMenuButton<String>(
-                                    tooltip: 'Opciones de la playlist',
+                                    tooltip: context.l10n.playlistsOptions,
                                     icon: Icon(Icons.more_vert_rounded, color: AppColors.textSecondary(context)),
                                     onSelected: (action) {
                                       switch (action) {
@@ -317,10 +318,10 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                                       }
                                     },
                                     itemBuilder: (_) => [
-                                      _menuItem('share', Icons.share_outlined, 'Compartir'),
-                                      _menuItem('edit', Icons.edit_outlined, 'Renombrar'),
+                                      _menuItem('share', Icons.share_outlined, context.l10n.commonShare),
+                                      _menuItem('edit', Icons.edit_outlined, context.l10n.commonRename),
                                       const PopupMenuDivider(),
-                                      _menuItem('delete', Icons.delete_outline, 'Eliminar', color: AppColors.accentRed(context)),
+                                      _menuItem('delete', Icons.delete_outline, context.l10n.commonDelete, color: AppColors.accentRed(context)),
                                     ],
                                   ),
                                 ],
@@ -340,7 +341,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                                   spacing: 6,
                                   runSpacing: 4,
                                   children: sessionNames.take(5).map((name) {
-                                    final isDeleted = name == '(eliminada)';
+                                    final isDeleted = name == null;
                                     return Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                       decoration: BoxDecoration(
@@ -355,7 +356,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                                         ),
                                       ),
                                       child: Text(
-                                        name,
+                                        name ?? context.l10n.playlistsDeletedSessionChip,
                                         style: TextStyle(
                                           color: isDeleted
                                               ? AppColors.accentRed(context)
@@ -371,7 +372,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                                   Padding(
                                     padding: const EdgeInsets.only(top: 4),
                                     child: Text(
-                                      "+${sessionNames.length - 5} más",
+                                      context.l10n.playlistsMoreCount(sessionNames.length - 5),
                                       style: TextStyle(color: AppColors.textSecondary(context).withOpacity(0.5), fontSize: 11),
                                     ),
                                   ),
@@ -415,7 +416,7 @@ class _PlaylistDetailScreen extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Text(
-                      "Agregar Sesión",
+                      ctx.l10n.playlistsAddSession,
                       style: TextStyle(color: AppColors.textPrimary(ctx), fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ),
@@ -423,7 +424,7 @@ class _PlaylistDetailScreen extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.all(32.0),
                       child: Text(
-                        "No hay sesiones guardadas.\nCreá sesiones desde el metrónomo.",
+                        ctx.l10n.playlistsAddSessionEmpty,
                         textAlign: TextAlign.center,
                         style: TextStyle(color: AppColors.textSecondary(ctx)),
                       ),
@@ -441,7 +442,7 @@ class _PlaylistDetailScreen extends StatelessWidget {
                               style: TextStyle(color: AppColors.textPrimary(ctx), fontWeight: FontWeight.bold),
                             ),
                             subtitle: Text(
-                              "${session.globalBpm} BPM • ${session.patternsConfig.length} pistas",
+                              context.l10n.playlistsSessionSubtitle(session.globalBpm, session.patternsConfig.length),
                               style: TextStyle(color: AppColors.textSecondary(ctx)),
                             ),
                             onTap: () async {
@@ -471,10 +472,10 @@ class _PlaylistDetailScreen extends StatelessWidget {
             backgroundColor: AppColors.background(context),
             appBar: AppBar(
               backgroundColor: AppColors.surface(context),
-              title: const Text("Playlist no encontrada"),
+              title: Text(context.l10n.playlistsNotFoundTitle),
             ),
             body: Center(
-              child: Text("Esta playlist fue eliminada.", style: TextStyle(color: AppColors.textSecondary(context))),
+              child: Text(context.l10n.playlistsNotFoundMessage, style: TextStyle(color: AppColors.textSecondary(context))),
             ),
           );
         }
@@ -494,7 +495,7 @@ class _PlaylistDetailScreen extends StatelessWidget {
               IconButton(
                 icon: Icon(Icons.add, color: AppColors.primary(context)),
                 onPressed: () => _showAddSessionSheet(context),
-                tooltip: "Agregar Sesión",
+                tooltip: context.l10n.playlistsAddSession,
               ),
               if (playlist.sessionIds.isNotEmpty)
                 IconButton(
@@ -507,7 +508,7 @@ class _PlaylistDetailScreen extends StatelessWidget {
                       ),
                     );
                   },
-                  tooltip: "Reproducir",
+                  tooltip: context.l10n.playlistsPlay,
                 ),
             ],
           ),
@@ -520,19 +521,19 @@ class _PlaylistDetailScreen extends StatelessWidget {
                         Icon(Icons.playlist_add, size: 48, color: AppColors.textSecondary(context).withOpacity(0.3)),
                         const SizedBox(height: 12),
                         Text(
-                          "Playlist vacía",
+                          context.l10n.playlistsDetailEmpty,
                           style: TextStyle(color: AppColors.textSecondary(context), fontSize: 16),
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          "Agregá sesiones usando el botón +",
+                          context.l10n.playlistsDetailEmptyHint,
                           style: TextStyle(color: AppColors.textSecondary(context).withOpacity(0.6), fontSize: 13),
                         ),
                         const SizedBox(height: 20),
                         ElevatedButton.icon(
                           onPressed: () => _showAddSessionSheet(context),
                           icon: const Icon(Icons.add),
-                          label: const Text("AGREGAR SESIÓN"),
+                          label: Text(context.l10n.playlistsAddSessionButton),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primary(context),
                             foregroundColor: Colors.white,
@@ -605,7 +606,7 @@ class _PlaylistDetailScreen extends StatelessWidget {
                             ),
                           ),
                           title: Text(
-                            isDeleted ? "(sesión eliminada)" : session.name,
+                            isDeleted ? context.l10n.playlistsDeletedSession : session.name,
                             style: TextStyle(
                               color: isDeleted ? AppColors.accentRed(context) : AppColors.textPrimary(context),
                               fontWeight: FontWeight.bold,
@@ -615,7 +616,7 @@ class _PlaylistDetailScreen extends StatelessWidget {
                           subtitle: isDeleted
                               ? null
                               : Text(
-                                  "${session.globalBpm} BPM • ${session.patternsConfig.length} pistas",
+                                  context.l10n.playlistsSessionSubtitle(session.globalBpm, session.patternsConfig.length),
                                   style: TextStyle(color: AppColors.textSecondary(context), fontSize: 12),
                                 ),
                           trailing: Row(
@@ -623,12 +624,12 @@ class _PlaylistDetailScreen extends StatelessWidget {
                             children: [
                               IconButton(
                                 icon: Icon(Icons.delete_outline, color: AppColors.accentRed(context), size: 20),
-                                tooltip: 'Quitar de la playlist',
+                                tooltip: context.l10n.playlistsRemoveSession,
                                 onPressed: () {
                                   playlistProvider.removeSessionFromPlaylist(playlistId, index);
                                   showUndoSnackBar(
                                     context,
-                                    message: isDeleted ? 'Quitada de la playlist' : '«${session.name}» quitada de la playlist',
+                                    message: isDeleted ? context.l10n.playlistsRemoved : context.l10n.playlistsSessionRemoved(session.name),
                                     onUndo: () => playlistProvider.insertSessionInPlaylist(playlistId, index, sessionId),
                                   );
                                 },

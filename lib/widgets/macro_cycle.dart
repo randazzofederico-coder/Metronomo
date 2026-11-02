@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
 import 'package:metronomo_standalone/theme/beat_colors.dart';
 
@@ -98,9 +99,9 @@ class _MacroCycleState extends State<MacroCycle> with SingleTickerProviderStateM
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text("CICLO MACRO",
+                Text(context.l10n.macroCycleTitle,
                     style: TextStyle(color: AppColors.textSecondary(context), fontSize: 10, letterSpacing: 2.0, fontWeight: FontWeight.bold)),
-                Text("$macroBeats Pulsos",
+                Text(context.l10n.macroBeatsCount(macroBeats),
                     style: TextStyle(color: AppColors.primary(context), fontSize: 10, fontWeight: FontWeight.bold)),
               ],
             ),
@@ -261,12 +262,12 @@ class _BeatLegend extends StatelessWidget {
       runSpacing: 4,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        swatch(BeatColors.accent, 'Acento'),
-        swatch(BeatColors.normal, 'Normal'),
-        swatch(BeatColors.soft, 'Suave'),
-        swatch(BeatColors.silence, 'Silencio'),
+        swatch(BeatColors.accent, context.l10n.macroLegendAccent),
+        swatch(BeatColors.normal, context.l10n.macroLegendNormal),
+        swatch(BeatColors.soft, context.l10n.macroLegendSoft),
+        swatch(BeatColors.silence, context.l10n.macroLegendSilence),
         if (showEditHints)
-          Text('· Tocá una celda para cambiarla · Mantené y arrastrá para el volumen', style: style),
+          Text(context.l10n.macroEditHints, style: style),
       ],
     );
   }

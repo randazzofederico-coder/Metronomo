@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 
 import '../models/pattern_model.dart';
 import '../models/playlist_model.dart';
@@ -177,8 +178,7 @@ class DeepLinkService {
       return cred.user!;
     } on FirebaseAuthException catch (e) {
       debugPrint('DeepLinkService anonymous sign-in failed: ${e.code}');
-      throw const ShareException(
-          'No se pudo conectar con el servidor para crear el link.');
+      throw ShareException(L10n.current.shareErrorConnect);
     }
   }
 
@@ -255,8 +255,8 @@ class DeepLinkService {
     } on FirebaseException catch (e) {
       debugPrint('DeepLinkService._createLink ${e.code}: ${e.message}');
       throw ShareException(e.code == 'permission-denied'
-          ? 'El servidor rechazó el link (permisos).'
-          : 'No se pudo crear el link. Revisá tu conexión.');
+          ? L10n.current.shareErrorPermission
+          : L10n.current.shareErrorNetwork);
     }
 
     final url = '$_baseUrl?share=$shareId&name=${_slugify(name)}';
@@ -281,8 +281,8 @@ class DeepLinkService {
       name: pattern.name,
       payload: {'data': pattern.toJson()},
       summary: {'patterns': 1, 'structure': pattern.structure},
-      title: 'Patrón: ${pattern.name}',
-      message: '🎵 Te comparto el patrón «${pattern.name}» (${pattern.structure}) en Metrónomo:',
+      title: L10n.current.shareTitlePattern(pattern.name),
+      message: L10n.current.shareMessagePattern(pattern.name, pattern.structure),
     );
   }
 
@@ -296,9 +296,9 @@ class DeepLinkService {
         'patterns': patterns.map((p) => p.toJson()).toList(),
       },
       summary: {'patterns': patterns.length, 'bpm': session.globalBpm},
-      title: 'Sesión: ${session.name}',
-      message:
-          '🎵 Te comparto la sesión «${session.name}» (${session.globalBpm} BPM · ${patterns.length} patrones) en Metrónomo:',
+      title: L10n.current.shareTitleSession(session.name),
+      message: L10n.current
+          .shareMessageSession(session.name, session.globalBpm, patterns.length),
     );
   }
 
@@ -317,9 +317,8 @@ class DeepLinkService {
         'patterns': patterns.map((p) => p.toJson()).toList(),
       },
       summary: {'sessions': sessions.length, 'patterns': patterns.length},
-      title: 'Playlist: ${playlist.name}',
-      message:
-          '🎵 Te comparto la playlist «${playlist.name}» (${sessions.length} sesiones) en Metrónomo:',
+      title: L10n.current.shareTitlePlaylist(playlist.name),
+      message: L10n.current.shareMessagePlaylist(playlist.name, sessions.length),
     );
   }
 

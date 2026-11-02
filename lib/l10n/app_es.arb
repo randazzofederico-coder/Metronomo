@@ -1,0 +1,706 @@
+{
+  "@@locale": "es",
+  "appTitle": "Metrónomo",
+  "languageSystem": "Idioma del sistema",
+  "languageSpanish": "Español",
+  "languageEnglish": "English",
+  "soundSetClasico": "Clásico",
+  "soundSetMadera": "Madera",
+  "soundSetClaves": "Claves",
+  "soundSetBeep": "Beep",
+  "soundSetHihat": "Hi-hat",
+  "soundSetBombo": "Bombo",
+  "soundSetRedoblante": "Redoblante",
+  "commonCancel": "Cancelar",
+  "commonSave": "Guardar",
+  "commonDelete": "Eliminar",
+  "commonOk": "OK",
+  "commonAccept": "Aceptar",
+  "commonClose": "Cerrar",
+  "commonRename": "Renombrar",
+  "commonRetry": "Reintentar",
+  "commonEdit": "Editar",
+  "commonCreate": "Crear",
+  "commonBack": "Volver",
+  "commonShare": "Compartir",
+  "commonUndo": "Deshacer",
+  "commonName": "Nombre",
+  "authNeedsInternetFirstTime": "Necesitás conectarte a internet al menos una vez para verificar tu acceso.",
+  "authNeedsInternetExpired": "Han pasado más de 30 días desde tu última verificación. Conectate a internet para revalidar tu acceso.",
+  "authNeedsInternetNoProfile": "Tu perfil no fue creado todavía. Conectate a internet para completar el registro.",
+  "authNeedsInternetNoAccess": "Tu acceso no estaba habilitado en la última verificación. Conectate a internet para verificar si cambió tu estado.",
+  "authOfflineRevalidateToday": "Conectate a internet hoy para revalidar tu acceso",
+  "authOfflineRevalidateDaysLeft": "Conectate a internet para revalidar tu acceso · {count} {count, plural, =1{día} other{días}} restantes",
+  "@authOfflineRevalidateDaysLeft": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "authConnectionRequired": "Conexión necesaria",
+  "authSignOut": "Cerrar sesión",
+  "authTrialBanner": "Período de prueba · {count} {count, plural, =1{día} other{días}} restantes",
+  "@authTrialBanner": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "authSubscribe": "Suscribirse",
+  "authTrialActivationError": "Error al activar prueba: {error}",
+  "@authTrialActivationError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "authRequestSent": "Solicitud Enviada",
+  "authAdminNotified": "El administrador fue notificado",
+  "authRequestUnderReview": "Tu solicitud de acceso al Metrónomo está siendo revisada. Mientras tanto, podés iniciar un período de prueba gratuito o suscribirte directamente.",
+  "authFreeTrial": "Prueba Gratuita",
+  "authTrialEnded": "Prueba Finalizada",
+  "authTrialUnavailable": "Prueba no disponible",
+  "authFreeTrialDescription": "30 días de acceso completo, sin compromiso",
+  "authTrialExpiredDescription": "Tu período de prueba de 30 días ha expirado",
+  "authStartFreeTrial": "Comenzar prueba gratuita",
+  "authTrialUsed": "Prueba utilizada",
+  "authSubscription": "Suscripción",
+  "authSubscriptionDescription": "Acceso completo y permanente al Metrónomo",
+  "authViewSubscriptionOptions": "Ver opciones de suscripción",
+  "authCheckAccessAgain": "Verificar acceso de nuevo",
+  "authFieldRequired": "Campo requerido",
+  "authErrorWithDetails": "Error: {error}",
+  "@authErrorWithDetails": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "loginNoInternet": "No hay conexión a internet.\nPara iniciar sesión por primera vez necesitás estar conectado. Una vez logueado, podrás usar el Metrónomo sin conexión.",
+  "loginGoogleError": "Error al conectar con Google: {error}",
+  "@loginGoogleError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "loginPasswordsMismatch": "Las contraseñas no coinciden.",
+  "loginPasswordTooShort": "La contraseña debe tener al menos 6 caracteres.",
+  "loginAccountCreated": "Cuenta creada exitosamente. Revisá tu casilla de correo (incluyendo spam) para verificar tu email.",
+  "loginEmailInUse": "Ese email ya está registrado.",
+  "loginInvalidCredentials": "Credenciales incorrectas.",
+  "loginSignInError": "Error al iniciar sesión: {error}",
+  "@loginSignInError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "loginEnterEmailFirst": "Ingresá tu email primero para recuperar la contraseña.",
+  "loginResetEmailSent": "Email de recuperación enviado. Revisá tu bandeja de entrada y spam.",
+  "loginResetEmailError": "Error al enviar el email: {error}",
+  "@loginResetEmailError": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "loginRegisterTitle": "Registrate",
+  "loginWelcomeTitle": "Bienvenido",
+  "loginRegisterSubtitle": "Creá una cuenta para acceder al metrónomo.",
+  "loginSignInSubtitle": "Iniciá sesión para usar el metrónomo.",
+  "loginContinueWithGoogle": "Continuar con Google",
+  "loginOrUseEmail": "O usá tu email",
+  "loginOtherEmail": "¿Tenés otro mail?",
+  "loginEmailLabel": "EMAIL",
+  "loginEmailHint": "tu@email.com",
+  "loginPasswordLabel": "CONTRASEÑA",
+  "loginConfirmPasswordLabel": "CONFIRMAR CONTRASEÑA",
+  "loginCreateAccountButton": "Crear Cuenta",
+  "loginSignInButton": "Entrar",
+  "loginForgotPassword": "¿Olvidaste tu contraseña?",
+  "loginHaveAccount": "¿Ya tenés cuenta?",
+  "loginNoAccount": "¿No tenés usuario?",
+  "loginSignInLink": "Iniciar Sesión",
+  "loginCreateAccountLink": "Crear una cuenta",
+  "onboardingTitle": "¡Ya casi estamos!",
+  "onboardingSubtitle": "Contame brevemente qué te trae por acá (clases, apps, etc.) así puedo habilitarte la cuenta.",
+  "onboardingNameLabel": "TU NOMBRE",
+  "onboardingNameHint": "¿Cómo te llamás?",
+  "onboardingInterestLabel": "¿QUÉ ESTÁS BUSCANDO?",
+  "onboardingInterestHint": "Ej: Quiero usar el metrónomo, tomar clases...",
+  "onboardingSubmit": "Enviar solicitud",
+  "onboardingSuccessTitle": "¡Solicitud enviada!",
+  "onboardingSuccessMessage": "Te habilitaremos a la brevedad. Recibirás un aviso en cuanto tu cuenta esté activa.",
+  "homeTabPlay": "Tocar",
+  "homeTabLibrary": "Biblioteca",
+  "homeTabSettings": "Ajustes",
+  "updateRequiredTitle": "Actualización Necesaria",
+  "updateDefaultMessage": "Hay una nueva versión disponible.\nActualizá para seguir usando Metrónomo.",
+  "updateDownloading": "Descargando actualización…",
+  "updateButton": "Actualizar",
+  "shareNativeFailedCopied": "No se pudo abrir el menú de compartir. Copiamos el link.",
+  "shareGeneratingLink": "Generando link…",
+  "shareLinkCreateFailed": "No se pudo crear el link.",
+  "shareShareVia": "COMPARTIR EN…",
+  "shareLinkCopied": "¡LINK COPIADO!",
+  "shareCopyLink": "COPIAR LINK",
+  "shareHeadingPattern": "Compartir patrón",
+  "shareHeadingSession": "Compartir sesión",
+  "shareHeadingPlaylist": "Compartir playlist",
+  "shareSubtitlePattern": "«{name}» · {structure}",
+  "@shareSubtitlePattern": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "structure": {
+        "type": "String"
+      }
+    }
+  },
+  "shareSubtitleSession": "«{name}» · {bpm} BPM · {count, plural, =1{1 patrón} other{{count} patrones}}",
+  "@shareSubtitleSession": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "bpm": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "shareSubtitlePlaylist": "«{name}» · {count, plural, =1{1 sesión} other{{count} sesiones}}",
+  "@shareSubtitlePlaylist": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "shareErrorConnect": "No se pudo conectar con el servidor para crear el link.",
+  "shareErrorPermission": "El servidor rechazó el link (permisos).",
+  "shareErrorNetwork": "No se pudo crear el link. Revisá tu conexión.",
+  "shareTitlePattern": "Patrón: {name}",
+  "@shareTitlePattern": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "shareTitleSession": "Sesión: {name}",
+  "@shareTitleSession": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "shareTitlePlaylist": "Playlist: {name}",
+  "@shareTitlePlaylist": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "shareMessagePattern": "🎵 Te comparto el patrón «{name}» ({structure}) en Metrónomo:",
+  "@shareMessagePattern": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "structure": {
+        "type": "String"
+      }
+    }
+  },
+  "shareMessageSession": "🎵 Te comparto la sesión «{name}» ({bpm} BPM · {count, plural, =1{1 patrón} other{{count} patrones}}) en Metrónomo:",
+  "@shareMessageSession": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "bpm": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "shareMessagePlaylist": "🎵 Te comparto la playlist «{name}» ({count, plural, =1{1 sesión} other{{count} sesiones}}) en Metrónomo:",
+  "@shareMessagePlaylist": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "patternDefaultName": "Patrón",
+  "patternNumbered": "Patrón {number}",
+  "@patternNumbered": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "patternCopyName": "{name} (copia)",
+  "@patternCopyName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "sessionDefaultDescription": "Sesión por defecto con birritmia de 3/4 y 6/8",
+  "metronomePatternAddedToSession": "«{name}» agregado a la sesión",
+  "@metronomePatternAddedToSession": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "metronomeOpeningSharedLink": "Abriendo link compartido...",
+  "metronomeShareInvalid": "El enlace compartido no es válido o ha expirado.",
+  "metronomeShareImportFailed": "No se pudo importar el contenido compartido.",
+  "metronomeReceivedPattern": "Patrón recibido",
+  "metronomeReceivedSession": "Sesión recibida",
+  "metronomeReceivedPlaylist": "Playlist recibida",
+  "metronomeImportAlreadyInLibrary": "Ya estaba en tu biblioteca.",
+  "metronomeImportAddedPattern": "Se agregó a tu biblioteca.",
+  "metronomeImportAddedSession": "Se agregó a tu biblioteca ({patternCount, plural, =1{1 patrón} other{{patternCount} patrones}}).",
+  "@metronomeImportAddedSession": {
+    "placeholders": {
+      "patternCount": {
+        "type": "int"
+      }
+    }
+  },
+  "metronomeImportAddedPlaylist": "Se agregó a tu biblioteca ({sessionCount, plural, =1{1 sesión} other{{sessionCount} sesiones}}, {patternCount, plural, =1{1 patrón} other{{patternCount} patrones}}).",
+  "@metronomeImportAddedPlaylist": {
+    "placeholders": {
+      "sessionCount": {
+        "type": "int"
+      },
+      "patternCount": {
+        "type": "int"
+      }
+    }
+  },
+  "metronomeImportOpenPrompt": "«{name}»\n{status}\n\n¿Querés abrirlo ahora?",
+  "@metronomeImportOpenPrompt": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "status": {
+        "type": "String"
+      }
+    }
+  },
+  "metronomeImportSaveOnly": "SOLO GUARDAR",
+  "metronomeImportOpen": "ABRIR",
+  "metronomeUntitled": "Sin Título",
+  "metronomeUnsavedTitle": "Cambios sin guardar",
+  "metronomeUnsavedMessage": "La sesión «{name}» tiene cambios sin guardar. ¿Qué querés hacer antes de continuar?",
+  "@metronomeUnsavedMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "metronomeDiscard": "DESCARTAR",
+  "metronomeDefaultSessionName": "Sesión",
+  "metronomeNewSessionSnack": "Sesión nueva",
+  "metronomePatternRemoved": "«{name}» quitado de la sesión",
+  "@metronomePatternRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "metronomeSessionSaved": "«{name}» guardada",
+  "@metronomeSessionSaved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "metronomeSaveSessionTitle": "Guardar Sesión",
+  "metronomeSessionNameLabel": "Nombre de la Sesión",
+  "metronomeDescriptionLabel": "Descripción (opcional)",
+  "metronomeLoadSessionTitle": "Cargar Sesión",
+  "metronomeSessionDeleted": "«{name}» eliminada",
+  "@metronomeSessionDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "metronomeNoSessions": "No hay sesiones guardadas.",
+  "metronomeSessionSubtitle": "{bpm} BPM • {count, plural, =1{1 pista} other{{count} pistas}}",
+  "@metronomeSessionSubtitle": {
+    "placeholders": {
+      "bpm": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "metronomeShareSession": "Compartir sesión",
+  "metronomeDeleteSession": "Eliminar sesión",
+  "metronomeDeleteSessionConfirm": "¿Eliminar «{name}» de tu biblioteca?",
+  "@metronomeDeleteSessionConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "metronomeLoadPatternTitle": "Cargar Patrón",
+  "metronomePatternDeletedFromLibrary": "«{name}» eliminado de la librería",
+  "@metronomePatternDeletedFromLibrary": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "metronomeNoPatterns": "No hay patrones en la librería.",
+  "metronomeStructureLabel": "Estructura: {structure}",
+  "@metronomeStructureLabel": {
+    "placeholders": {
+      "structure": {
+        "type": "String"
+      }
+    }
+  },
+  "metronomeSharePattern": "Compartir patrón",
+  "metronomeDeletePatternFromLibrary": "Eliminar patrón de la librería",
+  "metronomeTitle": "METRÓNOMO",
+  "metronomeSaveSessionTooltip": "Guardar sesión",
+  "metronomeMoreOptions": "Más opciones",
+  "metronomeMenuNewSession": "Nueva sesión",
+  "metronomeMenuOpenSession": "Abrir sesión…",
+  "metronomeMenuSaveAs": "Guardar como…",
+  "metronomeMenuPlaylists": "Playlists",
+  "metronomeMenuSettings": "Ajustes",
+  "metronomeDefaultPatternName": "Patrón {number}",
+  "@metronomeDefaultPatternName": {
+    "placeholders": {
+      "number": {
+        "type": "int"
+      }
+    }
+  },
+  "metronomeAdd": "AÑADIR",
+  "metronomeLibrary": "LIBRERÍA",
+  "metronomeTapToRename": "Tocá para renombrar",
+  "metronomePatternOptions": "Opciones del patrón",
+  "metronomeSaveToLibrary": "Guardar en la librería",
+  "metronomeDuplicate": "Duplicar",
+  "metronomeRemoveFromSession": "Quitar de la sesión",
+  "metronomeRenamePatternTitle": "Renombrar patrón",
+  "metronomePatternUpdatedInLibrary": "«{name}» actualizado en la librería",
+  "@metronomePatternUpdatedInLibrary": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "metronomePatternSavedToLibrary": "«{name}» guardado en la librería",
+  "@metronomePatternSavedToLibrary": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "metronomePatternSoundTooltip": "Sonido del patrón: {sound}",
+  "@metronomePatternSoundTooltip": {
+    "placeholders": {
+      "sound": {
+        "type": "String"
+      }
+    }
+  },
+  "metronomeGlobalSoundTooltip": "Sonido: {sound} (global)",
+  "@metronomeGlobalSoundTooltip": {
+    "placeholders": {
+      "sound": {
+        "type": "String"
+      }
+    }
+  },
+  "metronomeSoundGlobal": "Global ({sound})",
+  "@metronomeSoundGlobal": {
+    "placeholders": {
+      "sound": {
+        "type": "String"
+      }
+    }
+  },
+  "metronomeStructureHint": "Ej. 3+2",
+  "transportTapToTypeTempo": "Tocá para escribir el tempo",
+  "transportTempoSemantics": "Tempo {bpm} BPM. Tocá para escribirlo",
+  "@transportTempoSemantics": {
+    "placeholders": {
+      "bpm": {
+        "type": "int"
+      }
+    }
+  },
+  "transportStepUp": "Subir {amount} BPM (mantené para repetir)",
+  "@transportStepUp": {
+    "placeholders": {
+      "amount": {
+        "type": "int"
+      }
+    }
+  },
+  "transportStepDown": "Bajar {amount} BPM (mantené para repetir)",
+  "@transportStepDown": {
+    "placeholders": {
+      "amount": {
+        "type": "int"
+      }
+    }
+  },
+  "transportTempoTitle": "Tempo",
+  "transportStop": "Detener",
+  "transportPlay": "Reproducir",
+  "transportTapTempo": "Tap tempo",
+  "transportTap": "TAP",
+  "macroCycleTitle": "CICLO MACRO",
+  "macroBeatsCount": "{count, plural, =1{1 Pulso} other{{count} Pulsos}}",
+  "@macroBeatsCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "macroLegendAccent": "Acento",
+  "macroLegendNormal": "Normal",
+  "macroLegendSoft": "Suave",
+  "macroLegendSilence": "Silencio",
+  "macroEditHints": "· Tocá una celda para cambiarla · Mantené y arrastrá para el volumen",
+  "mixerVolumeTooltip": "Volumen {percent}% (arrastrá)",
+  "@mixerVolumeTooltip": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "mixerMute": "Silenciar",
+  "mixerSolo": "Solo",
+  "keypadShortcutsHint": "Enter confirma · Esc cancela · Tab siguiente",
+  "settingsTitle": "AJUSTES",
+  "settingsPlaybackTitle": "Reproducción",
+  "settingsBackgroundPlaybackTitle": "Reproducción en segundo plano",
+  "settingsBackgroundPlaybackSubtitle": "El metrónomo sigue sonando al minimizar la app",
+  "settingsKeepScreenOnTitle": "Mantener pantalla encendida",
+  "settingsKeepScreenOnSubtitle": "Evita que el dispositivo se bloquee automáticamente",
+  "settingsLanguageTitle": "Idioma",
+  "settingsLanguageSubtitle": "Idioma de la interfaz",
+  "settingsSoundSetTitle": "Set de Sonidos",
+  "settingsRandomSilenceTitle": "Silencios al Azar",
+  "settingsRandomSilenceSubtitle": "Porcentaje de beats que se silencian aleatoriamente",
+  "settingsUiScaleTitle": "Tamaño de la Interfaz",
+  "settingsInstallTitle": "Instalar Aplicación",
+  "settingsInstallSubtitle": "Instalá el metrónomo en tu dispositivo",
+  "settingsInstalledTitle": "App Instalada",
+  "settingsInstalledMessage": "Estás usando la versión instalada del Metrónomo.",
+  "settingsInstallPrompt": "Instalá el Metrónomo en tu dispositivo para acceso rápido y uso sin conexión.",
+  "settingsInstallButton": "Instalar",
+  "settingsInstallManualIntro": "Podés instalar esta app desde el menú de tu navegador:",
+  "settingsInstallStepChromeAndroid": "Menú ⋮ → \"Instalar aplicación\" o \"Añadir a pantalla de inicio\"",
+  "settingsInstallStepChromePc": "Icono de instalación en la barra de direcciones o Menú ⋮ → \"Instalar app\"",
+  "settingsInstallStepSafariIos": "Tocar el botón Compartir → \"Agregar a pantalla de inicio\"",
+  "settingsAboutTitle": "Acerca de",
+  "settingsAboutDevelopedBy": "Desarrollado por Federico Randazzo",
+  "settingsAboutVisitWebsite": "Visitar Sitio Web",
+  "libraryTitle": "BIBLIOTECA",
+  "librarySearchHint": "Buscar por nombre…",
+  "librarySearch": "Buscar",
+  "libraryCloseSearch": "Cerrar búsqueda",
+  "libraryTabSessions": "Sesiones",
+  "libraryTabPatterns": "Patrones",
+  "libraryTabPlaylists": "Playlists",
+  "libraryNewSession": "Nueva sesión",
+  "libraryNoSessions": "No hay sesiones guardadas",
+  "libraryNoSessionsMatch": "Ninguna sesión coincide con «{query}»",
+  "@libraryNoSessionsMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "libraryNoSessionsHint": "Armá una sesión en Tocar y guardala con 💾",
+  "librarySessionSubtitle": "{bpm} BPM · {count, plural, =1{1 patrón} other{{count} patrones}}",
+  "@librarySessionSubtitle": {
+    "placeholders": {
+      "bpm": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "libraryInPlayBadge": "En Tocar",
+  "libraryOpenInPlay": "Abrir en Tocar",
+  "libraryDuplicate": "Duplicar",
+  "librarySessionCreated": "«{name}» creada",
+  "@librarySessionCreated": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "libraryRenameSession": "Renombrar sesión",
+  "libraryDeleteSession": "Eliminar sesión",
+  "libraryDeleteSessionConfirm": "¿Eliminar «{name}» de tu biblioteca?",
+  "@libraryDeleteSessionConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "librarySessionDeleted": "«{name}» eliminada",
+  "@librarySessionDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "libraryNoPatterns": "La librería de patrones está vacía",
+  "libraryNoPatternsMatch": "Ningún patrón coincide con «{query}»",
+  "@libraryNoPatternsMatch": {
+    "placeholders": {
+      "query": {
+        "type": "String"
+      }
+    }
+  },
+  "libraryNoPatternsHint": "En Tocar, usá ⋮ → «Guardar en la librería» en un patrón",
+  "libraryAddToSession": "Agregar a la sesión",
+  "libraryRemoveFromLibrary": "Eliminar de la librería",
+  "libraryRenamePattern": "Renombrar patrón",
+  "libraryPatternRemoved": "«{name}» eliminado de la librería",
+  "@libraryPatternRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "libraryOptions": "Opciones",
+  "playlistsTitle": "PLAYLISTS",
+  "playlistsNewTitle": "Nueva Playlist",
+  "playlistsEditTitle": "Editar Playlist",
+  "playlistsDescriptionLabel": "Descripción (opcional)",
+  "playlistsUpdateButton": "ACTUALIZAR",
+  "playlistsDeleteTitle": "Eliminar playlist",
+  "playlistsDeleteConfirm": "¿Eliminar «{name}»? Las sesiones que contiene no se borran.",
+  "@playlistsDeleteConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "playlistsDeleted": "«{name}» eliminada",
+  "@playlistsDeleted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "playlistsNewButton": "Nueva playlist",
+  "playlistsNoMatch": "Ninguna playlist coincide con la búsqueda",
+  "playlistsEmpty": "No hay playlists",
+  "playlistsEmptyHint": "Creá una playlist para organizar tus sesiones",
+  "playlistsCreateButton": "CREAR PLAYLIST",
+  "playlistsSessionCount": "{count, plural, =1{1 sesión} other{{count} sesiones}}",
+  "@playlistsSessionCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "playlistsOptions": "Opciones de la playlist",
+  "playlistsDeletedSessionChip": "(eliminada)",
+  "playlistsMoreCount": "+{count} más",
+  "@playlistsMoreCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "playlistsAddSession": "Agregar Sesión",
+  "playlistsAddSessionEmpty": "No hay sesiones guardadas.\nCreá sesiones desde el metrónomo.",
+  "playlistsSessionSubtitle": "{bpm} BPM • {count} pistas",
+  "@playlistsSessionSubtitle": {
+    "placeholders": {
+      "bpm": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "playlistsNotFoundTitle": "Playlist no encontrada",
+  "playlistsNotFoundMessage": "Esta playlist fue eliminada.",
+  "playlistsPlay": "Reproducir",
+  "playlistsDetailEmpty": "Playlist vacía",
+  "playlistsDetailEmptyHint": "Agregá sesiones usando el botón +",
+  "playlistsAddSessionButton": "AGREGAR SESIÓN",
+  "playlistsDeletedSession": "(sesión eliminada)",
+  "playlistsRemoveSession": "Quitar de la playlist",
+  "playlistsRemoved": "Quitada de la playlist",
+  "playlistsSessionRemoved": "«{name}» quitada de la playlist",
+  "@playlistsSessionRemoved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  }
+}

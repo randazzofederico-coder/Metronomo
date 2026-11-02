@@ -1,4 +1,5 @@
 import 'package:uuid/uuid.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 
 import 'pattern_model.dart';
 
@@ -51,7 +52,7 @@ class SessionPatternConfig {
   Pattern? get embeddedPattern => hasEmbeddedPattern
       ? Pattern(
           id: patternId,
-          name: name ?? 'Patrón',
+          name: name ?? L10n.current.patternDefaultName,
           structure: structure!,
           pulses: pulses!.map((p) => p.copyWith()).toList(),
         )

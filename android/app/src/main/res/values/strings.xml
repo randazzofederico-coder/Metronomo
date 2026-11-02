@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launcher label. Default (English); Spanish override in values-es. -->
+    <string name="app_name">Metronome</string>
+</resources>

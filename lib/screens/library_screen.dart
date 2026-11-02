@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/models/pattern_model.dart';
 import 'package:metronomo_standalone/models/session_model.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
@@ -76,16 +77,16 @@ class LibraryScreenState extends State<LibraryScreen> with SingleTickerProviderS
                 autofocus: true,
                 style: TextStyle(color: AppColors.textPrimary(context)),
                 decoration: InputDecoration(
-                  hintText: 'Buscar por nombre…',
+                  hintText: context.l10n.librarySearchHint,
                   hintStyle: TextStyle(color: AppColors.textSecondary(context)),
                   border: InputBorder.none,
                 ),
               )
-            : const Text('BIBLIOTECA', style: TextStyle(letterSpacing: 2.0)),
+            : Text(context.l10n.libraryTitle, style: TextStyle(letterSpacing: 2.0)),
         actions: [
           IconButton(
             icon: Icon(_searching ? Icons.close_rounded : Icons.search_rounded, color: AppColors.textSecondary(context)),
-            tooltip: _searching ? 'Cerrar búsqueda' : 'Buscar',
+            tooltip: _searching ? context.l10n.libraryCloseSearch : context.l10n.librarySearch,
             onPressed: _toggleSearch,
           ),
         ],
@@ -94,10 +95,10 @@ class LibraryScreenState extends State<LibraryScreen> with SingleTickerProviderS
           indicatorColor: AppColors.primary(context),
           labelColor: AppColors.primary(context),
           unselectedLabelColor: AppColors.textSecondary(context),
-          tabs: const [
-            Tab(text: 'Sesiones'),
-            Tab(text: 'Patrones'),
-            Tab(text: 'Playlists'),
+          tabs: [
+            Tab(text: context.l10n.libraryTabSessions),
+            Tab(text: context.l10n.libraryTabPatterns),
+            Tab(text: context.l10n.libraryTabPlaylists),
           ],
         ),
       ),
@@ -131,14 +132,14 @@ class LibraryScreenState extends State<LibraryScreen> with SingleTickerProviderS
         heroTag: 'new-session',
         onPressed: widget.onNewSession,
         icon: const Icon(Icons.add),
-        label: const Text('Nueva sesión'),
+        label: Text(context.l10n.libraryNewSession),
       ),
       body: sessions.isEmpty
           ? _emptyState(
               context,
               icon: Icons.library_music_outlined,
-              text: _query.isEmpty ? 'No hay sesiones guardadas' : 'Ninguna sesión coincide con «${_search.text.trim()}»',
-              hint: _query.isEmpty ? 'Armá una sesión en Tocar y guardala con 💾' : null,
+              text: _query.isEmpty ? context.l10n.libraryNoSessions : context.l10n.libraryNoSessionsMatch(_search.text.trim()),
+              hint: _query.isEmpty ? context.l10n.libraryNoSessionsHint : null,
             )
           : ListView.builder(
               padding: const EdgeInsets.fromLTRB(12, 12, 12, 88),
@@ -149,18 +150,18 @@ class LibraryScreenState extends State<LibraryScreen> with SingleTickerProviderS
                 final patterns = session.patternsConfig.length;
                 return _LibraryTile(
                   title: session.name,
-                  subtitle: '${session.globalBpm} BPM · $patterns ${patterns == 1 ? 'patrón' : 'patrones'}',
+                  subtitle: context.l10n.librarySessionSubtitle(session.globalBpm, patterns),
                   description: session.description,
                   icon: Icons.library_music_rounded,
                   selected: isActive,
-                  badge: isActive ? 'En Tocar' : null,
+                  badge: isActive ? context.l10n.libraryInPlayBadge : null,
                   onTap: () => widget.onOpenSession(session),
                   menu: [
-                    _MenuAction(Icons.play_arrow_rounded, 'Abrir en Tocar', () => widget.onOpenSession(session)),
-                    _MenuAction(Icons.share_outlined, 'Compartir', () => shareSession(context, session)),
-                    _MenuAction(Icons.copy_rounded, 'Duplicar', () => _duplicateSession(session)),
-                    _MenuAction(Icons.edit_outlined, 'Renombrar', () => _renameSession(session)),
-                    _MenuAction(Icons.delete_outline, 'Eliminar', () => _deleteSession(session), destructive: true),
+                    _MenuAction(Icons.play_arrow_rounded, context.l10n.libraryOpenInPlay, () => widget.onOpenSession(session)),
+                    _MenuAction(Icons.share_outlined, context.l10n.commonShare, () => shareSession(context, session)),
+                    _MenuAction(Icons.copy_rounded, context.l10n.libraryDuplicate, () => _duplicateSession(session)),
+                    _MenuAction(Icons.edit_outlined, context.l10n.commonRename, () => _renameSession(session)),
+                    _MenuAction(Icons.delete_outline, context.l10n.commonDelete, () => _deleteSession(session), destructive: true),
                   ],
                 );
               },
@@ -171,17 +172,17 @@ class LibraryScreenState extends State<LibraryScreen> with SingleTickerProviderS
   Future<void> _duplicateSession(Session session) async {
     final copy = session.copyWith(
       id: const Uuid().v4(),
-      name: '${session.name} (copia)',
+      name: context.l10n.patternCopyName(session.name),
       createdAt: DateTime.now(),
     );
     await context.read<SessionProvider>().addSession(copy);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('«${copy.name}» creada')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.librarySessionCreated(copy.name))));
     }
   }
 
   Future<void> _renameSession(Session session) async {
-    final name = await _askName(context, title: 'Renombrar sesión', initial: session.name);
+    final name = await _askName(context, title: context.l10n.libraryRenameSession, initial: session.name);
     if (name == null || name == session.name || !mounted) return;
     await context.read<SessionProvider>().updateSession(session.copyWith(name: name));
     if (!mounted) return;
@@ -191,8 +192,8 @@ class LibraryScreenState extends State<LibraryScreen> with SingleTickerProviderS
   Future<void> _deleteSession(Session session) async {
     final ok = await confirmDelete(
       context,
-      title: 'Eliminar sesión',
-      message: '¿Eliminar «${session.name}» de tu biblioteca?',
+      title: context.l10n.libraryDeleteSession,
+      message: context.l10n.libraryDeleteSessionConfirm(session.name),
     );
     if (!ok || !mounted) return;
     final provider = context.read<SessionProvider>();
@@ -200,7 +201,7 @@ class LibraryScreenState extends State<LibraryScreen> with SingleTickerProviderS
     if (removed == null || !mounted) return;
     showUndoSnackBar(
       context,
-      message: '«${session.name}» eliminada',
+      message: context.l10n.librarySessionDeleted(session.name),
       onUndo: () => provider.restoreSession(removed.$1, removed.$2),
     );
   }
@@ -215,8 +216,8 @@ class LibraryScreenState extends State<LibraryScreen> with SingleTickerProviderS
       return _emptyState(
         context,
         icon: Icons.graphic_eq_rounded,
-        text: _query.isEmpty ? 'La librería de patrones está vacía' : 'Ningún patrón coincide con «${_search.text.trim()}»',
-        hint: _query.isEmpty ? 'En Tocar, usá ⋮ → «Guardar en la librería» en un patrón' : null,
+        text: _query.isEmpty ? context.l10n.libraryNoPatterns : context.l10n.libraryNoPatternsMatch(_search.text.trim()),
+        hint: _query.isEmpty ? context.l10n.libraryNoPatternsHint : null,
       );
     }
 
@@ -230,12 +231,12 @@ class LibraryScreenState extends State<LibraryScreen> with SingleTickerProviderS
           trailingInfo: FormattedStructure(pattern.structure),
           icon: Icons.graphic_eq_rounded,
           onTap: () => widget.onAddPattern(pattern),
-          tooltip: 'Agregar a la sesión',
+          tooltip: context.l10n.libraryAddToSession,
           menu: [
-            _MenuAction(Icons.add_circle_outline, 'Agregar a la sesión', () => widget.onAddPattern(pattern)),
-            _MenuAction(Icons.share_outlined, 'Compartir', () => sharePattern(context, pattern)),
-            _MenuAction(Icons.edit_outlined, 'Renombrar', () => _renamePattern(pattern)),
-            _MenuAction(Icons.delete_outline, 'Eliminar de la librería', () => _deletePattern(pattern), destructive: true),
+            _MenuAction(Icons.add_circle_outline, context.l10n.libraryAddToSession, () => widget.onAddPattern(pattern)),
+            _MenuAction(Icons.share_outlined, context.l10n.commonShare, () => sharePattern(context, pattern)),
+            _MenuAction(Icons.edit_outlined, context.l10n.commonRename, () => _renamePattern(pattern)),
+            _MenuAction(Icons.delete_outline, context.l10n.libraryRemoveFromLibrary, () => _deletePattern(pattern), destructive: true),
           ],
         );
       },
@@ -243,7 +244,7 @@ class LibraryScreenState extends State<LibraryScreen> with SingleTickerProviderS
   }
 
   Future<void> _renamePattern(Pattern pattern) async {
-    final name = await _askName(context, title: 'Renombrar patrón', initial: pattern.name);
+    final name = await _askName(context, title: context.l10n.libraryRenamePattern, initial: pattern.name);
     if (name == null || name == pattern.name || !mounted) return;
     await context.read<PatternEditorProvider>().updatePattern(pattern.copyWith(name: name));
   }
@@ -256,7 +257,7 @@ class LibraryScreenState extends State<LibraryScreen> with SingleTickerProviderS
     if (removed == null || !mounted) return;
     showUndoSnackBar(
       context,
-      message: '«${pattern.name}» eliminado de la librería',
+      message: context.l10n.libraryPatternRemoved(pattern.name),
       onUndo: () => patProvider.restorePattern(removed.$1, removed.$2),
     );
   }
@@ -305,7 +306,7 @@ Future<String?> _askName(BuildContext context, {required String title, required 
           autofocus: true,
           style: TextStyle(color: AppColors.textPrimary(ctx)),
           decoration: InputDecoration(
-            labelText: 'Nombre',
+            labelText: ctx.l10n.commonName,
             labelStyle: TextStyle(color: AppColors.textSecondary(ctx)),
             focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.primary(ctx))),
           ),
@@ -314,11 +315,11 @@ Future<String?> _askName(BuildContext context, {required String title, required 
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text('CANCELAR', style: TextStyle(color: AppColors.textSecondary(ctx))),
+            child: Text(ctx.l10n.commonCancel.toUpperCase(), style: TextStyle(color: AppColors.textSecondary(ctx))),
           ),
           TextButton(
             onPressed: submit,
-            child: Text('OK', style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold)),
+            child: Text(ctx.l10n.commonOk, style: TextStyle(color: AppColors.primary(ctx), fontWeight: FontWeight.bold)),
           ),
         ],
       );
@@ -428,7 +429,7 @@ class _LibraryTile extends StatelessWidget {
                 trailingInfo!,
               ],
               PopupMenuButton<int>(
-                tooltip: 'Opciones',
+                tooltip: context.l10n.libraryOptions,
                 icon: Icon(Icons.more_vert_rounded, color: AppColors.textSecondary(context)),
                 onSelected: (i) => menu[i].onSelected(),
                 itemBuilder: (_) => [

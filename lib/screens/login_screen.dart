@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:metronomo_standalone/l10n/l10n.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -22,10 +23,6 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   String? _errorMessage;
   String? _successMessage;
 
-  static const String _noInternetMsg =
-      'No hay conexión a internet.\n'
-      'Para iniciar sesión por primera vez necesitás estar conectado. '
-      'Una vez logueado, podrás usar el Metrónomo sin conexión.';
 
   bool _isNetworkError(Object error) {
     final msg = error.toString().toLowerCase();
@@ -96,6 +93,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   Future<void> _signInWithGoogle() async {
+    final l10n = context.l10n;
     _clearMessages();
     setState(() => _isLoading = true);
 
@@ -118,15 +116,15 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
       }
     } on FirebaseAuthException catch (e) {
       if (_isNetworkError(e)) {
-        _showError(_noInternetMsg);
+        _showError(l10n.loginNoInternet);
       } else {
-        _showError("Error al conectar con Google: ${e.message}");
+        _showError(l10n.loginGoogleError('${e.message}'));
       }
     } catch (e) {
       if (_isNetworkError(e)) {
-        _showError(_noInternetMsg);
+        _showError(l10n.loginNoInternet);
       } else {
-        _showError("Error al conectar con Google: $e");
+        _showError(l10n.loginGoogleError('$e'));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -134,6 +132,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   Future<void> _submitForm() async {
+    final l10n = context.l10n;
     if (!_formKey.currentState!.validate()) return;
     _clearMessages();
 
@@ -145,12 +144,12 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
     if (_isRegisterMode) {
       final confirmPassword = _confirmPasswordController.text.trim();
       if (password != confirmPassword) {
-        _showError("Las contraseñas no coinciden.");
+        _showError(l10n.loginPasswordsMismatch);
         setState(() => _isLoading = false);
         return;
       }
       if (password.length < 6) {
-        _showError("La contraseña debe tener al menos 6 caracteres.");
+        _showError(l10n.loginPasswordTooShort);
         setState(() => _isLoading = false);
         return;
       }
@@ -160,7 +159,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             .createUserWithEmailAndPassword(email: email, password: password);
         await userCredential.user?.sendEmailVerification();
         _showSuccess(
-          "Cuenta creada exitosamente. Revisá tu casilla de correo (incluyendo spam) para verificar tu email.",
+          l10n.loginAccountCreated,
         );
         _formKey.currentState?.reset();
         Future.delayed(const Duration(seconds: 3), () {
@@ -172,9 +171,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         });
       } on FirebaseAuthException catch (e) {
         if (e.code == 'email-already-in-use') {
-          _showError("Ese email ya está registrado.");
+          _showError(l10n.loginEmailInUse);
         } else {
-          _showError("Error: ${e.message}");
+          _showError(l10n.authErrorWithDetails('${e.message}'));
         }
       }
     } else {
@@ -185,17 +184,17 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
         );
       } on FirebaseAuthException catch (e) {
         if (_isNetworkError(e)) {
-          _showError(_noInternetMsg);
+          _showError(l10n.loginNoInternet);
         } else if (e.code == 'invalid-credential' || e.code == 'wrong-password' || e.code == 'user-not-found') {
-          _showError("Credenciales incorrectas.");
+          _showError(l10n.loginInvalidCredentials);
         } else {
-          _showError("Error al iniciar sesión: ${e.message}");
+          _showError(l10n.loginSignInError('${e.message}'));
         }
       } catch (e) {
         if (_isNetworkError(e)) {
-          _showError(_noInternetMsg);
+          _showError(l10n.loginNoInternet);
         } else {
-          _showError("Error al iniciar sesión: $e");
+          _showError(l10n.loginSignInError('$e'));
         }
       }
     }
@@ -204,17 +203,18 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
   }
 
   Future<void> _forgotPassword() async {
+    final l10n = context.l10n;
     final email = _emailController.text.trim();
     if (email.isEmpty) {
-      _showError("Ingresá tu email primero para recuperar la contraseña.");
+      _showError(l10n.loginEnterEmailFirst);
       return;
     }
 
     try {
       await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
-      _showSuccess("Email de recuperación enviado. Revisá tu bandeja de entrada y spam.");
+      _showSuccess(l10n.loginResetEmailSent);
     } on FirebaseAuthException catch (e) {
-      _showError("Error al enviar el email: ${e.message}");
+      _showError(l10n.loginResetEmailError('${e.message}'));
     }
   }
 
@@ -228,6 +228,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Scaffold(
       backgroundColor: _accentDark,
       body: FadeTransition(
@@ -256,7 +257,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                   children: [
                     // Header
                     Text(
-                      _isRegisterMode ? "Registrate" : "Bienvenido",
+                      _isRegisterMode ? l10n.loginRegisterTitle : l10n.loginWelcomeTitle,
                       style: const TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
@@ -266,8 +267,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                     const SizedBox(height: 8),
                     Text(
                       _isRegisterMode
-                          ? "Creá una cuenta para acceder al metrónomo."
-                          : "Iniciá sesión para usar el metrónomo.",
+                          ? l10n.loginRegisterSubtitle
+                          : l10n.loginSignInSubtitle,
                       style: TextStyle(
                         fontSize: 14,
                         color: _textSecondary.withOpacity(0.7),
@@ -288,9 +289,9 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           height: 20,
                           errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 24),
                         ),
-                        label: const Text(
-                          "Continuar con Google",
-                          style: TextStyle(
+                        label: Text(
+                          l10n.loginContinueWithGoogle,
+                          style: const TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 15,
                           ),
@@ -315,8 +316,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           child: Text(
                             _isRegisterMode
-                                ? "O usá tu email"
-                                : "¿Tenés otro mail?",
+                                ? l10n.loginOrUseEmail
+                                : l10n.loginOtherEmail,
                             style: TextStyle(
                               fontSize: 12,
                               color: _textSecondary.withOpacity(0.5),
@@ -335,8 +336,8 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         children: [
                           _buildField(
                             controller: _emailController,
-                            label: "EMAIL",
-                            hint: "tu@email.com",
+                            label: l10n.loginEmailLabel,
+                            hint: l10n.loginEmailHint,
                             keyboardType: TextInputType.emailAddress,
                             onTap: () {
                               if (!_showPasswordFields) {
@@ -354,7 +355,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                       const SizedBox(height: 16),
                                       _buildField(
                                         controller: _passwordController,
-                                        label: "CONTRASEÑA",
+                                        label: l10n.loginPasswordLabel,
                                         hint: "••••••••",
                                         isPassword: true,
                                       ),
@@ -362,7 +363,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                         const SizedBox(height: 16),
                                         _buildField(
                                           controller: _confirmPasswordController,
-                                          label: "CONFIRMAR CONTRASEÑA",
+                                          label: l10n.loginConfirmPasswordLabel,
                                           hint: "••••••••",
                                           isPassword: true,
                                         ),
@@ -391,7 +392,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                                   ),
                                                 )
                                               : Text(
-                                                  _isRegisterMode ? "Crear Cuenta" : "Entrar",
+                                                  _isRegisterMode ? l10n.loginCreateAccountButton : l10n.loginSignInButton,
                                                   style: const TextStyle(
                                                     fontWeight: FontWeight.w600,
                                                     fontSize: 15,
@@ -404,7 +405,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                                         TextButton(
                                           onPressed: _isLoading ? null : _forgotPassword,
                                           child: Text(
-                                            "¿Olvidaste tu contraseña?",
+                                            l10n.loginForgotPassword,
                                             style: TextStyle(
                                               fontSize: 13,
                                               color: _textSecondary.withOpacity(0.6),
@@ -450,7 +451,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         Text(
-                          _isRegisterMode ? "¿Ya tenés cuenta?" : "¿No tenés usuario?",
+                          _isRegisterMode ? l10n.loginHaveAccount : l10n.loginNoAccount,
                           style: TextStyle(
                             fontSize: 14,
                             color: _textSecondary.withOpacity(0.7),
@@ -459,7 +460,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
                         TextButton(
                           onPressed: _toggleMode,
                           child: Text(
-                            _isRegisterMode ? "Iniciar Sesión" : "Crear una cuenta",
+                            _isRegisterMode ? l10n.loginSignInLink : l10n.loginCreateAccountLink,
                             style: const TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
@@ -526,7 +527,7 @@ class _LoginScreenState extends State<LoginScreen> with SingleTickerProviderStat
             ),
           ),
           validator: (value) {
-            if (value == null || value.isEmpty) return 'Campo requerido';
+            if (value == null || value.isEmpty) return context.l10n.authFieldRequired;
             return null;
           },
         ),

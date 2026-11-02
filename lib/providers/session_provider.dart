@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 import '../models/pattern_model.dart';
 import '../models/session_model.dart';
 import '../services/session_repository.dart';
@@ -26,7 +27,7 @@ class SessionProvider extends ChangeNotifier {
       final chacareraSession = Session(
         id: "default-session-chacarera",
         name: "Chacarera",
-        description: "Sesión por defecto con birritmia de 3/4 y 6/8",
+        description: L10n.current.sessionDefaultDescription,
         globalBpm: 120,
         patternsConfig: [
           SessionPatternConfig(patternId: "default-chacarera-3-4", volume: 0.8, orderIndex: 0),

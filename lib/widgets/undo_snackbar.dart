@@ -1,27 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 
 /// Confirmation dialog for destructive actions. Returns true if confirmed.
+/// [confirmLabel] defaults to the localized "DELETE".
 Future<bool> confirmDelete(
   BuildContext context, {
   required String title,
   required String message,
-  String confirmLabel = 'ELIMINAR',
+  String? confirmLabel,
 }) async {
   final ok = await showDialog<bool>(
     context: context,
     builder: (ctx) {
       final colors = Theme.of(ctx).colorScheme;
+      final l10n = ctx.l10n;
       return AlertDialog(
         title: Text(title),
         content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('CANCELAR', style: TextStyle(color: colors.onSurface.withOpacity(0.7))),
+            child: Text(l10n.commonCancel.toUpperCase(), style: TextStyle(color: colors.onSurface.withOpacity(0.7))),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(confirmLabel, style: TextStyle(color: colors.secondary, fontWeight: FontWeight.bold)),
+            child: Text(confirmLabel ?? l10n.commonDelete.toUpperCase(), style: TextStyle(color: colors.secondary, fontWeight: FontWeight.bold)),
           ),
         ],
       );
@@ -46,7 +49,7 @@ void showUndoSnackBar(
       duration: duration,
       // Since Flutter 3.38 snackbars with an action persist by default.
       persist: false,
-      action: SnackBarAction(label: 'DESHACER', onPressed: onUndo),
+      action: SnackBarAction(label: context.l10n.commonUndo.toUpperCase(), onPressed: onUndo),
     ),
   );
 }
@@ -75,7 +78,7 @@ class UndoStrip extends StatelessWidget {
           Expanded(child: Text(message, style: snack.contentTextStyle, maxLines: 2, overflow: TextOverflow.ellipsis)),
           TextButton(
             onPressed: onUndo,
-            child: Text('DESHACER', style: TextStyle(color: snack.actionTextColor, fontWeight: FontWeight.bold)),
+            child: Text(context.l10n.commonUndo.toUpperCase(), style: TextStyle(color: snack.actionTextColor, fontWeight: FontWeight.bold)),
           ),
         ],
       ),

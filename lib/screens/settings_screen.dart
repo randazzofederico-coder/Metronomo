@@ -6,6 +6,7 @@ import '../services/pwa_install_service.dart';
 import '../providers/settings_provider.dart';
 import '../providers/metronome_provider.dart';
 import '../constants/app_colors.dart';
+import 'package:metronomo_standalone/l10n/l10n.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -40,7 +41,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       backgroundColor: AppColors.background(context),
       appBar: AppBar(
         // Same name as its tab in the bottom bar.
-        title: const Text('AJUSTES', style: TextStyle(letterSpacing: 2.0)),
+        title: Text(context.l10n.settingsTitle, style: TextStyle(letterSpacing: 2.0)),
         backgroundColor: AppColors.surface(context),
       ),
       // On wide screens keep the settings at a readable width.
@@ -61,13 +62,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSectionCard(
             context,
             icon: Icons.settings_rounded,
-            title: 'Reproducción',
+            title: context.l10n.settingsPlaybackTitle,
             child: Column(
               children: [
                 _buildSwitchTile(
                   context,
-                  title: 'Reproducción en segundo plano',
-                  subtitle: 'El metrónomo sigue sonando al minimizar la app',
+                  title: context.l10n.settingsBackgroundPlaybackTitle,
+                  subtitle: context.l10n.settingsBackgroundPlaybackSubtitle,
                   icon: Icons.headphones_rounded,
                   value: controller.backgroundPlayback,
                   onChanged: (val) => controller.toggleBackgroundPlayback(val),
@@ -75,8 +76,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Divider(color: AppColors.border(context), height: 1),
                 _buildSwitchTile(
                   context,
-                  title: 'Mantener pantalla encendida',
-                  subtitle: 'Evita que el dispositivo se bloquee automáticamente',
+                  title: context.l10n.settingsKeepScreenOnTitle,
+                  subtitle: context.l10n.settingsKeepScreenOnSubtitle,
                   icon: Icons.brightness_high_rounded,
                   value: controller.keepScreenOn,
                   onChanged: (val) => controller.toggleKeepScreenOn(val),
@@ -87,11 +88,52 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           const SizedBox(height: 12),
 
+          // ── Language ──
+          _buildSectionCard(
+            context,
+            icon: Icons.translate_rounded,
+            title: context.l10n.settingsLanguageTitle,
+            subtitle: context.l10n.settingsLanguageSubtitle,
+            child: DropdownButtonFormField<String?>(
+              value: controller.languageCode,
+              dropdownColor: AppColors.surface(context),
+              style: TextStyle(color: AppColors.textPrimary(context)),
+              decoration: InputDecoration(
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: AppColors.border(context)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: AppColors.border(context)),
+                ),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              ),
+              items: [
+                DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text(context.l10n.languageSystem),
+                ),
+                DropdownMenuItem<String?>(
+                  value: 'es',
+                  child: Text(context.l10n.languageSpanish),
+                ),
+                DropdownMenuItem<String?>(
+                  value: 'en',
+                  child: Text(context.l10n.languageEnglish),
+                ),
+              ],
+              onChanged: (val) => controller.updateLanguage(val),
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
           // ── Sound Selection ──
           _buildSectionCard(
             context,
             icon: Icons.music_note_rounded,
-            title: 'Set de Sonidos',
+            title: context.l10n.settingsSoundSetTitle,
             child: DropdownButtonFormField<String>(
               value: controller.selectedSound,
               dropdownColor: AppColors.surface(context),
@@ -110,7 +152,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               items: SettingsProvider.availableSounds
                   .map((sound) => DropdownMenuItem(
                         value: sound,
-                        child: Text(sound),
+                        child: Text(soundSetLabel(context.l10n, sound)),
                       ))
                   .toList(),
               onChanged: (val) {
@@ -126,8 +168,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSectionCard(
             context,
             icon: Icons.volume_off_rounded,
-            title: 'Silencios al Azar',
-            subtitle: 'Porcentaje de beats que se silencian aleatoriamente',
+            title: context.l10n.settingsRandomSilenceTitle,
+            subtitle: context.l10n.settingsRandomSilenceSubtitle,
             child: Column(
               children: [
                 Slider(
@@ -168,7 +210,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           _buildSectionCard(
             context,
             icon: Icons.zoom_in_rounded,
-            title: 'Tamaño de la Interfaz',
+            title: context.l10n.settingsUiScaleTitle,
             child: Column(
               children: [
                 Slider(
@@ -319,8 +361,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return _buildSectionCard(
       context,
       icon: Icons.install_mobile_rounded,
-      title: 'Instalar Aplicación',
-      subtitle: 'Instalá el metrónomo en tu dispositivo',
+      title: context.l10n.settingsInstallTitle,
+      subtitle: context.l10n.settingsInstallSubtitle,
       child: ValueListenableBuilder<bool>(
         valueListenable: pwaService.isInstalled,
         builder: (context, isInstalled, _) {
@@ -341,7 +383,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'App Instalada',
+                          context.l10n.settingsInstalledTitle,
                           style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.bold,
@@ -350,7 +392,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          'Estás usando la versión instalada del Metrónomo.',
+                          context.l10n.settingsInstalledMessage,
                           style: TextStyle(
                             fontSize: 12,
                             color: AppColors.textSecondary(context),
@@ -371,7 +413,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 return Column(
                   children: [
                     Text(
-                      'Instalá el Metrónomo en tu dispositivo para acceso rápido y uso sin conexión.',
+                      context.l10n.settingsInstallPrompt,
                       style: TextStyle(fontSize: 13, color: AppColors.textSecondary(context)),
                       textAlign: TextAlign.center,
                     ),
@@ -383,7 +425,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           await pwaService.promptInstall();
                         },
                         icon: const Icon(Icons.download_rounded),
-                        label: const Text('Instalar', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                        label: Text(context.l10n.settingsInstallButton, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppColors.primary(context),
                           foregroundColor: Colors.white,
@@ -401,16 +443,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Podés instalar esta app desde el menú de tu navegador:',
+                    context.l10n.settingsInstallManualIntro,
                     style: TextStyle(fontSize: 13, color: AppColors.textSecondary(context)),
                   ),
                   const SizedBox(height: 10),
                   _buildInstallStep(context, Icons.phone_android, 'Chrome (Android)',
-                      'Menú ⋮ → "Instalar aplicación" o "Añadir a pantalla de inicio"'),
+                      context.l10n.settingsInstallStepChromeAndroid),
                   _buildInstallStep(context, Icons.desktop_windows, 'Chrome (PC)',
-                      'Icono de instalación en la barra de direcciones o Menú ⋮ → "Instalar app"'),
+                      context.l10n.settingsInstallStepChromePc),
                   _buildInstallStep(context, Icons.phone_iphone, 'Safari (iOS)',
-                      'Tocar el botón Compartir → "Agregar a pantalla de inicio"'),
+                      context.l10n.settingsInstallStepSafariIos),
                 ],
               );
             },
@@ -454,12 +496,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return _buildSectionCard(
       context,
       icon: Icons.info_outline_rounded,
-      title: 'Acerca de',
+      title: context.l10n.settingsAboutTitle,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Metrónomo',
+            context.l10n.appTitle,
             style: TextStyle(
               color: AppColors.textPrimary(context),
               fontWeight: FontWeight.bold,
@@ -468,7 +510,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Desarrollado por Federico Randazzo',
+            context.l10n.settingsAboutDevelopedBy,
             style: TextStyle(
               color: AppColors.textSecondary(context),
               fontSize: 13,
@@ -485,8 +527,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 }
               },
               icon: const Icon(Icons.language_rounded),
-              label: const Text(
-                'Visitar Sitio Web',
+              label: Text(
+                context.l10n.settingsAboutVisitWebsite,
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(

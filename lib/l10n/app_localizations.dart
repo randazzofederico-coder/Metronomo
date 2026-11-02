@@ -1466,6 +1466,24 @@ abstract class AppLocalizations {
   /// **'Visitar Sitio Web'**
   String get settingsAboutVisitWebsite;
 
+  /// No description provided for @settingsForumTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Comunidad'**
+  String get settingsForumTitle;
+
+  /// No description provided for @settingsForumSubtitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Consultas, sugerencias y novedades en el foro'**
+  String get settingsForumSubtitle;
+
+  /// No description provided for @settingsForumButton.
+  ///
+  /// In es, this message translates to:
+  /// **'Ir al Foro'**
+  String get settingsForumButton;
+
   /// No description provided for @libraryTitle.
   ///
   /// In es, this message translates to:

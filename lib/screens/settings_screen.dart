@@ -58,6 +58,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         children: [
+          // ── Language ──
+          _buildLanguageSection(context, controller),
+
+          const SizedBox(height: 12),
+
           // ── Playback & Screen ──
           _buildSectionCard(
             context,
@@ -83,47 +88,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   onChanged: (val) => controller.toggleKeepScreenOn(val),
                 ),
               ],
-            ),
-          ),
-
-          const SizedBox(height: 12),
-
-          // ── Language ──
-          _buildSectionCard(
-            context,
-            icon: Icons.translate_rounded,
-            title: context.l10n.settingsLanguageTitle,
-            subtitle: context.l10n.settingsLanguageSubtitle,
-            child: DropdownButtonFormField<String?>(
-              value: controller.languageCode,
-              dropdownColor: AppColors.surface(context),
-              style: TextStyle(color: AppColors.textPrimary(context)),
-              decoration: InputDecoration(
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.border(context)),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: AppColors.border(context)),
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              ),
-              items: [
-                DropdownMenuItem<String?>(
-                  value: null,
-                  child: Text(context.l10n.languageSystem),
-                ),
-                DropdownMenuItem<String?>(
-                  value: 'es',
-                  child: Text(context.l10n.languageSpanish),
-                ),
-                DropdownMenuItem<String?>(
-                  value: 'en',
-                  child: Text(context.l10n.languageEnglish),
-                ),
-              ],
-              onChanged: (val) => controller.updateLanguage(val),
             ),
           ),
 
@@ -249,6 +213,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
             _buildPwaInstallSection(context),
             const SizedBox(height: 12),
           ],
+
+          // ── Comunidad / Foro ──
+          _buildForumSection(context),
+          const SizedBox(height: 12),
 
           // ── Acerca de ──
           _buildAboutSection(context),
@@ -488,6 +456,77 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildLanguageSection(BuildContext context, SettingsProvider controller) {
+    return _buildSectionCard(
+      context,
+      icon: Icons.translate_rounded,
+      title: context.l10n.settingsLanguageTitle,
+      subtitle: context.l10n.settingsLanguageSubtitle,
+      child: DropdownButtonFormField<String?>(
+        value: controller.languageCode,
+        dropdownColor: AppColors.surface(context),
+        style: TextStyle(color: AppColors.textPrimary(context)),
+        decoration: InputDecoration(
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: AppColors.border(context)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: AppColors.border(context)),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        ),
+        items: [
+          DropdownMenuItem<String?>(
+            value: null,
+            child: Text(context.l10n.languageSystem),
+          ),
+          DropdownMenuItem<String?>(
+            value: 'es',
+            child: Text(context.l10n.languageSpanish),
+          ),
+          DropdownMenuItem<String?>(
+            value: 'en',
+            child: Text(context.l10n.languageEnglish),
+          ),
+        ],
+        onChanged: (val) => controller.updateLanguage(val),
+      ),
+    );
+  }
+
+  Widget _buildForumSection(BuildContext context) {
+    return _buildSectionCard(
+      context,
+      icon: Icons.forum_rounded,
+      title: context.l10n.settingsForumTitle,
+      subtitle: context.l10n.settingsForumSubtitle,
+      child: SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: () async {
+            final uri = Uri.parse('https://federicorandazzo.com.ar/foro/');
+            if (await canLaunchUrl(uri)) {
+              await launchUrl(uri, mode: LaunchMode.externalApplication);
+            }
+          },
+          icon: const Icon(Icons.open_in_new_rounded),
+          label: Text(
+            context.l10n.settingsForumButton,
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary(context),
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          ),
+        ),
       ),
     );
   }

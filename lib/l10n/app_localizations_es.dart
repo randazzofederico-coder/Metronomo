@@ -879,6 +879,16 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsAboutVisitWebsite => 'Visitar Sitio Web';
 
   @override
+  String get settingsForumTitle => 'Comunidad';
+
+  @override
+  String get settingsForumSubtitle =>
+      'Consultas, sugerencias y novedades en el foro';
+
+  @override
+  String get settingsForumButton => 'Ir al Foro';
+
+  @override
   String get libraryTitle => 'BIBLIOTECA';
 
   @override

@@ -14,6 +14,9 @@ import '../models/synced_item.dart';
 ///   and `dev` (= [DeviceIdentity.id]). The stored item is the reference for
 ///   `rev`, so callers may pass stale copies (e.g. undo of an overwrite).
 /// * [delete] leaves a tombstone; [restore] (undo) revives it.
+/// * Undo = going back in time ([restore] / [restoreSnapshot]): the item comes
+///   back exactly as it was (data, `createdAt`/`updatedAt`, position); only
+///   `rev` (+1) and `dev` move forward.
 /// * [load] purges tombstones older than [SyncFields.tombstoneRetention].
 /// * The order of the list is local presentation only: [reorder] doesn't
 ///   change any item (no rev bump).
@@ -71,27 +74,33 @@ abstract class SyncedRepository<T extends SyncedItem<T>> {
     await prefs.setString(storageKey, json.encode(_items.map((e) => e.toJson()).toList()));
   }
 
-  T _stamp(T item, {required int rev, bool deleted = false, DateTime? deletedAt}) {
+  /// Sets the sync metadata. `updatedAt` = now unless [updatedAt] is given
+  /// (undo / internal changes that must keep the user-visible time).
+  T _stamp(T item, {required int rev, bool deleted = false, DateTime? deletedAt, DateTime? updatedAt}) {
     return item.withSync(
       rev: rev,
       deleted: deleted,
       deletedAt: deletedAt,
       device: DeviceIdentity.id,
-      updatedAt: _clock(),
+      updatedAt: updatedAt ?? _clock(),
     );
   }
 
   /// Adds [item] at the end with `rev` 1. If its id already exists (e.g. a
   /// tombstone being re-created by an import), that entry is replaced in place
   /// with `rev + 1` instead of creating a duplicate id.
-  Future<T> create(T item) async {
+  ///
+  /// With [keepUpdatedAt] the item keeps its own `updatedAt` (e.g. a session
+  /// restored to the library from a playlist snapshot).
+  Future<T> create(T item, {bool keepUpdatedAt = false}) async {
     final index = _indexOf(item.id);
+    final updatedAt = keepUpdatedAt ? item.updatedAt : null;
     final T stored;
     if (index == -1) {
-      stored = _stamp(item, rev: 1);
+      stored = _stamp(item, rev: 1, updatedAt: updatedAt);
       _items.add(stored);
     } else {
-      stored = _stamp(item, rev: _items[index].rev + 1);
+      stored = _stamp(item, rev: _items[index].rev + 1, updatedAt: updatedAt);
       _items[index] = stored;
     }
     await save();
@@ -100,11 +109,43 @@ abstract class SyncedRepository<T extends SyncedItem<T>> {
 
   /// Replaces the active item with the same id (`rev + 1`). Returns null if
   /// there's no such active item.
-  Future<T?> update(T item) async {
+  ///
+  /// With [keepUpdatedAt] the stored `updatedAt` is kept: for internal
+  /// bookkeeping that doesn't change what the user sees (e.g. refreshing a
+  /// playlist's fallback snapshots). `rev` still goes up for the sync.
+  Future<T?> update(T item, {bool keepUpdatedAt = false}) async {
     final index = _indexOf(item.id);
     if (index == -1 || _items[index].deleted) return null;
-    final stored = _stamp(item, rev: _items[index].rev + 1);
+    final stored = _stamp(
+      item,
+      rev: _items[index].rev + 1,
+      updatedAt: keepUpdatedAt ? _items[index].updatedAt : null,
+    );
     _items[index] = stored;
+    await save();
+    return stored;
+  }
+
+  /// "Go back in time" (undo): stores [snapshot] **exactly** as it was — all
+  /// its data and its own `updatedAt` — as an active item. Only the sync
+  /// bookkeeping moves forward: `rev` = stored `rev + 1` (so a future sync
+  /// knows the restore happened) and `dev` = this device.
+  ///
+  /// * Existing id (active or tombstone): replaced in place; if
+  ///   [activeIndex] is given, moved to that position among the active items.
+  /// * Unknown id (e.g. tombstone already purged): inserted at [activeIndex]
+  ///   (default: the end) with `rev = snapshot.rev + 1`.
+  Future<T> restoreSnapshot(T snapshot, {int? activeIndex}) async {
+    final index = _indexOf(snapshot.id);
+    final T stored;
+    if (index == -1) {
+      stored = _stamp(snapshot, rev: snapshot.rev + 1, updatedAt: snapshot.updatedAt);
+      _items.insert(_rawIndexForActive(activeIndex ?? active.length), stored);
+    } else {
+      stored = _stamp(snapshot, rev: _items[index].rev + 1, updatedAt: snapshot.updatedAt);
+      _items[index] = stored;
+      if (activeIndex != null) _moveToActiveIndex(stored, activeIndex);
+    }
     await save();
     return stored;
   }
@@ -128,22 +169,14 @@ abstract class SyncedRepository<T extends SyncedItem<T>> {
     return (previous, activeIndex);
   }
 
-  /// Undo of [delete]: revives the tombstone (`rev + 1`) at its original
-  /// position, with the data of [item]. If the tombstone is gone, re-inserts
-  /// [item] at [activeIndex]. No-op if the item is already active.
+  /// Undo of [delete]: brings [item] back exactly as it was (data and
+  /// `updatedAt`, see [restoreSnapshot]) at its original position
+  /// [activeIndex], reviving the tombstone (`rev + 1`). If the tombstone is
+  /// gone, re-inserts [item]. No-op if the item is already active.
   Future<T?> restore(T item, int activeIndex) async {
     final index = _indexOf(item.id);
     if (index != -1 && !_items[index].deleted) return null;
-    final T stored;
-    if (index != -1) {
-      stored = _stamp(item, rev: _items[index].rev + 1);
-      _items[index] = stored;
-    } else {
-      stored = _stamp(item, rev: item.rev + 1);
-      _items.insert(_rawIndexForActive(activeIndex), stored);
-    }
-    await save();
-    return stored;
+    return restoreSnapshot(item, activeIndex: activeIndex);
   }
 
   /// Moves an active item from [oldIndex] to [newIndex] (active positions,
@@ -160,6 +193,15 @@ abstract class SyncedRepository<T extends SyncedItem<T>> {
         : _items.indexOf(remaining[target]);
     _items.insert(rawIndex, item);
     await save();
+  }
+
+  /// Moves the (active) [item] so that it ends up at [activeIndex] among the
+  /// active items. Does nothing if it's already there (keeps the raw layout).
+  void _moveToActiveIndex(T item, int activeIndex) {
+    final current = active.indexWhere((e) => e.id == item.id);
+    if (current == -1 || current == activeIndex) return;
+    _items.removeWhere((e) => e.id == item.id);
+    _items.insert(_rawIndexForActive(activeIndex), item);
   }
 
   int _rawIndexForActive(int activeIndex) {

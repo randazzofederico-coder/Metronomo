@@ -523,7 +523,7 @@ class MetronomeProvider with ChangeNotifier {
     _liveMixer.seek(0);
     _liveMixer.startPlayback();
     // Usage tracking: playback is the app's main activity.
-    UsageTracker.instance.startActivity();
+    UsageTracker.instance.startActivity(continuesInBackground: true);
     notifyListeners();
   }
 

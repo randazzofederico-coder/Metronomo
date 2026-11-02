@@ -84,23 +84,10 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Agregar un idioma** — Crear `lib/l10n/app_xx.arb` con las mismas claves, sumar `Locale('xx')` a `kSupportedLocales` (`lib/l10n/l10n.dart`) y la opción al selector de Ajustes
 
 ### ☁️ Cloud & Autenticación
-- **Firebase Auth** — Sistema de autenticación integrado con Google Sign-In y Email/Password
-- **Sincronización Multiplataforma** — Los usuarios comparten la misma cuenta en las versiones Web, Android e iOS
-- **Control de Acceso** — Verificación de permisos basada en Firestore con roles, trial y suscripciones
-- **Período de Prueba** — Trial de 30 días activable por el usuario. Notificación automática al admin vía `consultas_web`
-- **App libre (estado actual)** — El `AuthGate` está desactivado en `main.dart` (`home: MetronomeScreen`); el código de login/permisos se conserva para reactivarlo en el futuro. El único uso de Auth hoy es el **login anónimo** al compartir links
-- **Usuarios reales vs anónimos** — Las reglas de Firestore distinguen cuentas reales (Google/Email) de sesiones anónimas (`sign_in_provider != 'anonymous'`): los anónimos solo pueden crear `shared_links`, nunca `usuarios` ni `consultas_web`
-
-### 📴 Login Offline
-- **Cache local de permisos** — Después del primer login exitoso, el estado de permisos se cachea en `SharedPreferences` con validez de 30 días
-- **Acceso sin conexión** — Si no hay internet pero existe un cache válido, la app abre normalmente
-- **Revalidación forzada** — Si el cache tiene más de 30 días, se requiere conexión a internet para revalidar
-- **Banner de advertencia** — Cuando quedan ≤5 días para la expiración del cache, aparece un banner naranja gradiente con `wifi_off` indicando los días restantes
-- **Pantalla "Conexión necesaria"** — Sin cache o con cache expirado, se muestra una pantalla dedicada con botón de reintentar y cerrar sesión
-- **Lectura forzada del servidor** — `GetOptions(source: Source.server)` para evitar falsos positivos del cache interno de Firestore
-- **Detección de errores de red** — String matching en `login_screen.dart` (sin `dart:io`, compatible web) para mostrar mensajes claros cuando no hay internet
-- **Sección "Sesión" en Settings** — Fecha de última verificación online y contador de días restantes con indicadores de color (🟢 >5d, 🟠 ≤5d, 🔴 expirado)
-- **Logout limpia el cache** — Al cerrar sesión se borran todos los datos de permisos cacheados
+- **Sin login** — La app abre directo en `HomeShell` (`home: const HomeShell()` en `main.dart`); no hay pantallas de login, onboarding ni control de acceso
+- **Login heredado eliminado** — El antiguo login (AuthGate, Google/Email, onboarding, trial y cache offline de permisos) se eliminó (ver historial de git). Se reemplazará por un paquete compartido de cuenta
+- **Auth anónima** — Firebase Auth se sigue usando solo para el **login anónimo** al crear links compartidos (ver más abajo)
+- **Usuarios reales vs anónimos** — Las reglas de Firestore distinguen cuentas reales de sesiones anónimas (`sign_in_provider != 'anonymous'`): los anónimos solo pueden crear `shared_links`
 
 ### 🔗 Compartir Sesiones y Patrones (Deep Links)
 - **Compartir via Deep Link** — Sesiones, patrones y playlists se comparten con URLs limpias tipo `federicorandazzo.com.ar/metronomo/?share=xk9mp2nq&name=chacarera` respaldadas por Firestore
@@ -198,11 +185,10 @@ lib/
 ├── models/
 │   ├── pattern_model.dart             # Modelo de patrón rítmico (estructura, pulsos, subdivisiones, volumen por evento)
 │   ├── session_model.dart             # Modelo de sesión (patrones, BPM, configuración de mezcla, sonido por patrón)
-│   ├── playlist_model.dart            # Modelo de playlist (lista ordenada de session IDs)
-│   └── permission_cache.dart          # Cache de permisos para acceso offline (30 días TTL)
+│   └── playlist_model.dart            # Modelo de playlist (lista ordenada de session IDs)
 ├── providers/
 │   ├── metronome_provider.dart        # Estado global, parser de estructuras, tap tempo, macro ciclo
-│   ├── settings_provider.dart         # Configuración persistente (incl. idioma) + cache de permisos offline
+│   ├── settings_provider.dart         # Configuración persistente (incl. idioma)
 │   ├── pattern_editor_provider.dart   # CRUD de la biblioteca de patrones
 │   ├── session_provider.dart          # CRUD de la biblioteca de sesiones
 │   └── playlist_provider.dart         # CRUD de playlists + reordenar sesiones internas
@@ -212,10 +198,7 @@ lib/
 │   ├── metronome_screen.dart          # Tocar: secuenciador, controles, visualizador, edición de estructuras y atajos
 │   ├── playlists_screen.dart          # Gestión de playlists: crear, editar, eliminar, reordenar sesiones
 │   ├── playlist_player_screen.dart    # Reproductor: PageView, flechas de navegación, modo solo lectura, toggle edición
-│   ├── auth_gate.dart                 # Gate de autenticación, permisos y fallback offline
-│   ├── login_screen.dart              # Login (Google/Email) con detección de errores de red
-│   ├── onboarding_screen.dart         # Onboarding para nuevos usuarios
-│   └── settings_screen.dart           # Configuración (idioma primero, sonido, escala UI…) + foro + sección sesión + logout
+│   └── settings_screen.dart           # Configuración (idioma primero, sonido, escala UI…) + foro
 ├── theme/
 │   ├── app_theme.dart                 # ThemeData oscuro + component themes (diálogos, snackbars, bottom sheets)
 │   └── beat_colors.dart               # Colores por tipo de evento (silencio/acento/normal/suave)
@@ -300,7 +283,7 @@ packages/native_audio_engine/
 | FFT | KissFFT (procesamiento espectral) |
 | FFI | dart:ffi (nativo) / Web Audio API (web) |
 | Backend y Auth | Firebase Auth, Cloud Firestore, Remote Config |
-| Persistencia local | SharedPreferences (settings, patrones, sesiones, playlists, cache offline) |
+| Persistencia local | SharedPreferences (settings, patrones, sesiones, playlists) |
 | Web Build | Emscripten, JS Interop |
 | Rendering | CustomPainter (knobs), Ticker (animaciones) |
 | Plataformas | Android, iOS, Windows, Web (PWA) |

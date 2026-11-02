@@ -27,6 +27,8 @@ dependencies:
   wakelock_plus: ^1.5.0
   native_audio_engine:
     path: packages/native_audio_engine
+  fede_apps_core:
+    path: ../fede_apps_core
 
   # Firebase
   firebase_core: ^3.12.1

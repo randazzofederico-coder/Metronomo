@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:fede_apps_core/fede_apps_core.dart' show EcosystemPrompts, FedeApp;
 import 'package:metronomo_standalone/constants/app_colors.dart';
 import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/theme/beat_colors.dart';
@@ -117,6 +118,16 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
 
   @override
   void onSpacePlayToggle() => context.read<MetronomeProvider>().togglePlay();
+
+  /// Play/stop button. After a manual stop the shared package may suggest
+  /// the other apps (it decides on its own; usually does nothing).
+  void _onPlayStopPressed(MetronomeProvider metronome) {
+    final wasPlaying = metronome.isPlaying;
+    metronome.togglePlay();
+    if (wasPlaying && mounted) {
+      EcosystemPrompts.maybeShowAppsPrompt(context, currentApp: FedeApp.metronomo);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -373,7 +384,7 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
         return TransportBar(
           isPlaying: metronome.isPlaying,
           bpm: metronome.bpm,
-          onTogglePlay: metronome.togglePlay,
+          onTogglePlay: () => _onPlayStopPressed(metronome),
           onBpmChanged: metronome.updateBPM,
           bpmEnabled: _editMode,
           // Session navigation arrows

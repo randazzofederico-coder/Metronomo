@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fede_apps_core/fede_apps_core.dart' show EcosystemPrompts, FedeApp;
 import 'package:metronomo_standalone/constants/app_colors.dart';
 import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/models/pattern_model.dart';
@@ -24,6 +25,7 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   static const int _play = 0;
   static const int _library = 1;
+  static const int _settings = 2;
 
   int _index = _play;
   final _metronomeKey = GlobalKey<MetronomeScreenState>();
@@ -34,6 +36,16 @@ class _HomeShellState extends State<HomeShell> {
     FocusScope.of(context).unfocus();
     ScaffoldMessenger.of(context).hideCurrentSnackBar();
     setState(() => _index = index);
+    if (index == _settings) {
+      // Opening Settings is a "quiet moment": the shared package may suggest
+      // the other apps (it decides on its own; usually does nothing). The tab
+      // is built at startup, so the trigger lives here, not in SettingsScreen.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _index == _settings) {
+          EcosystemPrompts.maybeShowAppsPrompt(context, currentApp: FedeApp.metronomo);
+        }
+      });
+    }
   }
 
   void _openLibrarySessions() {
@@ -82,7 +94,7 @@ class _HomeShellState extends State<HomeShell> {
           onAddPattern: _addPattern,
           onNewSession: _newSession,
         ),
-        const SettingsScreen(),
+        const SettingsScreen(promptOnOpen: false),
       ],
     );
 

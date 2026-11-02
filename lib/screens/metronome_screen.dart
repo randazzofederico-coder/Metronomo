@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback, HardwareKeyboard, KeyDownEvent, KeyEvent, LogicalKeyboardKey;
 import 'package:provider/provider.dart';
+import 'package:fede_apps_core/fede_apps_core.dart' show EcosystemPrompts, FedeApp;
 import 'package:uuid/uuid.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
 import 'package:metronomo_standalone/l10n/l10n.dart';
@@ -1175,10 +1176,21 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
     return TransportBar(
       isPlaying: metronome.isPlaying,
       bpm: metronome.bpm,
-      onTogglePlay: metronome.togglePlay,
+      onTogglePlay: () => _onPlayStopPressed(metronome),
       onBpmChanged: metronome.updateBPM,
       trailing: TapTempoButton(onTap: metronome.tapTempo),
     );
+  }
+
+  /// Play/stop button. After a manual stop (a "quiet moment") the shared
+  /// package may suggest the other apps; it decides on its own and usually
+  /// does nothing.
+  void _onPlayStopPressed(MetronomeProvider metronome) {
+    final wasPlaying = metronome.isPlaying;
+    metronome.togglePlay();
+    if (wasPlaying && mounted) {
+      EcosystemPrompts.maybeShowAppsPrompt(context, currentApp: FedeApp.metronomo);
+    }
   }
 
   Widget _buildMetronomeInstance({

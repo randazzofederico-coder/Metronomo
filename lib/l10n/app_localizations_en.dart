@@ -650,6 +650,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsForumButton => 'Go to Forum';
 
   @override
+  String get settingsMoreAppsTitle => 'More apps';
+
+  @override
   String get libraryTitle => 'LIBRARY';
 
   @override

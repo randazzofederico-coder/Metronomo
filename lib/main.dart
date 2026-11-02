@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:fede_apps_core/fede_apps_core.dart';
 
 import 'package:metronomo_standalone/firebase_options.dart';
 import 'package:metronomo_standalone/l10n/l10n.dart';
@@ -47,6 +48,13 @@ void main() async {
   final versionService = VersionCheckService();
   await versionService.initialize();
   final versionResult = await versionService.checkForUpdate();
+
+  // Local usage tracking (fede_apps_core). Must never block startup.
+  try {
+    await UsageTracker.instance.init();
+  } catch (e) {
+    debugPrint('UsageTracker init failed: $e');
+  }
 
   if (versionResult.updateRequired) {
     runApp(UpdateRequiredScreen(result: versionResult));

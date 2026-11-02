@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:fede_apps_core/fede_apps_core.dart' show EcosystemPrompts, EcosystemSection, FedeApp;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/pwa_install_service.dart';
@@ -9,7 +10,13 @@ import '../constants/app_colors.dart';
 import 'package:metronomo_standalone/l10n/l10n.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+  const SettingsScreen({super.key, this.promptOnOpen = true});
+
+  /// Whether to (maybe) show the "other apps" suggestion right after the
+  /// screen opens. The Settings tab in [HomeShell] lives in an IndexedStack
+  /// and is built at startup, so it passes `false` and triggers the
+  /// suggestion itself when the tab is selected.
+  final bool promptOnOpen;
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -19,6 +26,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    // Opening Settings is a "quiet moment": the shared package may suggest
+    // the other apps (it decides on its own; usually does nothing).
+    if (widget.promptOnOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          EcosystemPrompts.maybeShowAppsPrompt(context, currentApp: FedeApp.metronomo);
+        }
+      });
+    }
     // Load persisted settings on screen open
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final settings = context.read<SettingsProvider>();
@@ -216,6 +232,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
           // ── Comunidad / Foro ──
           _buildForumSection(context),
+          const SizedBox(height: 12),
+
+          // ── Más apps (fede_apps_core) ──
+          _buildMoreAppsSection(context),
           const SizedBox(height: 12),
 
           // ── Acerca de ──
@@ -526,6 +546,24 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.symmetric(vertical: 12),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMoreAppsSection(BuildContext context) {
+    return _buildSectionCard(
+      context,
+      icon: Icons.apps_rounded,
+      title: context.l10n.settingsMoreAppsTitle,
+      // Tiles flush with the card content, like the switch tiles above.
+      // The website tile is hidden: "Acerca de" already links to the site.
+      child: const ListTileTheme(
+        contentPadding: EdgeInsets.zero,
+        child: EcosystemSection(
+          currentApp: FedeApp.metronomo,
+          showHeader: false,
+          showSite: false,
         ),
       ),
     );

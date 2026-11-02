@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:fede_apps_core/fede_apps_core.dart' show UsageTracker;
 import 'package:native_audio_engine/live_mixer.dart';
 import 'package:uuid/uuid.dart';
 import 'package:metronomo_standalone/l10n/l10n.dart';
@@ -521,6 +522,8 @@ class MetronomeProvider with ChangeNotifier {
     _isPlaying = true;
     _liveMixer.seek(0);
     _liveMixer.startPlayback();
+    // Usage tracking: playback is the app's main activity.
+    UsageTracker.instance.startActivity();
     notifyListeners();
   }
 
@@ -528,6 +531,7 @@ class MetronomeProvider with ChangeNotifier {
     _isPlaying = false;
     _liveMixer.stopPlayback();
     _liveMixer.seek(0);
+    unawaited(UsageTracker.instance.stopActivity());
     notifyListeners();
   }
 
@@ -819,6 +823,7 @@ class MetronomeProvider with ChangeNotifier {
   @override
   void dispose() {
     _debounceSaveTimer?.cancel();
+    if (_isPlaying) unawaited(UsageTracker.instance.stopActivity());
     _liveMixer.dispose();
     super.dispose();
   }

@@ -644,9 +644,10 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
           ? SnackBarAction(
               label: context.l10n.commonUndo.toUpperCase(),
               onPressed: () async {
-                // Restore the previous version in the library; the current
-                // work stays on screen, marked as unsaved again.
-                await sessionProvider.updateSession(previous);
+                // Go back in time: the previous version returns to the library
+                // exactly as it was (incl. its updatedAt); the current work
+                // stays on screen, marked as unsaved again.
+                await sessionProvider.revertSession(previous);
                 metronome.markSessionDirty();
               },
             )

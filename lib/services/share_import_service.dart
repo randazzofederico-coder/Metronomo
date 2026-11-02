@@ -41,10 +41,12 @@ class ShareImportResult {
 ///    so opening the same link again maps to the same local entities and
 ///    nothing is duplicated. If the user deleted them, they're re-created.
 ///
-/// Playlists are self-contained: their sessions are embedded in the imported
-/// playlist (item and session ids are derived the same way) and are **not**
-/// added to the session library. Older links (playlist with `sessionIds` +
-/// flat `sessions` list) are converted to embedded items on import.
+/// Playlists (hybrid model): their sessions are added to the session library
+/// (deterministic ids from the sender's library id, so re-imports don't
+/// duplicate; sessions the user already has are reused) and each imported
+/// item links to its library session, with a snapshot as fallback. If the
+/// playlist was already imported, nothing is touched. Older links (playlist
+/// with `sessionIds` + flat `sessions` list) are converted the same way.
 class ShareImportService {
   final PatternEditorProvider patterns;
   final SessionProvider sessions;
@@ -96,8 +98,8 @@ class ShareImportService {
     }
 
     // ── Sessions ──
-    // Only a shared *session* goes to the session library. Sessions that come
-    // with a playlist are embedded in the playlist (self-contained).
+    // A shared *session* goes to the session library here; the sessions of a
+    // shared playlist are added below, when the playlist is created.
     Session localCopy(Session session, String id) {
       // Embed patterns from the bundle (links from older versions only have
       // ids), then remap ids.
@@ -162,16 +164,32 @@ class ShareImportService {
         } else {
           localId = _derivedId(bundle.shareId, playlist.id);
           if (playlists.getPlaylistById(localId) == null) {
-            final items = [
-              for (final item in remoteItems)
-                PlaylistItem(
-                  id: _derivedId(bundle.shareId, 'item:${item.id}'),
-                  session: localCopy(
-                    item.session,
-                    _derivedId(bundle.shareId, 'item-session:${item.id}:${item.session.id}'),
-                  ),
+            // Hybrid playlists: each session goes to the session library
+            // (deduplicated by its original library id, same derivation as
+            // shared sessions and as older versions) and the item links to it
+            // with a snapshot.
+            final items = <PlaylistItem>[];
+            for (final item in remoteItems) {
+              final originalId = item.sourceSessionId ?? item.session.id;
+              final String librarySessionId;
+              if (sessions.getSessionById(originalId) != null) {
+                librarySessionId = originalId; // own content: reuse
+              } else {
+                librarySessionId = sessionIdMap[originalId] ?? _derivedId(bundle.shareId, originalId);
+                if (sessions.getSessionById(librarySessionId) == null) {
+                  await sessions.addSession(localCopy(item.session, librarySessionId));
+                }
+              }
+              sessionIdMap[originalId] = librarySessionId;
+              items.add(PlaylistItem(
+                id: _derivedId(bundle.shareId, 'item:${item.id}'),
+                sourceSessionId: librarySessionId,
+                session: localCopy(
+                  item.session,
+                  _derivedId(bundle.shareId, 'item-session:${item.id}:${item.session.id}'),
                 ),
-            ];
+              ));
+            }
             await playlists.addPlaylist(playlist.copyWith(
               id: localId,
               items: items,

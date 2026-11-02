@@ -73,12 +73,10 @@ Future<(PatternEditorProvider, SessionProvider, PlaylistProvider)> _loadAll() as
   final patterns = PatternEditorProvider();
   final sessions = SessionProvider();
   final playlists = PlaylistProvider();
-  // Same wiring as main.dart: playlists migrate after sessions/patterns load.
-  final playlistsLoad = playlists.loadPlaylists(resolveSession: (id) async {
-    await sessions.ensureLoaded;
-    await patterns.ensureLoaded;
-    return sessions.getSessionById(id)?.withEmbeddedPatterns(patterns.getPatternById);
-  });
+  // Same wiring as main.dart: playlists linked to the library, migrating
+  // after sessions/patterns load.
+  playlists.attachLibrary(sessions: sessions, patterns: patterns);
+  final playlistsLoad = playlists.loadPlaylists();
   await patterns.loadPatterns();
   await sessions.loadSessions();
   await playlistsLoad;
@@ -327,7 +325,7 @@ void main() {
       expect(stored['sessionIds'], ['s1']);
     });
 
-    test('deleting or editing a library session leaves playlists intact', () async {
+    test('editing a library session never bumps playlists; deleting refreshes their snapshot', () async {
       final (patterns, sessions, playlists) = await _loadAll();
       await sessions.addSession(_session('lib', name: 'Original'));
       await playlists.addPlaylist(Playlist(id: 'pl', name: 'L'));
@@ -336,15 +334,16 @@ void main() {
       final revBefore = playlists.getPlaylistById('pl')!.rev;
 
       await sessions.updateSession(sessions.getSessionById('lib')!.copyWith(name: 'Edited'));
+      expect(playlists.getPlaylistById('pl')!.rev, revBefore);
       await sessions.deleteSession('lib');
 
       final pl = playlists.getPlaylistById('pl')!;
-      expect(pl.rev, revBefore);
-      expect(pl.items.single.session.name, 'Original');
+      expect(pl.rev, revBefore + 1);
+      expect(pl.items.single.session.name, 'Edited');
       expect(pl.items.single.sourceSessionId, 'lib');
 
       final (_, _, reloaded) = await _loadAll();
-      expect(reloaded.getPlaylistById('pl')!.items.single.session.name, 'Original');
+      expect(reloaded.getPlaylistById('pl')!.items.single.session.name, 'Edited');
     });
 
     test('the same session can appear twice in a playlist', () async {
@@ -360,22 +359,6 @@ void main() {
       expect(items[0].session.id, isNot(items[1].session.id));
       expect(items.every((i) => i.sourceSessionId == 'a'), isTrue);
     });
-
-    test('updating an embedded session only changes the playlist', () async {
-      final (_, sessions, playlists) = await _loadAll();
-      await sessions.addSession(_session('lib', name: 'Original'));
-      await playlists.addPlaylist(Playlist(id: 'pl', name: 'L'));
-      await playlists.addSessionToPlaylist('pl', sessions.getSessionById('lib')!);
-      final item = playlists.getPlaylistById('pl')!.items.single;
-      final rev = playlists.getPlaylistById('pl')!.rev;
-
-      await playlists.updateItemSession('pl', item.id, item.session.copyWith(globalBpm: 150));
-      final updated = playlists.getPlaylistById('pl')!;
-      expect(updated.rev, rev + 1);
-      expect(updated.items.single.session.globalBpm, 150);
-      expect(updated.items.single.session.id, item.session.id);
-      expect(sessions.getSessionById('lib')!.globalBpm, 90);
-    });
   });
 
   group('shared playlists', () {
@@ -388,7 +371,7 @@ void main() {
       );
     }
 
-    test('legacy payload (sessionIds + sessions list) becomes embedded items', () async {
+    test('legacy payload (sessionIds + sessions list) becomes linked items', () async {
       final (sessions, playlists, service) = await setup();
       final libraryBefore = sessions.sessions.length;
       final bundle = SharedBundle(
@@ -401,17 +384,19 @@ void main() {
       );
       final result = await service.import(bundle);
       expect(result.sessionCount, 2);
-      expect(sessions.sessions.length, libraryBefore); // library untouched
+      expect(sessions.sessions.length, libraryBefore + 1); // added once
 
       final pl = playlists.getPlaylistById(result.localId)!;
       expect(pl.items.length, 2);
       expect(pl.items.first.session.patternsConfig.single.hasEmbeddedPattern, isTrue);
+      expect(pl.items.first.sourceSessionId, pl.items.last.sourceSessionId);
 
       final again = await service.import(bundle);
       expect(again.alreadyInLibrary, isTrue);
+      expect(sessions.sessions.length, libraryBefore + 1);
     });
 
-    test('current payload (items) imports self-contained', () async {
+    test('current payload (items) imports linked to the library', () async {
       final (sessions, playlists, service) = await setup();
       final remote = Playlist(id: 'remote-pl', name: 'Remota', items: [
         PlaylistItem.fromLibrary(_session('a', name: 'A')),
@@ -425,7 +410,7 @@ void main() {
         data: remote.toJson()..['sessionIds'] = [for (final s in remote.sessions) s.id],
         sessions: [for (final s in remote.sessions) s.toJson()],
       ));
-      expect(sessions.sessions.length, libraryBefore);
+      expect(sessions.sessions.length, libraryBefore + 1);
       final pl = playlists.getPlaylistById(result.localId)!;
       expect(pl.items.length, 2);
       expect(pl.items.map((i) => i.session.name), ['A', 'A']);

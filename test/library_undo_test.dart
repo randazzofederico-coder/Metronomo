@@ -65,9 +65,9 @@ void main() {
     await p.restorePlaylist(removed!.$1, removed.$2);
     expect(p.playlists.map((e) => e.id).toList(), ['p1', 'p2']);
 
-    final item = await p.removeItemFromPlaylist('p1', 1);
+    final removed2 = await p.removeItemFromPlaylist('p1', 1);
     expect(names(), ['s1', 's3']);
-    await p.insertItemInPlaylist('p1', 1, item!);
+    await p.undoItemRemoval(removed2!.$2);
     expect(names(), ['s1', 's2', 's3']);
   });
 }

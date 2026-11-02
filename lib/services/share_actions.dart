@@ -4,6 +4,7 @@ import 'package:metronomo_standalone/models/pattern_model.dart';
 import 'package:metronomo_standalone/models/playlist_model.dart';
 import 'package:metronomo_standalone/models/session_model.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
+import 'package:metronomo_standalone/providers/playlist_provider.dart';
 import 'package:metronomo_standalone/services/deep_link_service.dart';
 import 'package:metronomo_standalone/widgets/share_sheet.dart';
 import 'package:metronomo_standalone/l10n/l10n.dart';
@@ -38,6 +39,7 @@ void shareSession(BuildContext context, Session session) {
 
 void sharePlaylist(BuildContext context, Playlist playlist) {
   final patProvider = context.read<PatternEditorProvider>();
+  final playlistProvider = context.read<PlaylistProvider>();
   showShareSheet(
     context,
     heading: context.l10n.shareHeadingPlaylist,
@@ -45,7 +47,8 @@ void sharePlaylist(BuildContext context, Playlist playlist) {
     createLink: () async {
       await patProvider.ensureLoaded;
 
-      // The playlist is self-contained (embedded sessions with embedded
+      // Each item is shared with the session it currently plays: the library
+      // version if it's still there, otherwise its snapshot (with embedded
       // patterns; very old copies fall back to the library). The flat
       // session/pattern lists are still sent for older app versions.
       final items = <PlaylistItem>[];
@@ -53,7 +56,10 @@ void sharePlaylist(BuildContext context, Playlist playlist) {
       final seenPatternIds = <String>{};
 
       for (final item in playlist.items) {
-        final session = item.session.withEmbeddedPatterns(patProvider.getPatternById);
+        final session = playlistProvider
+            .resolveSession(item)
+            .withEmbeddedPatterns(patProvider.getPatternById)
+            .asEmbeddedCopy(id: item.session.id);
         items.add(item.copyWith(session: session));
         for (final pat in session.embeddedPatterns) {
           if (seenPatternIds.add(pat.id)) allPatterns.add(pat);

@@ -9,6 +9,7 @@ import 'package:metronomo_standalone/providers/metronome_provider.dart';
 import 'package:metronomo_standalone/providers/settings_provider.dart';
 import 'package:metronomo_standalone/providers/playlist_provider.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
+import 'package:metronomo_standalone/services/playlist_item_actions.dart';
 import 'package:metronomo_standalone/widgets/formatted_structure.dart';
 import 'package:metronomo_standalone/widgets/macro_cycle.dart';
 import 'package:metronomo_standalone/widgets/mixer_strip.dart';
@@ -63,19 +64,24 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
     await _loadSession(0);
   }
 
-  /// Loads the playlist's own (embedded) copy of session [index]. Changes made
+  /// Loads session [index] as the playlist resolves it: the library version
+  /// (source of truth) or, if it's no longer in the library, the item's
+  /// snapshot. It's loaded under the snapshot's own id (never a library id),
+  /// so nothing done here can be saved over a library session. Changes made
   /// in edit mode (mixer, BPM) are only for this performance: they are not
   /// saved anywhere — neither to the playlist nor to the session library —
   /// and the previous Tocar state is restored on exit.
   Future<void> _loadSession(int index) async {
-    final playlist = context.read<PlaylistProvider>().getPlaylistById(widget.playlistId);
+    final playlistProvider = context.read<PlaylistProvider>();
+    final playlist = playlistProvider.getPlaylistById(widget.playlistId);
     if (playlist == null || index >= playlist.items.length) return;
 
     final patProvider = context.read<PatternEditorProvider>();
     final metronome = context.read<MetronomeProvider>();
     final settings = context.read<SettingsProvider>();
 
-    final session = playlist.items[index].session;
+    final item = playlist.items[index];
+    final session = playlistProvider.resolveSession(item).asEmbeddedCopy(id: item.session.id);
 
     // Library lookup only as a fallback for very old copies whose patterns
     // could not be embedded.
@@ -175,6 +181,14 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
             },
           ),
           actions: [
+            // Edit the current session in Tocar (library version; closes the
+            // player, which restores the previous Tocar state first).
+            if (_currentPage < playlist.items.length)
+              IconButton(
+                icon: Icon(Icons.edit_outlined, color: AppColors.textSecondary(context)),
+                tooltip: context.l10n.playlistItemEditSession,
+                onPressed: () => editPlaylistItemSession(context, widget.playlistId, playlist.items[_currentPage]),
+              ),
             // Edit mode toggle
             Row(
               mainAxisSize: MainAxisSize.min,

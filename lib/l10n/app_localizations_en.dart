@@ -873,4 +873,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String playlistsSessionRemoved(String name) {
     return '“$name” removed from the playlist';
   }
+
+  @override
+  String get playlistItemEditSession => 'Edit session';
+
+  @override
+  String get playlistItemNotInLibrary => 'Not in the library';
+
+  @override
+  String get playlistItemRestoreToLibrary => 'Restore to library';
+
+  @override
+  String get playlistItemRestoreTitle => 'Session not in the library';
+
+  @override
+  String playlistItemRestoreMessage(String name) {
+    return '“$name” is no longer in the library. The playlist keeps using its latest version. To edit it, restore it to the library.';
+  }
+
+  @override
+  String playlistItemRestored(String name) {
+    return '“$name” restored to the library';
+  }
 }

@@ -86,17 +86,18 @@ class MyApp extends StatelessWidget {
           provider.loadSessions();
           return provider;
         }),
-        ChangeNotifierProvider(create: (context) {
+        // Not lazy: playlists must be connected to the session library before
+        // any session can be deleted (they refresh their snapshot first).
+        ChangeNotifierProvider(lazy: false, create: (context) {
           final provider = PlaylistProvider();
-          // Legacy playlists (session references) are migrated to embedded
-          // sessions: the session and pattern libraries must be loaded first.
-          final sessions = context.read<SessionProvider>();
-          final patterns = context.read<PatternEditorProvider>();
-          provider.loadPlaylists(resolveSession: (id) async {
-            await sessions.ensureLoaded;
-            await patterns.ensureLoaded;
-            return sessions.getSessionById(id)?.withEmbeddedPatterns(patterns.getPatternById);
-          });
+          // Hybrid playlists: items resolve to the library session (source of
+          // truth) and fall back to their snapshot. Legacy playlists (session
+          // references) are migrated once sessions and patterns are loaded.
+          provider.attachLibrary(
+            sessions: context.read<SessionProvider>(),
+            patterns: context.read<PatternEditorProvider>(),
+          );
+          provider.loadPlaylists();
           return provider;
         }),
       ],

@@ -592,5 +592,25 @@
         "type": "String"
       }
     }
+  },
+  "playlistItemEditSession": "Editar sesión",
+  "playlistItemNotInLibrary": "No está en la biblioteca",
+  "playlistItemRestoreToLibrary": "Restaurar en la biblioteca",
+  "playlistItemRestoreTitle": "Sesión fuera de la biblioteca",
+  "playlistItemRestoreMessage": "«{name}» ya no está en la biblioteca. La playlist sigue usando su última versión. Para editarla, restaurala en la biblioteca.",
+  "@playlistItemRestoreMessage": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "playlistItemRestored": "«{name}» restaurada en la biblioteca",
+  "@playlistItemRestored": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
   }
 }

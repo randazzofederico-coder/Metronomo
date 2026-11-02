@@ -867,4 +867,26 @@ class AppLocalizationsEs extends AppLocalizations {
   String playlistsSessionRemoved(String name) {
     return '«$name» quitada de la playlist';
   }
+
+  @override
+  String get playlistItemEditSession => 'Editar sesión';
+
+  @override
+  String get playlistItemNotInLibrary => 'No está en la biblioteca';
+
+  @override
+  String get playlistItemRestoreToLibrary => 'Restaurar en la biblioteca';
+
+  @override
+  String get playlistItemRestoreTitle => 'Sesión fuera de la biblioteca';
+
+  @override
+  String playlistItemRestoreMessage(String name) {
+    return '«$name» ya no está en la biblioteca. La playlist sigue usando su última versión. Para editarla, restaurala en la biblioteca.';
+  }
+
+  @override
+  String playlistItemRestored(String name) {
+    return '«$name» restaurada en la biblioteca';
+  }
 }

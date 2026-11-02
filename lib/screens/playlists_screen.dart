@@ -4,6 +4,7 @@ import 'package:metronomo_standalone/constants/app_colors.dart';
 import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/widgets/undo_snackbar.dart';
 import 'package:metronomo_standalone/services/share_actions.dart';
+import 'package:metronomo_standalone/services/playlist_item_actions.dart';
 import 'package:metronomo_standalone/models/playlist_model.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
 import 'package:metronomo_standalone/providers/playlist_provider.dart';
@@ -232,8 +233,9 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                     final playlist = playlists[index];
                     final sessionCount = playlist.items.length;
 
-                    // Session names for subtitle (embedded copies: never "deleted").
-                    final sessionNames = playlist.items.map<String?>((i) => i.session.name).toList();
+                    // Session names for subtitle (library version, or the
+                    // snapshot if the session is no longer in the library).
+                    final sessionNames = provider.resolvedSessions(playlist).map((s) => s.name).toList();
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 10),
@@ -339,28 +341,18 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                                   spacing: 6,
                                   runSpacing: 4,
                                   children: sessionNames.take(5).map((name) {
-                                    final isDeleted = name == null;
                                     return Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                       decoration: BoxDecoration(
-                                        color: isDeleted
-                                            ? AppColors.accentRed(context).withOpacity(0.15)
-                                            : AppColors.surfaceHighlight(context),
+                                        color: AppColors.surfaceHighlight(context),
                                         borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
-                                          color: isDeleted
-                                              ? AppColors.accentRed(context).withOpacity(0.3)
-                                              : AppColors.border(context),
-                                        ),
+                                        border: Border.all(color: AppColors.border(context)),
                                       ),
                                       child: Text(
-                                        name ?? context.l10n.playlistsDeletedSessionChip,
+                                        name,
                                         style: TextStyle(
-                                          color: isDeleted
-                                              ? AppColors.accentRed(context)
-                                              : AppColors.textSecondary(context),
+                                          color: AppColors.textSecondary(context),
                                           fontSize: 11,
-                                          fontStyle: isDeleted ? FontStyle.italic : FontStyle.normal,
                                         ),
                                       ),
                                     );
@@ -444,8 +436,9 @@ class _PlaylistDetailScreen extends StatelessWidget {
                               style: TextStyle(color: AppColors.textSecondary(ctx)),
                             ),
                             onTap: () async {
-                              // The playlist gets its own copy (patterns
-                              // embedded): later library changes don't affect it.
+                              // The item links to the library session (edits
+                              // there are reflected) and keeps a snapshot
+                              // (patterns embedded) in case it's deleted.
                               final patProvider = context.read<PatternEditorProvider>();
                               final playlistProvider = context.read<PlaylistProvider>();
                               await patProvider.ensureLoaded;
@@ -572,9 +565,12 @@ class _PlaylistDetailScreen extends StatelessWidget {
                     },
                     itemCount: playlist.items.length,
                     itemBuilder: (context, index) {
-                      // Embedded copy: independent of the session library.
+                      // Library version of the session (source of truth), or
+                      // the snapshot if it's no longer in the library.
                       final item = playlist.items[index];
-                      final session = item.session;
+                      final session = playlistProvider.resolveSession(item);
+                      final inLibrary = playlistProvider.isInLibrary(item);
+                      final secondary = AppColors.textSecondary(context);
 
                       return Container(
                         key: ValueKey('$playlistId-${item.id}'),
@@ -610,13 +606,62 @@ class _PlaylistDetailScreen extends StatelessWidget {
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          subtitle: Text(
-                            context.l10n.playlistsSessionSubtitle(session.globalBpm, session.patternsConfig.length),
-                            style: TextStyle(color: AppColors.textSecondary(context), fontSize: 12),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                context.l10n.playlistsSessionSubtitle(session.globalBpm, session.patternsConfig.length),
+                                style: TextStyle(color: secondary, fontSize: 12),
+                              ),
+                              // Subtle indicator: the playlist plays its saved
+                              // snapshot; the session can be brought back.
+                              if (!inLibrary)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Wrap(
+                                    crossAxisAlignment: WrapCrossAlignment.center,
+                                    spacing: 4,
+                                    children: [
+                                      Icon(Icons.link_off_rounded, size: 13, color: secondary.withOpacity(0.7)),
+                                      Text(
+                                        context.l10n.playlistItemNotInLibrary,
+                                        style: TextStyle(
+                                          color: secondary.withOpacity(0.7),
+                                          fontSize: 11,
+                                          fontStyle: FontStyle.italic,
+                                        ),
+                                      ),
+                                      InkWell(
+                                        borderRadius: BorderRadius.circular(4),
+                                        onTap: () => restorePlaylistItemToLibrary(context, playlistId, item),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                          child: Text(
+                                            context.l10n.playlistItemRestoreToLibrary,
+                                            style: TextStyle(
+                                              color: AppColors.primary(context),
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
                           ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
+                              IconButton(
+                                icon: Icon(Icons.edit_outlined, color: secondary, size: 20),
+                                tooltip: context.l10n.playlistItemEditSession,
+                                onPressed: () => editPlaylistItemSession(context, playlistId, item),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                              ),
                               IconButton(
                                 icon: Icon(Icons.delete_outline, color: AppColors.accentRed(context), size: 20),
                                 tooltip: context.l10n.playlistsRemoveSession,
@@ -626,13 +671,14 @@ class _PlaylistDetailScreen extends StatelessWidget {
                                   showUndoSnackBar(
                                     context,
                                     message: context.l10n.playlistsSessionRemoved(session.name),
-                                    onUndo: () => playlistProvider.insertItemInPlaylist(playlistId, index, removed),
+                                    // Back in time: the playlist exactly as it was.
+                                    onUndo: () => playlistProvider.undoItemRemoval(removed.$2),
                                   );
                                 },
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
                               ),
-                              Icon(Icons.drag_handle, color: AppColors.textSecondary(context).withOpacity(0.5)),
+                              Icon(Icons.drag_handle, color: secondary.withOpacity(0.5)),
                             ],
                           ),
                         ),

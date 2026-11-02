@@ -4,16 +4,21 @@ import 'package:uuid/uuid.dart';
 import 'session_model.dart';
 import 'synced_item.dart';
 
-/// One entry of a playlist: a full copy of a session (with its embedded
-/// patterns), independent of the session library.
+/// One entry of a playlist (hybrid model): a **link** to a library session
+/// plus a fallback **snapshot** of it.
 ///
 /// * [id] is unique within the playlist, so the same session can appear
 ///   several times.
-/// * [session] is a deep copy with its **own** id (see
-///   [Session.asEmbeddedCopy]) and no sync metadata: it is not a library item,
-///   and editing or deleting the library session never changes it.
-/// * [sourceSessionId] remembers which library session it was copied from
-///   (informative only, e.g. for a future "update from library").
+/// * [sourceSessionId] links the item to a library session, which is the
+///   source of truth: while it's active, the playlist plays/shows/shares the
+///   library version (see [PlaylistProvider.resolveSession]), so editing the
+///   session in the library is reflected in every playlist that contains it.
+/// * [session] is the snapshot: a deep copy with its **own** id (see
+///   [Session.asEmbeddedCopy]) and no sync metadata. It's only used when the
+///   library session is gone (deleted, or never in this library), so the
+///   playlist keeps playing exactly what it was. It's refreshed when the item
+///   is added, when the source session is deleted and opportunistically when
+///   the playlist itself changes — not on every library edit.
 class PlaylistItem {
   final String id;
   final String? sourceSessionId;
@@ -22,9 +27,9 @@ class PlaylistItem {
   PlaylistItem({String? id, this.sourceSessionId, required this.session})
       : id = id ?? const Uuid().v4();
 
-  /// Copies [librarySession] into a new item (new item id, new embedded
-  /// session id). Pass a session that already has its patterns embedded
-  /// (see [Session.withEmbeddedPatterns]).
+  /// Links [librarySession] in a new item, with a snapshot of it (new item
+  /// id, new snapshot id). Pass a session that already has its patterns
+  /// embedded (see [Session.withEmbeddedPatterns]).
   factory PlaylistItem.fromLibrary(Session librarySession, {String? id, String? sessionId}) =>
       PlaylistItem(
         id: id,
@@ -32,9 +37,9 @@ class PlaylistItem {
         session: librarySession.asEmbeddedCopy(id: sessionId),
       );
 
-  PlaylistItem copyWith({String? id, Session? session}) => PlaylistItem(
+  PlaylistItem copyWith({String? id, String? sourceSessionId, Session? session}) => PlaylistItem(
         id: id ?? this.id,
-        sourceSessionId: sourceSessionId,
+        sourceSessionId: sourceSessionId ?? this.sourceSessionId,
         session: session ?? this.session.copyWith(updatedAt: this.session.updatedAt),
       );
 
@@ -55,11 +60,11 @@ class PlaylistItem {
   }
 }
 
-/// Represents a playlist: an ordered list of [items], each one a full copy of
-/// a session, so the playlist is **self-contained** (like sessions embed their
-/// patterns). Deleting or editing library sessions doesn't affect it.
+/// Represents a playlist: an ordered list of [items], each one linked to a
+/// library session with a fallback snapshot (see [PlaylistItem]), so the
+/// playlist follows library edits but never breaks if a session is deleted.
 ///
-/// Legacy playlists (before embedding) only stored `sessionIds` (references to
+/// Legacy playlists (before items) only stored `sessionIds` (references to
 /// the session library). They are read into [legacySessionIds] and migrated by
 /// [PlaylistProvider.loadPlaylists]; while not migrated, they are written back
 /// as they were so nothing is lost.
@@ -107,7 +112,8 @@ class Playlist implements SyncedItem<Playlist> {
   /// True if it still references the session library (old format).
   bool get needsMigration => legacySessionIds.isNotEmpty;
 
-  /// The embedded sessions, in order.
+  /// The snapshots, in order (fallback copies; for what the user sees use
+  /// [PlaylistProvider.resolvedSessions]).
   List<Session> get sessions => [for (final item in items) item.session];
 
   Playlist copyWith({

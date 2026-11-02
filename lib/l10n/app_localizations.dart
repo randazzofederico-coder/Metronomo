@@ -1447,6 +1447,42 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'«{name}» quitada de la playlist'**
   String playlistsSessionRemoved(String name);
+
+  /// No description provided for @playlistItemEditSession.
+  ///
+  /// In es, this message translates to:
+  /// **'Editar sesión'**
+  String get playlistItemEditSession;
+
+  /// No description provided for @playlistItemNotInLibrary.
+  ///
+  /// In es, this message translates to:
+  /// **'No está en la biblioteca'**
+  String get playlistItemNotInLibrary;
+
+  /// No description provided for @playlistItemRestoreToLibrary.
+  ///
+  /// In es, this message translates to:
+  /// **'Restaurar en la biblioteca'**
+  String get playlistItemRestoreToLibrary;
+
+  /// No description provided for @playlistItemRestoreTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Sesión fuera de la biblioteca'**
+  String get playlistItemRestoreTitle;
+
+  /// No description provided for @playlistItemRestoreMessage.
+  ///
+  /// In es, this message translates to:
+  /// **'«{name}» ya no está en la biblioteca. La playlist sigue usando su última versión. Para editarla, restaurala en la biblioteca.'**
+  String playlistItemRestoreMessage(String name);
+
+  /// No description provided for @playlistItemRestored.
+  ///
+  /// In es, this message translates to:
+  /// **'«{name}» restaurada en la biblioteca'**
+  String playlistItemRestored(String name);
 }
 
 class _AppLocalizationsDelegate

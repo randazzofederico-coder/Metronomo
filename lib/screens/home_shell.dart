@@ -7,6 +7,7 @@ import 'package:metronomo_standalone/models/session_model.dart';
 import 'package:metronomo_standalone/screens/library_screen.dart';
 import 'package:metronomo_standalone/screens/metronome_screen.dart';
 import 'package:metronomo_standalone/screens/settings_screen.dart';
+import 'package:metronomo_standalone/services/session_opener.dart';
 
 /// App shell: Tocar · Biblioteca · Ajustes.
 ///
@@ -53,9 +54,23 @@ class _HomeShellState extends State<HomeShell> {
     _libraryKey.currentState?.showTab(0);
   }
 
-  Future<void> _openSession(Session session) async {
+  Future<bool> _openSession(Session session) async {
     final opened = await _metronomeKey.currentState?.openSession(session) ?? false;
     if (opened && mounted) _select(_play);
+    return opened;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    // Playlist screens (pushed routes) open library sessions through this.
+    SessionOpener.register(_openSession);
+  }
+
+  @override
+  void dispose() {
+    SessionOpener.unregister(_openSession);
+    super.dispose();
   }
 
   void _addPattern(Pattern pattern) {

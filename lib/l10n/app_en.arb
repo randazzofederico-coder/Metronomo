@@ -224,5 +224,11 @@
   "playlistsDeletedSession": "(deleted session)",
   "playlistsRemoveSession": "Remove from playlist",
   "playlistsRemoved": "Removed from playlist",
-  "playlistsSessionRemoved": "“{name}” removed from the playlist"
+  "playlistsSessionRemoved": "“{name}” removed from the playlist",
+  "playlistItemEditSession": "Edit session",
+  "playlistItemNotInLibrary": "Not in the library",
+  "playlistItemRestoreToLibrary": "Restore to library",
+  "playlistItemRestoreTitle": "Session not in the library",
+  "playlistItemRestoreMessage": "“{name}” is no longer in the library. The playlist keeps using its latest version. To edit it, restore it to the library.",
+  "playlistItemRestored": "“{name}” restored to the library"
 }

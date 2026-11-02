@@ -303,16 +303,24 @@ class DeepLinkService {
     );
   }
 
-  /// Creates a link for a self-contained [Playlist] (its items embed the
-  /// sessions, which embed their patterns).
+  /// Creates a link for a [Playlist] whose items carry the session to share
+  /// (embedding its patterns) and the sender's library link
+  /// (`sourceSessionId`, used by the receiver to deduplicate).
   ///
   /// For older app versions (that resolve playlists through `sessionIds`),
   /// the payload also carries `data.sessionIds` plus the flat `sessions` and
-  /// `patterns` lists.
+  /// `patterns` lists. Flat sessions use the sender's library id when known
+  /// (one entry per library session), like older versions did.
   Future<SharedLink> createPlaylistLink(Playlist playlist, List<Pattern> patterns) {
-    final sessions = playlist.sessions;
-    final data = stripSyncFields(playlist.toJson())
-      ..['sessionIds'] = [for (final s in sessions) s.id];
+    final sessionIds = <String>[];
+    final byId = <String, Session>{};
+    for (final item in playlist.items) {
+      final id = item.sourceSessionId ?? item.session.id;
+      sessionIds.add(id);
+      byId.putIfAbsent(id, () => item.session.copyWith(id: id, updatedAt: item.session.updatedAt));
+    }
+    final sessions = byId.values.toList();
+    final data = stripSyncFields(playlist.toJson())..['sessionIds'] = sessionIds;
     return _createLink(
       type: SharedType.playlist,
       name: playlist.name,
@@ -321,9 +329,9 @@ class DeepLinkService {
         'sessions': sessions.map((s) => stripSyncFields(s.toJson())).toList(),
         'patterns': patterns.map((p) => stripSyncFields(p.toJson())).toList(),
       },
-      summary: {'sessions': sessions.length, 'patterns': patterns.length},
+      summary: {'sessions': playlist.items.length, 'patterns': patterns.length},
       title: L10n.current.shareTitlePlaylist(playlist.name),
-      message: L10n.current.shareMessagePlaylist(playlist.name, sessions.length),
+      message: L10n.current.shareMessagePlaylist(playlist.name, playlist.items.length),
     );
   }
 

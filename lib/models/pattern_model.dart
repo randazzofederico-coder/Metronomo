@@ -1,4 +1,7 @@
+import 'package:fede_apps_core/fede_apps_core.dart' show SyncFields;
 import 'package:uuid/uuid.dart';
+
+import 'synced_item.dart';
 
 /// Represents a single pulse (subdivisions and duration) in a pattern.
 ///
@@ -61,8 +64,10 @@ class HomeMetronomePulse {
 /// Represents a rhythmic pattern that can be saved in the global Pattern Library.
 ///
 /// Each pattern defines its structure, a sequence of pulses, 
-/// and visual/organizational metadata.
-class Pattern {
+/// and visual/organizational metadata. Sync metadata ([rev], [deleted]...):
+/// see [SyncedItem].
+class Pattern implements SyncedItem<Pattern> {
+  @override
   final String id;
   final String name;
   final String description;
@@ -71,7 +76,17 @@ class Pattern {
   final String colorHex; // UI color for visual identification
   final List<String> tags; // user tags for filtering/search
   final DateTime createdAt;
+  @override
   final DateTime updatedAt;
+
+  @override
+  final int rev;
+  @override
+  final bool deleted;
+  @override
+  final DateTime? deletedAt;
+  @override
+  final String? device;
 
   Pattern({
     String? id,
@@ -83,6 +98,10 @@ class Pattern {
     List<String>? tags,
     DateTime? createdAt,
     DateTime? updatedAt,
+    this.rev = 1,
+    this.deleted = false,
+    this.deletedAt,
+    this.device,
   })  : id = id ?? const Uuid().v4(),
         pulses = pulses ?? [],
         tags = tags ?? [],
@@ -110,20 +129,53 @@ class Pattern {
       tags: tags ?? List<String>.from(this.tags),
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
+      rev: rev,
+      deleted: deleted,
+      deletedAt: deletedAt,
+      device: device,
     );
   }
 
-  Map<String, dynamic> toJson() => {
-        'id': id,
-        'name': name,
-        'description': description,
-        'structure': structure,
-        'pulses': pulses.map((p) => p.toJson()).toList(),
-        'colorHex': colorHex,
-        'tags': tags,
-        'createdAt': createdAt.toIso8601String(),
-        'updatedAt': updatedAt.toIso8601String(),
-      };
+  @override
+  Pattern withSync({
+    required int rev,
+    required bool deleted,
+    DateTime? deletedAt,
+    String? device,
+    required DateTime updatedAt,
+  }) =>
+      Pattern(
+        id: id,
+        name: name,
+        description: description,
+        structure: structure,
+        pulses: pulses.map((p) => p.copyWith()).toList(),
+        colorHex: colorHex,
+        tags: List<String>.from(tags),
+        createdAt: createdAt,
+        updatedAt: updatedAt,
+        rev: rev,
+        deleted: deleted,
+        deletedAt: deletedAt,
+        device: device,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{
+      'id': id,
+      'name': name,
+      'description': description,
+      'structure': structure,
+      'pulses': pulses.map((p) => p.toJson()).toList(),
+      'colorHex': colorHex,
+      'tags': tags,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+    SyncFields.write(json, rev: rev, deleted: deleted, deletedAt: deletedAt, device: device);
+    return json;
+  }
 
   factory Pattern.fromJson(Map<String, dynamic> json) {
     return Pattern(
@@ -143,6 +195,10 @@ class Pattern {
       updatedAt: json['updatedAt'] != null
           ? DateTime.parse(json['updatedAt'] as String)
           : DateTime.now(),
+      rev: SyncFields.readRev(json),
+      deleted: SyncFields.readDeleted(json),
+      deletedAt: SyncFields.readDeletedAt(json),
+      device: SyncFields.readDevice(json),
     );
   }
 

@@ -7,7 +7,6 @@ import 'package:metronomo_standalone/theme/beat_colors.dart';
 import 'package:metronomo_standalone/models/pattern_model.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
 import 'package:metronomo_standalone/providers/settings_provider.dart';
-import 'package:metronomo_standalone/providers/session_provider.dart';
 import 'package:metronomo_standalone/providers/playlist_provider.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
 import 'package:metronomo_standalone/widgets/formatted_structure.dart';
@@ -64,18 +63,22 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
     await _loadSession(0);
   }
 
+  /// Loads the playlist's own (embedded) copy of session [index]. Changes made
+  /// in edit mode (mixer, BPM) are only for this performance: they are not
+  /// saved anywhere — neither to the playlist nor to the session library —
+  /// and the previous Tocar state is restored on exit.
   Future<void> _loadSession(int index) async {
     final playlist = context.read<PlaylistProvider>().getPlaylistById(widget.playlistId);
-    if (playlist == null || index >= playlist.sessionIds.length) return;
+    if (playlist == null || index >= playlist.items.length) return;
 
-    final sessionProvider = context.read<SessionProvider>();
     final patProvider = context.read<PatternEditorProvider>();
     final metronome = context.read<MetronomeProvider>();
     final settings = context.read<SettingsProvider>();
 
-    final session = sessionProvider.getSessionById(playlist.sessionIds[index]);
-    if (session == null) return;
+    final session = playlist.items[index].session;
 
+    // Library lookup only as a fallback for very old copies whose patterns
+    // could not be embedded.
     await metronome.loadSession(session, settings, getPatternById: (id) async {
       await patProvider.ensureLoaded;
       return patProvider.getPatternById(id);
@@ -138,7 +141,7 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
         body: Center(child: Text(context.l10n.playlistsNotFoundTitle, style: TextStyle(color: AppColors.textSecondary(context)))),
       );
     }
-    final totalSessions = playlist.sessionIds.length;
+    final totalSessions = playlist.items.length;
 
     return PopScope(
       onPopInvokedWithResult: (didPop, _) {
@@ -380,7 +383,7 @@ class _PlaylistPlayerScreenState extends State<PlaylistPlayerScreen> with SpaceP
   Widget _buildBottomControls(BuildContext context) {
     return Consumer<MetronomeProvider>(
       builder: (context, metronome, _) {
-        final total = context.read<PlaylistProvider>().getPlaylistById(widget.playlistId)?.sessionIds.length ?? 0;
+        final total = context.read<PlaylistProvider>().getPlaylistById(widget.playlistId)?.items.length ?? 0;
         return TransportBar(
           isPlaying: metronome.isPlaying,
           bpm: metronome.bpm,

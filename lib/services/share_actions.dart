@@ -4,7 +4,6 @@ import 'package:metronomo_standalone/models/pattern_model.dart';
 import 'package:metronomo_standalone/models/playlist_model.dart';
 import 'package:metronomo_standalone/models/session_model.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
-import 'package:metronomo_standalone/providers/session_provider.dart';
 import 'package:metronomo_standalone/services/deep_link_service.dart';
 import 'package:metronomo_standalone/widgets/share_sheet.dart';
 import 'package:metronomo_standalone/l10n/l10n.dart';
@@ -38,34 +37,30 @@ void shareSession(BuildContext context, Session session) {
 }
 
 void sharePlaylist(BuildContext context, Playlist playlist) {
-  final sessionProvider = context.read<SessionProvider>();
   final patProvider = context.read<PatternEditorProvider>();
   showShareSheet(
     context,
     heading: context.l10n.shareHeadingPlaylist,
-    subtitle: context.l10n.shareSubtitlePlaylist(playlist.name, playlist.sessionIds.length),
+    subtitle: context.l10n.shareSubtitlePlaylist(playlist.name, playlist.items.length),
     createLink: () async {
-      await sessionProvider.ensureLoaded;
       await patProvider.ensureLoaded;
 
-      // Resolve sessions (with embedded patterns; legacy ones via the
-      // library). The flat pattern list is still sent for older versions.
-      final sessions = <Session>[];
+      // The playlist is self-contained (embedded sessions with embedded
+      // patterns; very old copies fall back to the library). The flat
+      // session/pattern lists are still sent for older app versions.
+      final items = <PlaylistItem>[];
       final allPatterns = <Pattern>[];
       final seenPatternIds = <String>{};
 
-      for (final sessionId in playlist.sessionIds) {
-        final stored = sessionProvider.getSessionById(sessionId);
-        if (stored != null) {
-          final session = stored.withEmbeddedPatterns(patProvider.getPatternById);
-          sessions.add(session);
-          for (final pat in session.embeddedPatterns) {
-            if (seenPatternIds.add(pat.id)) allPatterns.add(pat);
-          }
+      for (final item in playlist.items) {
+        final session = item.session.withEmbeddedPatterns(patProvider.getPatternById);
+        items.add(item.copyWith(session: session));
+        for (final pat in session.embeddedPatterns) {
+          if (seenPatternIds.add(pat.id)) allPatterns.add(pat);
         }
       }
 
-      return DeepLinkService().createPlaylistLink(playlist, sessions, allPatterns);
+      return DeepLinkService().createPlaylistLink(playlist.copyWith(items: items), allPatterns);
     },
   );
 }

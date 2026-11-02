@@ -1,24 +1,74 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:uuid/uuid.dart';
 import '../models/playlist_model.dart';
+import '../models/session_model.dart';
 import '../services/playlist_repository.dart';
 
+/// Resolves a library session (with its patterns embedded) for the legacy
+/// playlist migration. Returns null if it doesn't exist (or was deleted).
+typedef PlaylistSessionResolver = Future<Session?> Function(String sessionId);
+
 /// Manages the playlist library state for the UI.
+///
+/// Playlists are self-contained: each [PlaylistItem] holds a full copy of a
+/// session, so the session library can change without affecting them.
+/// [playlists] and [getPlaylistById] only see active (non-deleted) playlists;
+/// deletions are tombstones (see [PlaylistRepository]).
 class PlaylistProvider extends ChangeNotifier {
   final PlaylistRepository _repository;
 
   PlaylistProvider({PlaylistRepository? repository})
       : _repository = repository ?? PlaylistRepository();
 
-  List<Playlist> _playlists = [];
-  List<Playlist> get playlists => List.unmodifiable(_playlists);
+  static const _uuid = Uuid();
+
+  /// Active playlists (what the UI shows).
+  List<Playlist> get playlists => _repository.active;
+
+  /// Every playlist including tombstones (internal: persistence/sync/tests).
+  List<Playlist> get allPlaylists => _repository.all;
 
   final Completer<void> _loadCompleter = Completer<void>();
+
+  /// Completes after loading **and** migrating legacy playlists.
   Future<void> get ensureLoaded => _loadCompleter.future;
 
-  /// Loads playlists from persistent storage.
-  Future<void> loadPlaylists() async {
-    _playlists = List<Playlist>.from(await _repository.loadPlaylists());
+  /// Loads playlists from persistent storage (purging expired tombstones).
+  ///
+  /// Legacy playlists (only `sessionIds`) are migrated here with
+  /// [resolveSession], which must wait for the session (and pattern) library
+  /// to be loaded: each id is embedded as a [PlaylistItem]; ids that can't be
+  /// resolved are skipped. Migrated playlists are persisted once (rev + 1).
+  /// Without a resolver, legacy playlists are kept untouched (and keep their
+  /// `sessionIds` on disk) until a later load can migrate them.
+  Future<void> loadPlaylists({PlaylistSessionResolver? resolveSession}) async {
+    await _repository.load();
+
+    if (resolveSession != null) {
+      for (final playlist in _repository.all) {
+        // Tombstones stay as they are (hidden, purged later).
+        if (!playlist.needsMigration || playlist.deleted) continue;
+        final items = <PlaylistItem>[];
+        for (var i = 0; i < playlist.legacySessionIds.length; i++) {
+          final sessionId = playlist.legacySessionIds[i];
+          final session = await resolveSession(sessionId);
+          if (session == null) continue; // missing / deleted: skip
+          items.add(PlaylistItem.fromLibrary(
+            session,
+            // Deterministic ids: migrating the same data twice (or on two
+            // devices) yields the same items.
+            id: _uuid.v5(Namespace.url.value, 'metronomo-playlist-item:${playlist.id}:$i:$sessionId'),
+            sessionId: _uuid.v5(Namespace.url.value, 'metronomo-playlist-session:${playlist.id}:$i:$sessionId'),
+          ));
+        }
+        final migrated = playlist.copyWith(
+          items: [...playlist.items, ...items],
+          legacySessionIds: const [],
+        );
+        await _repository.update(migrated);
+      }
+    }
 
     if (!_loadCompleter.isCompleted) {
       _loadCompleter.complete();
@@ -26,110 +76,90 @@ class PlaylistProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Adds a new playlist to the library.
+  /// Adds a new playlist to the library (rev 1).
   Future<void> addPlaylist(Playlist playlist) async {
     await _loadCompleter.future;
-    _playlists.add(playlist);
-    await _repository.addPlaylist(playlist);
+    await _repository.create(playlist);
     notifyListeners();
   }
 
-  /// Updates an existing playlist in the library.
+  /// Updates an existing playlist in the library (rev + 1).
   Future<void> updatePlaylist(Playlist updated) async {
     await _loadCompleter.future;
-    final index = _playlists.indexWhere((p) => p.id == updated.id);
-    if (index != -1) {
-      _playlists[index] = updated.copyWith(updatedAt: DateTime.now());
-      await _repository.updatePlaylist(_playlists[index]);
-      notifyListeners();
-    }
+    if (await _repository.update(updated) != null) notifyListeners();
   }
 
-  /// Deletes a playlist from the library.
+  /// Deletes a playlist from the library (tombstone).
   /// Returns the removed playlist and its position (for [restorePlaylist]).
   Future<(Playlist, int)?> deletePlaylist(String playlistId) async {
     await _loadCompleter.future;
-    final index = _playlists.indexWhere((p) => p.id == playlistId);
-    if (index < 0) return null;
-    final removed = _playlists.removeAt(index);
-    await _repository.deletePlaylist(playlistId);
-    notifyListeners();
-    return (removed, index);
+    final removed = await _repository.delete(playlistId);
+    if (removed != null) notifyListeners();
+    return removed;
   }
 
-  /// Undo of [deletePlaylist]: re-inserts [playlist] at [index].
+  /// Undo of [deletePlaylist]: revives [playlist] at its position.
   Future<void> restorePlaylist(Playlist playlist, int index) async {
     await _loadCompleter.future;
-    if (getPlaylistById(playlist.id) != null) return;
-    _playlists.insert(index.clamp(0, _playlists.length), playlist);
-    await _repository.insertPlaylist(index, playlist);
-    notifyListeners();
+    if (await _repository.restore(playlist, index) != null) notifyListeners();
   }
 
-  /// Inserts a session ID at [sessionIndex] (undo of [removeSessionFromPlaylist]).
-  Future<void> insertSessionInPlaylist(String playlistId, int sessionIndex, String sessionId) async {
+  /// Retrieves an active playlist by ID, or null if not found / deleted.
+  Playlist? getPlaylistById(String id) => _repository.byId(id);
+
+  Future<void> _mutate(String playlistId, Playlist Function(Playlist p) change) async {
     await _loadCompleter.future;
-    final index = _playlists.indexWhere((p) => p.id == playlistId);
-    if (index != -1) {
-      final playlist = _playlists[index];
-      final updatedIds = List<String>.from(playlist.sessionIds)
-        ..insert(sessionIndex.clamp(0, playlist.sessionIds.length), sessionId);
-      _playlists[index] = playlist.copyWith(sessionIds: updatedIds);
-      await _repository.updatePlaylist(_playlists[index]);
-      notifyListeners();
-    }
+    if (await _repository.mutate(playlistId, change) != null) notifyListeners();
   }
 
-  /// Retrieves a playlist by ID, or null if not found.
-  Playlist? getPlaylistById(String id) {
-    try {
-      return _playlists.firstWhere((p) => p.id == id);
-    } catch (_) {
-      return null;
-    }
+  /// Adds a **copy** of [librarySession] at the end of the playlist (the same
+  /// session may be added several times). Pass it with its patterns embedded
+  /// (see [Session.withEmbeddedPatterns]).
+  Future<PlaylistItem?> addSessionToPlaylist(String playlistId, Session librarySession) async {
+    final item = PlaylistItem.fromLibrary(librarySession);
+    await _mutate(playlistId, (p) => p.copyWith(items: [...p.items, item]));
+    return getPlaylistById(playlistId) == null ? null : item;
   }
 
-  /// Adds a session ID to a playlist at the end.
-  Future<void> addSessionToPlaylist(String playlistId, String sessionId) async {
-    await _loadCompleter.future;
-    final index = _playlists.indexWhere((p) => p.id == playlistId);
-    if (index != -1) {
-      final playlist = _playlists[index];
-      final updatedIds = List<String>.from(playlist.sessionIds)..add(sessionId);
-      _playlists[index] = playlist.copyWith(sessionIds: updatedIds);
-      await _repository.updatePlaylist(_playlists[index]);
-      notifyListeners();
-    }
+  /// Removes the item at [itemIndex]. Returns it (for [insertItemInPlaylist]).
+  Future<PlaylistItem?> removeItemFromPlaylist(String playlistId, int itemIndex) async {
+    final playlist = getPlaylistById(playlistId);
+    if (playlist == null || itemIndex < 0 || itemIndex >= playlist.items.length) return null;
+    final removed = playlist.items[itemIndex];
+    await _mutate(playlistId, (p) => p.copyWith(items: List.of(p.items)..removeAt(itemIndex)));
+    return removed;
   }
 
-  /// Removes a session at a specific index from a playlist.
-  Future<void> removeSessionFromPlaylist(String playlistId, int sessionIndex) async {
-    await _loadCompleter.future;
-    final index = _playlists.indexWhere((p) => p.id == playlistId);
-    if (index != -1) {
-      final playlist = _playlists[index];
-      final updatedIds = List<String>.from(playlist.sessionIds)
-        ..removeAt(sessionIndex);
-      _playlists[index] = playlist.copyWith(sessionIds: updatedIds);
-      await _repository.updatePlaylist(_playlists[index]);
-      notifyListeners();
-    }
+  /// Inserts [item] at [itemIndex] (undo of [removeItemFromPlaylist]).
+  Future<void> insertItemInPlaylist(String playlistId, int itemIndex, PlaylistItem item) async {
+    final playlist = getPlaylistById(playlistId);
+    if (playlist == null || playlist.items.any((i) => i.id == item.id)) return;
+    await _mutate(
+      playlistId,
+      (p) => p.copyWith(items: List.of(p.items)..insert(itemIndex.clamp(0, p.items.length), item)),
+    );
   }
 
-  /// Reorders sessions within a playlist.
-  Future<void> reorderSessionInPlaylist(
-      String playlistId, int oldIndex, int newIndex) async {
-    await _loadCompleter.future;
-    final index = _playlists.indexWhere((p) => p.id == playlistId);
-    if (index != -1) {
-      final playlist = _playlists[index];
-      final updatedIds = List<String>.from(playlist.sessionIds);
-      if (oldIndex < newIndex) newIndex -= 1;
-      final item = updatedIds.removeAt(oldIndex);
-      updatedIds.insert(newIndex, item);
-      _playlists[index] = playlist.copyWith(sessionIds: updatedIds);
-      await _repository.updatePlaylist(_playlists[index]);
-      notifyListeners();
-    }
+  /// Reorders items within a playlist (rev + 1).
+  Future<void> reorderItemsInPlaylist(String playlistId, int oldIndex, int newIndex) async {
+    final playlist = getPlaylistById(playlistId);
+    if (playlist == null || oldIndex < 0 || oldIndex >= playlist.items.length) return;
+    if (oldIndex < newIndex) newIndex -= 1;
+    if (oldIndex == newIndex) return;
+    await _mutate(playlistId, (p) {
+      final items = List.of(p.items);
+      final item = items.removeAt(oldIndex);
+      items.insert(newIndex.clamp(0, items.length), item);
+      return p.copyWith(items: items);
+    });
+  }
+
+  /// Replaces the embedded session of item [itemId] (the playlist's own copy;
+  /// the session library is never touched). rev + 1 of the playlist.
+  Future<void> updateItemSession(String playlistId, String itemId, Session session) async {
+    await _mutate(playlistId, (p) => p.copyWith(items: [
+          for (final i in p.items)
+            if (i.id == itemId) i.copyWith(session: session.asEmbeddedCopy(id: i.session.id)) else i,
+        ]));
   }
 }

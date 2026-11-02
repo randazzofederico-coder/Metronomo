@@ -1,7 +1,9 @@
+import 'package:fede_apps_core/fede_apps_core.dart' show SyncFields;
 import 'package:uuid/uuid.dart';
 import 'package:metronomo_standalone/l10n/l10n.dart';
 
 import 'pattern_model.dart';
+import 'synced_item.dart';
 
 /// Configuration for a single pattern within a session.
 ///
@@ -180,7 +182,11 @@ class TrainingConfig {
 
 /// Represents a session: an ordered collection of patterns with independent
 /// mix configurations and optional training parameters.
-class Session {
+///
+/// Library sessions carry sync metadata ([rev], [deleted]...: see
+/// [SyncedItem]). Copies embedded in playlists don't (see [asEmbeddedCopy]).
+class Session implements SyncedItem<Session> {
+  @override
   final String id;
   final String name;
   final String description;
@@ -191,7 +197,17 @@ class Session {
   final bool isTrainingEnabled;
   final TrainingConfig trainingConfig;
   final DateTime createdAt;
+  @override
   final DateTime updatedAt;
+
+  @override
+  final int rev;
+  @override
+  final bool deleted;
+  @override
+  final DateTime? deletedAt;
+  @override
+  final String? device;
 
   Session({
     String? id,
@@ -205,6 +221,10 @@ class Session {
     TrainingConfig? trainingConfig,
     DateTime? createdAt,
     DateTime? updatedAt,
+    this.rev = 1,
+    this.deleted = false,
+    this.deletedAt,
+    this.device,
   })  : id = id ?? const Uuid().v4(),
         trainingConfig = trainingConfig ?? const TrainingConfig(),
         createdAt = createdAt ?? DateTime.now(),
@@ -236,8 +256,54 @@ class Session {
       trainingConfig: trainingConfig ?? this.trainingConfig.copyWith(),
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? DateTime.now(),
+      rev: rev,
+      deleted: deleted,
+      deletedAt: deletedAt,
+      device: device,
     );
   }
+
+  @override
+  Session withSync({
+    required int rev,
+    required bool deleted,
+    DateTime? deletedAt,
+    String? device,
+    required DateTime updatedAt,
+  }) =>
+      Session(
+        id: id,
+        name: name,
+        description: description,
+        globalBpm: globalBpm,
+        patternsConfig: patternsConfig.map((p) => p.copyWith()).toList(),
+        soundSet: soundSet,
+        randomSilencePercentage: randomSilencePercentage,
+        isTrainingEnabled: isTrainingEnabled,
+        trainingConfig: trainingConfig.copyWith(),
+        createdAt: createdAt,
+        updatedAt: updatedAt,
+        rev: rev,
+        deleted: deleted,
+        deletedAt: deletedAt,
+        device: device,
+      );
+
+  /// Deep copy to embed in a playlist: new [id] (so it can never be confused
+  /// with — or saved over — a library session) and no sync metadata.
+  Session asEmbeddedCopy({String? id}) => Session(
+        id: id ?? const Uuid().v4(),
+        name: name,
+        description: description,
+        globalBpm: globalBpm,
+        patternsConfig: patternsConfig.map((p) => p.copyWith()).toList(),
+        soundSet: soundSet,
+        randomSilencePercentage: randomSilencePercentage,
+        isTrainingEnabled: isTrainingEnabled,
+        trainingConfig: trainingConfig.copyWith(),
+        createdAt: createdAt,
+        updatedAt: updatedAt,
+      );
 
   /// True if some pattern still depends on the library (legacy format).
   bool get needsEmbedding => patternsConfig.any((c) => !c.hasEmbeddedPattern);
@@ -270,19 +336,24 @@ class Session {
     ];
   }
 
-  Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'description': description,
-    'globalBpm': globalBpm,
-    'patternsConfig': patternsConfig.map((p) => p.toJson()).toList(),
-    'soundSet': soundSet,
-    'randomSilencePercentage': randomSilencePercentage,
-    'isTrainingEnabled': isTrainingEnabled,
-    'trainingConfig': trainingConfig.toJson(),
-    'createdAt': createdAt.toIso8601String(),
-    'updatedAt': updatedAt.toIso8601String(),
-  };
+  @override
+  Map<String, dynamic> toJson() {
+    final json = <String, dynamic>{
+      'id': id,
+      'name': name,
+      'description': description,
+      'globalBpm': globalBpm,
+      'patternsConfig': patternsConfig.map((p) => p.toJson()).toList(),
+      'soundSet': soundSet,
+      'randomSilencePercentage': randomSilencePercentage,
+      'isTrainingEnabled': isTrainingEnabled,
+      'trainingConfig': trainingConfig.toJson(),
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+    };
+    SyncFields.write(json, rev: rev, deleted: deleted, deletedAt: deletedAt, device: device);
+    return json;
+  }
 
   factory Session.fromJson(Map<String, dynamic> json) {
     return Session(
@@ -305,6 +376,10 @@ class Session {
       updatedAt: json['updatedAt'] != null
           ? DateTime.parse(json['updatedAt'] as String)
           : DateTime.now(),
+      rev: SyncFields.readRev(json),
+      deleted: SyncFields.readDeleted(json),
+      deletedAt: SyncFields.readDeletedAt(json),
+      device: SyncFields.readDevice(json),
     );
   }
 

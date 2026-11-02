@@ -6,24 +6,32 @@ import '../models/session_model.dart';
 import '../services/session_repository.dart';
 
 /// Manages the session library state for the UI.
+///
+/// [sessions] and [getSessionById] only see active (non-deleted) sessions;
+/// deletions are tombstones (see [SessionRepository]). [allSessions]
+/// (tombstones included) is for internal use only.
 class SessionProvider extends ChangeNotifier {
   final SessionRepository _repository;
 
   SessionProvider({SessionRepository? repository})
       : _repository = repository ?? SessionRepository();
 
-  List<Session> _sessions = [];
-  List<Session> get sessions => List.unmodifiable(_sessions);
+  /// Active sessions (what the UI shows).
+  List<Session> get sessions => _repository.active;
+
+  /// Every session including tombstones (internal: persistence/sync/tests).
+  List<Session> get allSessions => _repository.all;
 
   final Completer<void> _loadCompleter = Completer<void>();
   Future<void> get ensureLoaded => _loadCompleter.future;
 
-  /// Loads sessions from persistent storage.
+  /// Loads sessions from persistent storage (purging expired tombstones).
   Future<void> loadSessions() async {
-    _sessions = List<Session>.from(await _repository.loadSessions());
-    
-    // Add default Chacarera session if library is entirely empty
-    if (_sessions.isEmpty) {
+    await _repository.load();
+
+    // Add default Chacarera session if the library has never had anything
+    // (a library with only tombstones means the user deleted them).
+    if (_repository.all.isEmpty) {
       final chacareraSession = Session(
         id: "default-session-chacarera",
         name: "Chacarera",
@@ -34,8 +42,7 @@ class SessionProvider extends ChangeNotifier {
           SessionPatternConfig(patternId: "default-chacarera-6-8", volume: 0.8, orderIndex: 1),
         ]
       );
-      _sessions.add(chacareraSession);
-      await _repository.addSession(chacareraSession);
+      await _repository.create(chacareraSession);
     }
 
     if (!_loadCompleter.isCompleted) {
@@ -44,54 +51,38 @@ class SessionProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Adds a new session to the library.
+  /// Adds a new session to the library (rev 1).
   Future<void> addSession(Session session) async {
     await _loadCompleter.future;
-    _sessions.add(session);
-    await _repository.addSession(session);
+    await _repository.create(session);
     notifyListeners();
   }
 
-  /// Updates an existing session in the library.
+  /// Updates an existing session in the library (rev + 1).
   Future<void> updateSession(Session updated) async {
     await _loadCompleter.future;
-    final index = _sessions.indexWhere((s) => s.id == updated.id);
-    if (index != -1) {
-      _sessions[index] = updated.copyWith(updatedAt: DateTime.now());
-      await _repository.updateSession(_sessions[index]);
-      notifyListeners();
-    }
+    if (await _repository.update(updated) != null) notifyListeners();
   }
 
-  /// Deletes a session from the library.
+  /// Deletes a session from the library (tombstone).
   /// Returns the removed session and its position (for [restoreSession]).
+  ///
+  /// Playlists are not affected: they embed their own copies.
   Future<(Session, int)?> deleteSession(String sessionId) async {
     await _loadCompleter.future;
-    final index = _sessions.indexWhere((s) => s.id == sessionId);
-    if (index < 0) return null;
-    final removed = _sessions.removeAt(index);
-    await _repository.deleteSession(sessionId);
-    notifyListeners();
-    return (removed, index);
+    final removed = await _repository.delete(sessionId);
+    if (removed != null) notifyListeners();
+    return removed;
   }
 
-  /// Undo of [deleteSession]: re-inserts [session] at [index].
+  /// Undo of [deleteSession]: revives [session] at its position.
   Future<void> restoreSession(Session session, int index) async {
     await _loadCompleter.future;
-    if (getSessionById(session.id) != null) return;
-    _sessions.insert(index.clamp(0, _sessions.length), session);
-    await _repository.insertSession(index, session);
-    notifyListeners();
+    if (await _repository.restore(session, index) != null) notifyListeners();
   }
 
-  /// Retrieves a session by ID, or null if not found.
-  Session? getSessionById(String id) {
-    try {
-      return _sessions.firstWhere((s) => s.id == id);
-    } catch (_) {
-      return null;
-    }
-  }
+  /// Retrieves an active session by ID, or null if not found / deleted.
+  Session? getSessionById(String id) => _repository.byId(id);
 
   /// One-time migration: embeds library patterns into legacy sessions so they
   /// no longer depend on the pattern library. Idempotent. Returns how many
@@ -99,15 +90,13 @@ class SessionProvider extends ChangeNotifier {
   Future<int> embedMissingPatterns(Pattern? Function(String patternId) lookup) async {
     await _loadCompleter.future;
     var migrated = 0;
-    for (var i = 0; i < _sessions.length; i++) {
-      final session = _sessions[i];
+    for (final session in sessions) {
       if (!session.needsEmbedding) continue;
       final updated = session.withEmbeddedPatterns(lookup);
       if (updated.needsEmbedding && updated.patternsConfig.every((c) => !c.hasEmbeddedPattern)) {
         continue; // nothing could be resolved
       }
-      _sessions[i] = updated;
-      await _repository.updateSession(updated);
+      await _repository.update(updated);
       migrated++;
     }
     if (migrated > 0) notifyListeners();

@@ -86,9 +86,17 @@ class MyApp extends StatelessWidget {
           provider.loadSessions();
           return provider;
         }),
-        ChangeNotifierProvider(create: (_) {
+        ChangeNotifierProvider(create: (context) {
           final provider = PlaylistProvider();
-          provider.loadPlaylists();
+          // Legacy playlists (session references) are migrated to embedded
+          // sessions: the session and pattern libraries must be loaded first.
+          final sessions = context.read<SessionProvider>();
+          final patterns = context.read<PatternEditorProvider>();
+          provider.loadPlaylists(resolveSession: (id) async {
+            await sessions.ensureLoaded;
+            await patterns.ensureLoaded;
+            return sessions.getSessionById(id)?.withEmbeddedPatterns(patterns.getPatternById);
+          });
           return provider;
         }),
       ],

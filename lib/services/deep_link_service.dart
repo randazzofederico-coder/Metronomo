@@ -11,6 +11,7 @@ import 'package:metronomo_standalone/l10n/l10n.dart';
 import '../models/pattern_model.dart';
 import '../models/playlist_model.dart';
 import '../models/session_model.dart';
+import '../models/synced_item.dart';
 
 // Conditional import: web reads/cleans the browser URL, stub is a no-op.
 import 'deep_link_stub.dart'
@@ -279,7 +280,7 @@ class DeepLinkService {
     return _createLink(
       type: SharedType.pattern,
       name: pattern.name,
-      payload: {'data': pattern.toJson()},
+      payload: {'data': stripSyncFields(pattern.toJson())},
       summary: {'patterns': 1, 'structure': pattern.structure},
       title: L10n.current.shareTitlePattern(pattern.name),
       message: L10n.current.shareMessagePattern(pattern.name, pattern.structure),
@@ -292,8 +293,8 @@ class DeepLinkService {
       type: SharedType.session,
       name: session.name,
       payload: {
-        'data': session.toJson(),
-        'patterns': patterns.map((p) => p.toJson()).toList(),
+        'data': stripSyncFields(session.toJson()),
+        'patterns': patterns.map((p) => stripSyncFields(p.toJson())).toList(),
       },
       summary: {'patterns': patterns.length, 'bpm': session.globalBpm},
       title: L10n.current.shareTitleSession(session.name),
@@ -302,19 +303,23 @@ class DeepLinkService {
     );
   }
 
-  /// Creates a link for a [Playlist] bundled with its [Session]s and [Pattern]s.
-  Future<SharedLink> createPlaylistLink(
-    Playlist playlist,
-    List<Session> sessions,
-    List<Pattern> patterns,
-  ) {
+  /// Creates a link for a self-contained [Playlist] (its items embed the
+  /// sessions, which embed their patterns).
+  ///
+  /// For older app versions (that resolve playlists through `sessionIds`),
+  /// the payload also carries `data.sessionIds` plus the flat `sessions` and
+  /// `patterns` lists.
+  Future<SharedLink> createPlaylistLink(Playlist playlist, List<Pattern> patterns) {
+    final sessions = playlist.sessions;
+    final data = stripSyncFields(playlist.toJson())
+      ..['sessionIds'] = [for (final s in sessions) s.id];
     return _createLink(
       type: SharedType.playlist,
       name: playlist.name,
       payload: {
-        'data': playlist.toJson(),
-        'sessions': sessions.map((s) => s.toJson()).toList(),
-        'patterns': patterns.map((p) => p.toJson()).toList(),
+        'data': data,
+        'sessions': sessions.map((s) => stripSyncFields(s.toJson())).toList(),
+        'patterns': patterns.map((p) => stripSyncFields(p.toJson())).toList(),
       },
       summary: {'sessions': sessions.length, 'patterns': patterns.length},
       title: L10n.current.shareTitlePlaylist(playlist.name),

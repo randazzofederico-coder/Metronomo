@@ -70,8 +70,20 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Reproducción en Segundo Plano** — Activada por defecto. Gestión inteligente del ciclo de vida (`WidgetsBindingObserver` con `paused`/`hidden`/`inactive`) que permite que la app continúe sonando al minimizarla. Si el usuario desactiva la opción, el metrónomo se detiene automáticamente al perder foco
 - **Mantener Pantalla Encendida** — Activada por defecto. Integración nativa con `wakelock_plus` para evitar bloqueos del dispositivo durante ensayos y prácticas
 - **Storage persistente** — Guardado automático de configuraciones, sets y patrones vía `shared_preferences`
+- **Bibliotecas listas para sync** — Cada patrón/sesión/playlist lleva `rev`, lápidas (borrado lógico) y purga a los 30 días; las playlists son autocontenidas. Ver *Modelo de datos* más abajo
 - **Orden de Ajustes** — *Idioma* arriba de todo, luego Reproducción y pantalla, Set de sonidos, Silencio aleatorio, Escala de UI, Instalar (solo web), *Comunidad* y *Acerca de*
 - **Acceso al foro** — Sección *Comunidad* con botón *Ir al Foro* que abre [federicorandazzo.com.ar/foro](https://federicorandazzo.com.ar/foro/) en el navegador externo
+
+### 🗃️ Modelo de datos (listo para sync)
+Las tres bibliotecas (`pattern_library`, `session_library`, `playlist_library` en `shared_preferences`, listas JSON) siguen el contrato `SyncFields` de `fede_apps_core`. Todavía no hay sync ni login: solo el modelo local.
+
+- **Campos de sync** — Además de sus datos, cada ítem guarda `rev` (int ≥ 1), `deleted`, `deletedAt` y `dev` (`DeviceIdentity.id`, inicializado por `UsageTracker.init`). JSON viejo sin esas claves se lee como `rev: 1`, no borrado; las claves existentes no cambian
+- **`rev` sube en cada cambio persistido** — Crear = 1; editar, sobrescribir, renombrar, cambiar el contenido (agregar/quitar/reordenar sesiones de una playlist), embeber patrones y borrar = `rev + 1`, con `updatedAt = ahora` y `dev` = este dispositivo. Duplicar = id nuevo con `rev 1`. El `rev` se calcula desde el ítem guardado (un *deshacer* con una copia vieja igual sube). El orden de la biblioteca es local: reordenar la lista no cambia ningún ítem
+- **Lápidas** — Borrar no elimina: marca `deleted: true` + `deletedAt` (`rev + 1`). *Deshacer* revive la lápida (`rev + 1`) en su posición. Toda la UI (listas, búsquedas, pickers, contadores, `getXById`) ve solo ítems activos; `allPatterns` / `allSessions` / `allPlaylists` (con lápidas) son de uso interno. Re-crear un id borrado (importar un link, *Guardar en librería*) revive la lápida en vez de duplicar el id. Una biblioteca con solo lápidas no se vuelve a sembrar con los ejemplos. Todavía no hay papelera en la UI
+- **Purga** — Al cargar, las lápidas de más de 30 días (`SyncFields.shouldPurge`) se eliminan y se persiste
+- **Implementación** — `services/synced_repository.dart` (`SyncedRepository<T>`: `active` / `all`, `create` / `update` / `delete` / `restore` / `reorder`, purga) y `models/synced_item.dart` (interfaz `SyncedItem`, `stripSyncFields`). Los providers delegan en su repositorio (única fuente de verdad)
+- **Playlists autocontenidas** — Una playlist guarda `items`: cada `PlaylistItem` tiene `id` propio (único en la playlist: la misma sesión puede aparecer dos veces), `sourceSessionId` (de qué sesión de la biblioteca se copió; solo informativo) y `session`, una **copia completa** con sus patrones embebidos, con **id propio** y sin campos de sync (no es un ítem de la biblioteca). Agregar una sesión a una playlist = copia profunda; editar o borrar la sesión en la biblioteca no afecta a las playlists
+- **Migración de playlists viejas** — El formato anterior (`sessionIds`, referencias a la biblioteca) se sigue leyendo siempre. Al cargar, `PlaylistProvider.loadPlaylists(resolveSession:)` espera a que estén cargadas sesiones y patrones (cableado en `main.dart`), embebe cada sesión existente (ids faltantes o borrados se omiten; ids de ítem deterministas, UUID v5) y persiste la playlist una vez (`rev + 1`). Sin resolver, la playlist queda como estaba y conserva `sessionIds` en disco
 
 ### 🌍 Idiomas (i18n)
 - **Español e inglés** — Toda la interfaz está localizada con el sistema oficial de Flutter (`flutter_localizations` + `intl`, `flutter gen-l10n`). Los textos viven en `lib/l10n/app_es.arb` (plantilla) y `lib/l10n/app_en.arb`
@@ -91,7 +103,7 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 
 ### 🔗 Compartir Sesiones y Patrones (Deep Links)
 - **Compartir via Deep Link** — Sesiones, patrones y playlists se comparten con URLs limpias tipo `federicorandazzo.com.ar/metronomo/?share=xk9mp2nq&name=chacarera` respaldadas por Firestore
-- **Exportación inteligente** — Las sesiones llevan sus patrones embebidos. Igual se envía la lista plana `patterns` para que versiones anteriores de la app puedan abrir links nuevos. Al importar una sesión/playlist sus patrones quedan dentro de la sesión (no se agregan a la librería de patrones); solo un *patrón* compartido va a la librería
+- **Exportación inteligente** — Las sesiones llevan sus patrones embebidos y las playlists sus sesiones (autocontenidas). Los payloads compartidos no llevan campos de sync (`stripSyncFields`). Una playlist compartida incluye además `data.sessionIds` y la lista plana `sessions` para versiones anteriores; al importarla, sus sesiones quedan **dentro de la playlist** (no se agregan a la biblioteca de sesiones) y los links viejos (solo `sessionIds`) se convierten en ítems embebidos. Igual se envía la lista plana `patterns` para que versiones anteriores de la app puedan abrir links nuevos. Al importar una sesión/playlist sus patrones quedan dentro de la sesión (no se agregan a la librería de patrones); solo un *patrón* compartido va a la librería
 - **Sheet de compartir unificado** (`widgets/share_sheet.dart`) — Genera el link con spinner y ofrece *Compartir en…* (share sheet nativo / Web Share API, disparado por un tap fresco para respetar la activación de usuario) y *Copiar link*. Errores siempre visibles con reintento
 - **ID por contenido** — El ID del link es un hash SHA-256 (10 chars) del contenido + autor: compartir lo mismo dos veces reutiliza el mismo link
 - **Login anónimo** — Para crear links se usa Firebase Anonymous Auth (lazy, solo al compartir). La cuenta anónima puede promoverse a cuenta formal con `linkWithCredential` conservando el `uid` (`ownerUid` del link)
@@ -129,16 +141,16 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Banner "Abrir en la app"** para navegadores in-app (Instagram/Facebook), que no disparan App Links
 
 ### 🎶 Playlists (Listas de Reproducción)
-- **Gestión de Playlists** — Crear, renombrar, eliminar y duplicar listas de reproducción. Cada playlist contiene una lista ordenada de sesiones
-- **Edición de Contenido** — Agregar sesiones desde un bottom sheet con toda la biblioteca disponible, eliminar sesiones individuales, y reordenar con drag & drop (`ReorderableListView`)
+- **Gestión de Playlists** — Crear, renombrar, eliminar y duplicar listas de reproducción. Cada playlist contiene una lista ordenada de **copias** de sesiones (autocontenida, ver *Modelo de datos*): borrar o editar una sesión de la biblioteca no la afecta
+- **Edición de Contenido** — Agregar sesiones (se copian) desde un bottom sheet con toda la biblioteca disponible (la misma sesión puede agregarse más de una vez), eliminar sesiones individuales, y reordenar con drag & drop (`ReorderableListView`)
 - **Reproducción Secuencial** — Al presionar Play se abre el player dedicado (`PlaylistPlayerScreen`) que carga y reproduce automáticamente la primera sesión
 - **Navegación entre Sesiones** — Deslizar horizontalmente (`PageView`) en móvil, o usar las flechas `‹` `›` en PC/desktop para avanzar/retroceder entre sesiones. Al cambiar de sesión, se detiene la anterior y se auto-reproduce la nueva
 - **Modo Solo Lectura** — Todo bloqueado por defecto: BPM (botones ±1/±5, slider), volumen (knob), mute, solo, estructura, nombre, añadir/eliminar patrones. Solo activos: Play/Stop, toggle de edición y swipe
-- **Toggle Modo Edición** — Switch en el AppBar que desbloquea todos los controles. Los controles bloqueados se muestran con opacidad reducida (50%) usando `IgnorePointer` + `Opacity`
+- **Toggle Modo Edición** — Switch en el AppBar que desbloquea todos los controles. Los cambios (mixer, BPM) son solo para esa ejecución: no se guardan ni en la playlist ni en la biblioteca. El player carga la copia embebida, cuyo id no existe en la biblioteca, así que un *guardar* posterior en Tocar nunca sobrescribe una sesión de la biblioteca. Los controles bloqueados se muestran con opacidad reducida (50%) usando `IgnorePointer` + `Opacity`
 - **Dirty Tracking** — Misma lógica de sesiones: nombre en *itálica* con `*` cuando hay cambios pendientes
 - **Conservación de Estado** — Al entrar al player, se guarda el estado completo del metrónomo (sesión activa, BPM, instancias, volumen, mute/solo, dirty state). Al salir, se restaura íntegramente
 - **Indicador de Posición** — Dots animados en la parte superior muestran la sesión actual, y flechas circulares con contador `1/N` en la barra inferior permiten navegación directa con animación suave (300ms)
-- **Compartir Playlists** — Deep links que empaquetan la playlist + todas las sesiones + todos los patrones referenciados
+- **Compartir Playlists** — Deep links con la playlist autocontenida (ítems con sesiones y patrones embebidos) + listas planas de sesiones y patrones para versiones anteriores
 
 ### 🔄 Actualización Automática de Versión
 - **Verificación al inicio** — Al abrir la app, se consulta Firebase Remote Config para obtener la versión mínima requerida (`metronomo_min_version`)
@@ -185,13 +197,14 @@ lib/
 ├── models/
 │   ├── pattern_model.dart             # Modelo de patrón rítmico (estructura, pulsos, subdivisiones, volumen por evento)
 │   ├── session_model.dart             # Modelo de sesión (patrones, BPM, configuración de mezcla, sonido por patrón)
-│   └── playlist_model.dart            # Modelo de playlist (lista ordenada de session IDs)
+│   ├── playlist_model.dart            # Playlist autocontenida + PlaylistItem (copia de sesión)
+│   └── synced_item.dart               # Interfaz SyncedItem (rev, lápidas, dev) + stripSyncFields
 ├── providers/
 │   ├── metronome_provider.dart        # Estado global, parser de estructuras, tap tempo, macro ciclo
 │   ├── settings_provider.dart         # Configuración persistente (incl. idioma)
 │   ├── pattern_editor_provider.dart   # CRUD de la biblioteca de patrones
 │   ├── session_provider.dart          # CRUD de la biblioteca de sesiones
-│   └── playlist_provider.dart         # CRUD de playlists + reordenar sesiones internas
+│   └── playlist_provider.dart         # CRUD de playlists + ítems (copias) + migración de sessionIds
 ├── screens/
 │   ├── home_shell.dart                # Barra inferior (NavigationBar / NavigationRail ≥900px): Tocar · Biblioteca · Ajustes
 │   ├── library_screen.dart            # Biblioteca: pestañas Sesiones / Patrones / Playlists, búsqueda, menú ⋮ por ítem
@@ -214,9 +227,10 @@ lib/
 │   ├── version_check_service.dart     # Verificación de versión mínima (Firebase Remote Config)
 │   ├── version_check_web.dart         # JS interop: limpieza de cache y reload para actualización web
 │   ├── version_check_stub.dart        # Stub para plataformas no-web
-│   ├── pattern_repository.dart        # Persistencia de patrones (SharedPreferences)
-│   ├── session_repository.dart        # Persistencia de sesiones (SharedPreferences)
-│   └── playlist_repository.dart       # Persistencia de playlists (SharedPreferences)
+│   ├── synced_repository.dart         # Base de las bibliotecas: rev, lápidas, purga (SharedPreferences)
+│   ├── pattern_repository.dart        # Persistencia de patrones (SyncedRepository)
+│   ├── session_repository.dart        # Persistencia de sesiones (SyncedRepository)
+│   └── playlist_repository.dart       # Persistencia de playlists (SyncedRepository)
 ├── utils/
 │   ├── bpm_scale.dart                 # Mapeo no lineal slider ↔ BPM (1–999)
 │   ├── structure_input.dart           # Validación de estructuras (parcial/completa) + TextInputFormatter

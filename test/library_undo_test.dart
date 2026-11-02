@@ -53,17 +53,21 @@ void main() {
   test('playlists: delete/restore and remove/insert session', () async {
     final p = PlaylistProvider();
     await p.loadPlaylists();
-    await p.addPlaylist(Playlist(id: 'p1', name: 'Uno', sessionIds: ['s1', 's2', 's3']));
-    await p.addPlaylist(Playlist(id: 'p2', name: 'Dos', sessionIds: []));
+    await p.addPlaylist(Playlist(id: 'p1', name: 'Uno'));
+    await p.addPlaylist(Playlist(id: 'p2', name: 'Dos'));
+    for (final id in ['s1', 's2', 's3']) {
+      await p.addSessionToPlaylist('p1', _session(id));
+    }
+    List<String> names() => p.getPlaylistById('p1')!.items.map((i) => i.session.name).toList();
 
     final removed = await p.deletePlaylist('p1');
     expect(p.getPlaylistById('p1'), isNull);
     await p.restorePlaylist(removed!.$1, removed.$2);
     expect(p.playlists.map((e) => e.id).toList(), ['p1', 'p2']);
 
-    await p.removeSessionFromPlaylist('p1', 1);
-    expect(p.getPlaylistById('p1')!.sessionIds, ['s1', 's3']);
-    await p.insertSessionInPlaylist('p1', 1, 's2');
-    expect(p.getPlaylistById('p1')!.sessionIds, ['s1', 's2', 's3']);
+    final item = await p.removeItemFromPlaylist('p1', 1);
+    expect(names(), ['s1', 's3']);
+    await p.insertItemInPlaylist('p1', 1, item!);
+    expect(names(), ['s1', 's2', 's3']);
   });
 }

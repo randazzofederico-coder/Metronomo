@@ -40,6 +40,11 @@ class ShareImportResult {
 ///  * Otherwise the local ID is a UUID v5 derived from `shareId + originalId`,
 ///    so opening the same link again maps to the same local entities and
 ///    nothing is duplicated. If the user deleted them, they're re-created.
+///
+/// Playlists are self-contained: their sessions are embedded in the imported
+/// playlist (item and session ids are derived the same way) and are **not**
+/// added to the session library. Older links (playlist with `sessionIds` +
+/// flat `sessions` list) are converted to embedded items on import.
 class ShareImportService {
   final PatternEditorProvider patterns;
   final SessionProvider sessions;
@@ -91,9 +96,22 @@ class ShareImportService {
     }
 
     // ── Sessions ──
+    // Only a shared *session* goes to the session library. Sessions that come
+    // with a playlist are embedded in the playlist (self-contained).
+    Session localCopy(Session session, String id) {
+      // Embed patterns from the bundle (links from older versions only have
+      // ids), then remap ids.
+      final configs = session
+          .withEmbeddedPatterns((pid) => bundlePatterns[pid])
+          .patternsConfig
+          .map((c) => c.copyWith(patternId: patternIdMap[c.patternId] ?? c.patternId))
+          .toList();
+      return session.copyWith(id: id, patternsConfig: configs);
+    }
+
     final sessionJsons = bundle.type == SharedType.session
         ? [bundle.data]
-        : bundle.sessions;
+        : const <Map<String, dynamic>>[];
     for (final json in sessionJsons) {
       final session = Session.fromJson(json);
       if (sessions.getSessionById(session.id) != null) {
@@ -103,22 +121,14 @@ class ShareImportService {
       final localId = _derivedId(bundle.shareId, session.id);
       sessionIdMap[session.id] = localId;
       if (sessions.getSessionById(localId) == null) {
-        // Embed patterns from the bundle (links from older versions only have
-        // ids), then remap ids.
-        final configs = session
-            .withEmbeddedPatterns((id) => bundlePatterns[id])
-            .patternsConfig
-            .map((c) => c.copyWith(
-                patternId: patternIdMap[c.patternId] ?? c.patternId))
-            .toList();
-        await sessions.addSession(
-            session.copyWith(id: localId, patternsConfig: configs));
+        await sessions.addSession(localCopy(session, localId));
         addedSomething = true;
       }
     }
 
     // ── Main entity ID ──
     final String localId;
+    var sessionCount = sessionJsons.length;
     switch (bundle.type) {
       case SharedType.pattern:
         localId = patternIdMap.values.first;
@@ -126,16 +136,46 @@ class ShareImportService {
         localId = sessionIdMap.values.first;
       case SharedType.playlist:
         final playlist = Playlist.fromJson(bundle.data);
+        // Current links: `items` with embedded sessions. Older links: only
+        // `sessionIds`, resolved against the bundle's flat `sessions` list.
+        final List<PlaylistItem> remoteItems;
+        if (playlist.needsMigration) {
+          final bundleSessions = {
+            for (final json in bundle.sessions)
+              (json['id'] as String?) ?? '': Session.fromJson(json),
+          };
+          remoteItems = [
+            for (var i = 0; i < playlist.legacySessionIds.length; i++)
+              if (bundleSessions[playlist.legacySessionIds[i]] != null)
+                PlaylistItem(
+                  id: 'legacy:$i:${playlist.legacySessionIds[i]}',
+                  session: bundleSessions[playlist.legacySessionIds[i]]!,
+                ),
+          ];
+        } else {
+          remoteItems = playlist.items;
+        }
+        sessionCount = remoteItems.length;
+
         if (playlists.getPlaylistById(playlist.id) != null) {
           localId = playlist.id;
         } else {
           localId = _derivedId(bundle.shareId, playlist.id);
           if (playlists.getPlaylistById(localId) == null) {
+            final items = [
+              for (final item in remoteItems)
+                PlaylistItem(
+                  id: _derivedId(bundle.shareId, 'item:${item.id}'),
+                  session: localCopy(
+                    item.session,
+                    _derivedId(bundle.shareId, 'item-session:${item.id}:${item.session.id}'),
+                  ),
+                ),
+            ];
             await playlists.addPlaylist(playlist.copyWith(
               id: localId,
-              sessionIds: playlist.sessionIds
-                  .map((id) => sessionIdMap[id] ?? id)
-                  .toList(),
+              items: items,
+              legacySessionIds: const [],
             ));
             addedSomething = true;
           }
@@ -148,7 +188,7 @@ class ShareImportService {
       localId: localId,
       alreadyInLibrary: !addedSomething,
       patternCount: patternJsons.length,
-      sessionCount: sessionJsons.length,
+      sessionCount: sessionCount,
     );
   }
 }

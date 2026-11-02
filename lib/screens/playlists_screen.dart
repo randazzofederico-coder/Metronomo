@@ -5,6 +5,7 @@ import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/widgets/undo_snackbar.dart';
 import 'package:metronomo_standalone/services/share_actions.dart';
 import 'package:metronomo_standalone/models/playlist_model.dart';
+import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
 import 'package:metronomo_standalone/providers/playlist_provider.dart';
 import 'package:metronomo_standalone/providers/session_provider.dart';
 import 'package:metronomo_standalone/screens/playlist_player_screen.dart';
@@ -222,20 +223,17 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
               );
             }
 
-            return Consumer<SessionProvider>(
-              builder: (context, sessionProvider, _) {
+            return Builder(
+              builder: (context) {
                 return ListView.builder(
                   padding: EdgeInsets.fromLTRB(12, 12, 12, widget.embedded ? 88 : 12),
                   itemCount: playlists.length,
                   itemBuilder: (context, index) {
                     final playlist = playlists[index];
-                    final sessionCount = playlist.sessionIds.length;
+                    final sessionCount = playlist.items.length;
 
-                    // Resolve session names for subtitle
-                    final sessionNames = playlist.sessionIds.map<String?>((id) {
-                      final s = sessionProvider.getSessionById(id);
-                      return s?.name; // null = deleted session
-                    }).toList();
+                    // Session names for subtitle (embedded copies: never "deleted").
+                    final sessionNames = playlist.items.map<String?>((i) => i.session.name).toList();
 
                     return Container(
                       margin: const EdgeInsets.only(bottom: 10),
@@ -446,7 +444,13 @@ class _PlaylistDetailScreen extends StatelessWidget {
                               style: TextStyle(color: AppColors.textSecondary(ctx)),
                             ),
                             onTap: () async {
-                              await context.read<PlaylistProvider>().addSessionToPlaylist(playlistId, session.id);
+                              // The playlist gets its own copy (patterns
+                              // embedded): later library changes don't affect it.
+                              final patProvider = context.read<PatternEditorProvider>();
+                              final playlistProvider = context.read<PlaylistProvider>();
+                              await patProvider.ensureLoaded;
+                              final copy = session.withEmbeddedPatterns(patProvider.getPatternById);
+                              await playlistProvider.addSessionToPlaylist(playlistId, copy);
                               if (ctx.mounted) Navigator.pop(ctx);
                             },
                           );
@@ -464,8 +468,8 @@ class _PlaylistDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<PlaylistProvider, SessionProvider>(
-      builder: (context, playlistProvider, sessionProvider, _) {
+    return Consumer<PlaylistProvider>(
+      builder: (context, playlistProvider, _) {
         final playlist = playlistProvider.getPlaylistById(playlistId);
         if (playlist == null) {
           return Scaffold(
@@ -497,7 +501,7 @@ class _PlaylistDetailScreen extends StatelessWidget {
                 onPressed: () => _showAddSessionSheet(context),
                 tooltip: context.l10n.playlistsAddSession,
               ),
-              if (playlist.sessionIds.isNotEmpty)
+              if (playlist.items.isNotEmpty)
                 IconButton(
                   icon: Icon(Icons.play_circle_fill, color: AppColors.primary(context)),
                   onPressed: () {
@@ -513,7 +517,7 @@ class _PlaylistDetailScreen extends StatelessWidget {
             ],
           ),
           body: SafeArea(
-            child: playlist.sessionIds.isEmpty
+            child: playlist.items.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -564,25 +568,21 @@ class _PlaylistDetailScreen extends StatelessWidget {
                       );
                     },
                     onReorder: (oldIndex, newIndex) {
-                      playlistProvider.reorderSessionInPlaylist(playlistId, oldIndex, newIndex);
+                      playlistProvider.reorderItemsInPlaylist(playlistId, oldIndex, newIndex);
                     },
-                    itemCount: playlist.sessionIds.length,
+                    itemCount: playlist.items.length,
                     itemBuilder: (context, index) {
-                      final sessionId = playlist.sessionIds[index];
-                      final session = sessionProvider.getSessionById(sessionId);
-                      final isDeleted = session == null;
+                      // Embedded copy: independent of the session library.
+                      final item = playlist.items[index];
+                      final session = item.session;
 
                       return Container(
-                        key: ValueKey('$playlistId-$index-$sessionId'),
+                        key: ValueKey('$playlistId-${item.id}'),
                         margin: const EdgeInsets.only(bottom: 8),
                         decoration: BoxDecoration(
                           color: AppColors.surface(context),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: isDeleted
-                                ? AppColors.accentRed(context).withOpacity(0.4)
-                                : AppColors.border(context),
-                          ),
+                          border: Border.all(color: AppColors.border(context)),
                         ),
                         child: ListTile(
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -590,47 +590,43 @@ class _PlaylistDetailScreen extends StatelessWidget {
                             width: 32,
                             height: 32,
                             decoration: BoxDecoration(
-                              color: isDeleted
-                                  ? AppColors.accentRed(context).withOpacity(0.15)
-                                  : AppColors.surfaceHighlight(context),
+                              color: AppColors.surfaceHighlight(context),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             alignment: Alignment.center,
                             child: Text(
                               "${index + 1}",
                               style: TextStyle(
-                                color: isDeleted ? AppColors.accentRed(context) : AppColors.primary(context),
+                                color: AppColors.primary(context),
                                 fontWeight: FontWeight.bold,
                                 fontSize: 14,
                               ),
                             ),
                           ),
                           title: Text(
-                            isDeleted ? context.l10n.playlistsDeletedSession : session.name,
+                            session.name,
                             style: TextStyle(
-                              color: isDeleted ? AppColors.accentRed(context) : AppColors.textPrimary(context),
+                              color: AppColors.textPrimary(context),
                               fontWeight: FontWeight.bold,
-                              fontStyle: isDeleted ? FontStyle.italic : FontStyle.normal,
                             ),
                           ),
-                          subtitle: isDeleted
-                              ? null
-                              : Text(
-                                  context.l10n.playlistsSessionSubtitle(session.globalBpm, session.patternsConfig.length),
-                                  style: TextStyle(color: AppColors.textSecondary(context), fontSize: 12),
-                                ),
+                          subtitle: Text(
+                            context.l10n.playlistsSessionSubtitle(session.globalBpm, session.patternsConfig.length),
+                            style: TextStyle(color: AppColors.textSecondary(context), fontSize: 12),
+                          ),
                           trailing: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               IconButton(
                                 icon: Icon(Icons.delete_outline, color: AppColors.accentRed(context), size: 20),
                                 tooltip: context.l10n.playlistsRemoveSession,
-                                onPressed: () {
-                                  playlistProvider.removeSessionFromPlaylist(playlistId, index);
+                                onPressed: () async {
+                                  final removed = await playlistProvider.removeItemFromPlaylist(playlistId, index);
+                                  if (removed == null || !context.mounted) return;
                                   showUndoSnackBar(
                                     context,
-                                    message: isDeleted ? context.l10n.playlistsRemoved : context.l10n.playlistsSessionRemoved(session.name),
-                                    onUndo: () => playlistProvider.insertSessionInPlaylist(playlistId, index, sessionId),
+                                    message: context.l10n.playlistsSessionRemoved(session.name),
+                                    onUndo: () => playlistProvider.insertItemInPlaylist(playlistId, index, removed),
                                   );
                                 },
                                 padding: EdgeInsets.zero,

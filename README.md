@@ -70,11 +70,13 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Reproducción en Segundo Plano** — Activada por defecto. Gestión inteligente del ciclo de vida (`WidgetsBindingObserver` con `paused`/`hidden`/`inactive`) que permite que la app continúe sonando al minimizarla. Si el usuario desactiva la opción, el metrónomo se detiene automáticamente al perder foco
 - **Mantener Pantalla Encendida** — Activada por defecto. Integración nativa con `wakelock_plus` para evitar bloqueos del dispositivo durante ensayos y prácticas
 - **Storage persistente** — Guardado automático de configuraciones, sets y patrones vía `shared_preferences`
+- **Orden de Ajustes** — *Idioma* arriba de todo, luego Reproducción y pantalla, Set de sonidos, Silencio aleatorio, Escala de UI, Instalar (solo web), *Comunidad* y *Acerca de*
+- **Acceso al foro** — Sección *Comunidad* con botón *Ir al Foro* que abre [federicorandazzo.com.ar/foro](https://federicorandazzo.com.ar/foro/) en el navegador externo
 
 ### 🌍 Idiomas (i18n)
 - **Español e inglés** — Toda la interfaz está localizada con el sistema oficial de Flutter (`flutter_localizations` + `intl`, `flutter gen-l10n`). Los textos viven en `lib/l10n/app_es.arb` (plantilla) y `lib/l10n/app_en.arb`
 - **Idioma automático** — Al abrir la app se usa el idioma del sistema/navegador: español para cualquier `es_*`, inglés para cualquier otro idioma (fallback)
-- **Selector en Ajustes** — Sección *Idioma*: *Idioma del sistema* / *Español* / *English*. Se guarda en `SettingsProvider` (`settings_language`; sin valor = seguir al sistema)
+- **Selector en Ajustes** — Sección *Idioma* (primera de la pantalla): *Idioma del sistema* / *Español* / *English*. Se guarda en `SettingsProvider` (`settings_language`; sin valor = seguir al sistema)
 - **Uso en código** — En widgets `context.l10n.clave`; en providers/servicios sin `BuildContext`, `L10n.current` (se sincroniza desde el `builder` del `MaterialApp`). Plurales y variables con formato ICU
 - **Datos persistidos no se traducen** — Los IDs de los sets de sonido siguen en español (`'Clásico'`, `'Madera'`…) porque se guardan en preferencias, sesiones y links compartidos; solo se traduce la etiqueta (`soundSetLabel`). Los nombres por defecto (ej. *Patrón 1*) se crean en el idioma activo y luego quedan como dato del usuario
 - **Nombre de la app** — Android: *Metronome* (default) / *Metrónomo* (`values-es`). En web el título de la pestaña sigue el idioma (`onGenerateTitle`)
@@ -213,7 +215,7 @@ lib/
 │   ├── auth_gate.dart                 # Gate de autenticación, permisos y fallback offline
 │   ├── login_screen.dart              # Login (Google/Email) con detección de errores de red
 │   ├── onboarding_screen.dart         # Onboarding para nuevos usuarios
-│   └── settings_screen.dart           # Configuración (sonido, idioma, escala UI…) + sección sesión + logout
+│   └── settings_screen.dart           # Configuración (idioma primero, sonido, escala UI…) + foro + sección sesión + logout
 ├── theme/
 │   ├── app_theme.dart                 # ThemeData oscuro + component themes (diálogos, snackbars, bottom sheets)
 │   └── beat_colors.dart               # Colores por tipo de evento (silencio/acento/normal/suave)

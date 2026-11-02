@@ -54,7 +54,10 @@ class PlaylistProvider extends ChangeNotifier {
       return _librarySession!(id);
     };
     sessions.addBeforeDeleteHook(
-      (session) => refreshSnapshotsFor(session.withEmbeddedPatterns(patterns.getPatternById)),
+      (session) => refreshSnapshotsFor(
+        session.withEmbeddedPatterns(patterns.getPatternById),
+        onlyUnsynced: sessions.applyingRemoteDelete,
+      ),
     );
     sessions.addListener(notifyListeners);
     patterns.addListener(notifyListeners);
@@ -219,6 +222,31 @@ class PlaylistProvider extends ChangeNotifier {
   /// Retrieves an active playlist by ID, or null if not found / deleted.
   Playlist? getPlaylistById(String id) => _repository.byId(id);
 
+  // ── Cloud sync (see MetronomoSyncAdapter) ────────────────────────────────
+
+  /// Every playlist (tombstones included) as full JSON.
+  Future<List<Map<String, dynamic>>> exportForSync() async {
+    await _loadCompleter.future;
+    return _repository.exportAll();
+  }
+
+  /// Applies playlists that came from the cloud, stored as is (see
+  /// `SyncedRepository.applyRemote`): no snapshot refresh, no rev.
+  Future<void> applyRemote({
+    required List<Map<String, dynamic>> upserts,
+    required List<String> removals,
+  }) async {
+    await _loadCompleter.future;
+    await _repository.applyRemote(upserts: upserts, removals: removals);
+    notifyListeners();
+  }
+
+  /// Purges expired, already-synced tombstones (see `SyncedRepository.purgeExpired`).
+  Future<void> purgeExpired() async {
+    await _loadCompleter.future;
+    await _repository.purgeExpired();
+  }
+
   Future<void> _mutate(String playlistId, Playlist Function(Playlist p) change) async {
     await _loadCompleter.future;
     if (await _repository.mutate(playlistId, (p) => _withFreshSnapshots(change(p))) != null) {
@@ -298,10 +326,16 @@ class PlaylistProvider extends ChangeNotifier {
   /// item linked to it gets its snapshot updated to this latest version, so
   /// the playlists keep playing exactly the same (rev + 1 of each affected
   /// playlist; its `updatedAt` is kept, since nothing visible changed).
-  Future<void> refreshSnapshotsFor(Session librarySession) async {
+  ///
+  /// With [onlyUnsynced] (a delete that came from the cloud, see
+  /// `SessionProvider.applyingRemoteDelete`) only playlists with local
+  /// changes not yet synced are refreshed: the synced ones receive the
+  /// deleting device's refreshed version in the same sync.
+  Future<void> refreshSnapshotsFor(Session librarySession, {bool onlyUnsynced = false}) async {
     await _loadCompleter.future;
     var changed = false;
     for (final playlist in _repository.active) {
+      if (onlyUnsynced && _repository.isSynced(playlist)) continue;
       if (!playlist.items.any((i) => i.sourceSessionId == librarySession.id)) continue;
       var touched = false;
       final items = [

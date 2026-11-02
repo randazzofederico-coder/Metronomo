@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -9,6 +11,7 @@ import 'package:metronomo_standalone/firebase_options.dart';
 import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/services/pwa_install_service.dart';
 import 'package:metronomo_standalone/services/deep_link_service.dart';
+import 'package:metronomo_standalone/services/metronomo_sync_adapter.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
 import 'package:metronomo_standalone/providers/settings_provider.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
@@ -59,47 +62,84 @@ void main() async {
   if (versionResult.updateRequired) {
     runApp(UpdateRequiredScreen(result: versionResult));
   } else {
-    runApp(const MyApp());
+    // Libraries are created here (not inside MultiProvider) so the cloud sync
+    // works on the very same instances the UI uses.
+    final libraries = AppLibraries.create();
+    runApp(MyApp(libraries: libraries));
+    // Load after the first frame: the default library items use the app
+    // language (L10n.current is set by the MaterialApp builder).
+    WidgetsBinding.instance.addPostFrameCallback((_) => libraries.load());
+    unawaited(libraries.startSync());
+  }
+}
+
+/// The three libraries (patterns, sessions, playlists) shared by the UI and
+/// the cloud sync ([MetronomoSyncAdapter]).
+class AppLibraries {
+  AppLibraries._(this.patterns, this.sessions, this.playlists)
+      : adapter = MetronomoSyncAdapter(patterns: patterns, sessions: sessions, playlists: playlists);
+
+  final PatternEditorProvider patterns;
+  final SessionProvider sessions;
+  final PlaylistProvider playlists;
+  final MetronomoSyncAdapter adapter;
+
+  /// Creates the libraries (not loaded yet: see [load]).
+  factory AppLibraries.create() {
+    final patterns = PatternEditorProvider();
+    final sessions = SessionProvider();
+    // Playlists are connected to the session library before any session can
+    // be deleted (they refresh their snapshot first). Hybrid playlists: items
+    // resolve to the library session (source of truth) and fall back to their
+    // snapshot. Legacy playlists (session references) are migrated once
+    // sessions and patterns are loaded.
+    final playlists = PlaylistProvider()..attachLibrary(sessions: sessions, patterns: patterns);
+    return AppLibraries._(patterns, sessions, playlists);
+  }
+
+  /// Loads the libraries (and migrates legacy playlists).
+  void load() {
+    patterns.loadPatterns();
+    sessions.loadSessions();
+    playlists.loadPlaylists();
+  }
+
+  /// Starts the cloud sync once loading and migration are done (the first
+  /// sync reads the libraries). Never blocks nor breaks the app.
+  Future<void> startSync() async {
+    try {
+      await Future.wait([patterns.ensureLoaded, sessions.ensureLoaded, playlists.ensureLoaded]);
+      adapter.purgeAfterSyncs(LibrarySync.instance);
+      await LibrarySync.instance.configure(adapter);
+    } catch (e) {
+      debugPrint('LibrarySync configure failed: $e');
+    }
   }
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  const MyApp({super.key, required this.libraries});
+
+  final AppLibraries libraries;
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => MetronomeProvider()),
+        ChangeNotifierProvider(create: (_) {
+          final metronome = MetronomeProvider();
+          // A remote rename of the open session updates its title.
+          libraries.adapter.onSessionRenamed = metronome.onSessionRenamed;
+          return metronome;
+        }),
         ChangeNotifierProvider(create: (_) {
           final provider = SettingsProvider();
           provider.loadSettings();
           return provider;
         }),
-        ChangeNotifierProvider(create: (_) {
-          final provider = PatternEditorProvider();
-          provider.loadPatterns();
-          return provider;
-        }),
-        ChangeNotifierProvider(create: (_) {
-          final provider = SessionProvider();
-          provider.loadSessions();
-          return provider;
-        }),
-        // Not lazy: playlists must be connected to the session library before
-        // any session can be deleted (they refresh their snapshot first).
-        ChangeNotifierProvider(lazy: false, create: (context) {
-          final provider = PlaylistProvider();
-          // Hybrid playlists: items resolve to the library session (source of
-          // truth) and fall back to their snapshot. Legacy playlists (session
-          // references) are migrated once sessions and patterns are loaded.
-          provider.attachLibrary(
-            sessions: context.read<SessionProvider>(),
-            patterns: context.read<PatternEditorProvider>(),
-          );
-          provider.loadPlaylists();
-          return provider;
-        }),
+        ChangeNotifierProvider.value(value: libraries.patterns),
+        ChangeNotifierProvider.value(value: libraries.sessions),
+        ChangeNotifierProvider.value(value: libraries.playlists),
       ],
       child: Builder(
         builder: (context) {

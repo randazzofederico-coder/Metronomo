@@ -669,8 +669,19 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.metronomeSessionSaved(session.name))));
+      _maybeSuggestLogin();
     }
     return true;
+  }
+
+  /// After saving a new library item: the shared package may suggest logging
+  /// in to keep the library safe (it decides on its own; usually nothing).
+  void _maybeSuggestLogin() {
+    if (!mounted) return;
+    final count = context.read<SessionProvider>().sessions.length +
+        context.read<PatternEditorProvider>().patterns.length +
+        context.read<PlaylistProvider>().playlists.length;
+    EcosystemPrompts.maybeShowLoginPrompt(context, currentApp: FedeApp.metronomo, libraryCount: count).ignore();
   }
 
   /// 💾 action: overwrite directly if the session exists, otherwise ask a name.
@@ -1423,6 +1434,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
           duration: const Duration(seconds: 2),
         ),
       );
+      if (!existed) _maybeSuggestLogin();
     }
   }
 

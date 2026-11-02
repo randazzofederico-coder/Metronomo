@@ -6,10 +6,13 @@ import 'synced_repository.dart';
 /// Persists to SharedPreferences (`pattern_library`) with sync metadata:
 /// see [SyncedRepository] (rev, tombstones, purge).
 class PatternRepository extends SyncedRepository<Pattern> {
-  PatternRepository({super.clock});
+  PatternRepository({super.clock, super.sync});
 
   @override
   String get storageKey => 'pattern_library';
+
+  @override
+  String get collection => 'patterns';
 
   @override
   Pattern fromJson(Map<String, dynamic> json) => Pattern.fromJson(json);

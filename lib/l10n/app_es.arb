@@ -438,6 +438,16 @@
   "settingsForumSubtitle": "Consultas, sugerencias y novedades en el foro",
   "settingsForumButton": "Ir al Foro",
   "settingsMoreAppsTitle": "Más apps",
+  "settingsAccountTitle": "Cuenta",
+  "syncConflictCopyName": "{name} (otro dispositivo)",
+  "@syncConflictCopyName": {
+    "description": "Nombre de la copia que se guarda cuando el mismo ítem se editó distinto en dos dispositivos.",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "libraryTitle": "BIBLIOTECA",
   "librarySearchHint": "Buscar por nombre…",
   "librarySearch": "Buscar",

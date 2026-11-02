@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:fede_apps_core/fede_apps_core.dart' show EcosystemPrompts, EcosystemSection, FedeApp;
+import 'package:fede_apps_core/fede_apps_core.dart' show AccountSection, EcosystemPrompts, EcosystemSection, FedeApp;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/pwa_install_service.dart';
@@ -74,6 +74,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     return ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12.0),
         children: [
+          // ── Account (login + library sync) ──
+          _buildAccountSection(context),
+
+          const SizedBox(height: 12),
+
           // ── Language ──
           _buildLanguageSection(context, controller),
 
@@ -546,6 +551,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.symmetric(vertical: 12),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAccountSection(BuildContext context) {
+    return _buildSectionCard(
+      context,
+      icon: Icons.account_circle_rounded,
+      title: context.l10n.settingsAccountTitle,
+      // Tiles flush with the card content, like the "Más apps" section.
+      child: ListTileTheme(
+        contentPadding: EdgeInsets.zero,
+        child: AccountSection(
+          hasLibrary: true,
+          showHeader: false,
+          buttonColor: AppColors.primary(context),
         ),
       ),
     );

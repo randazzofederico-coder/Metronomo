@@ -167,6 +167,8 @@
   "settingsForumSubtitle": "Questions, suggestions and news in the forum",
   "settingsForumButton": "Go to Forum",
   "settingsMoreAppsTitle": "More apps",
+  "settingsAccountTitle": "Account",
+  "syncConflictCopyName": "{name} (other device)",
   "libraryTitle": "LIBRARY",
   "librarySearchHint": "Search by name…",
   "librarySearch": "Search",

@@ -7,10 +7,13 @@ import 'synced_repository.dart';
 /// see [SyncedRepository] (rev, tombstones, purge). Playlists are
 /// self-contained (sessions embedded): see [Playlist].
 class PlaylistRepository extends SyncedRepository<Playlist> {
-  PlaylistRepository({super.clock});
+  PlaylistRepository({super.clock, super.sync});
 
   @override
   String get storageKey => 'playlist_library';
+
+  @override
+  String get collection => 'playlists';
 
   @override
   Playlist fromJson(Map<String, dynamic> json) => Playlist.fromJson(json);

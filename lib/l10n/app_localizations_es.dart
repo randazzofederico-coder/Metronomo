@@ -653,6 +653,14 @@ class AppLocalizationsEs extends AppLocalizations {
   String get settingsMoreAppsTitle => 'Más apps';
 
   @override
+  String get settingsAccountTitle => 'Cuenta';
+
+  @override
+  String syncConflictCopyName(String name) {
+    return '$name (otro dispositivo)';
+  }
+
+  @override
   String get libraryTitle => 'BIBLIOTECA';
 
   @override

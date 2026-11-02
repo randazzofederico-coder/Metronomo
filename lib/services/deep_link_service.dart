@@ -170,6 +170,10 @@ class DeepLinkService {
   /// Ensures there is a Firebase user (anonymous if none). The anonymous
   /// account can later be upgraded with `linkWithCredential`, keeping the
   /// same uid so links remain attributed to the user.
+  ///
+  /// Signs in anonymously **only** when there's no user at all: a Google
+  /// account (FedeAccount, library sync) is never replaced, and sharing
+  /// works with it as is.
   Future<User> _ensureUser() async {
     final auth = FirebaseAuth.instance;
     final current = auth.currentUser;

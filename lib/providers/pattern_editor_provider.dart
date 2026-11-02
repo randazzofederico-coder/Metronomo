@@ -158,6 +158,39 @@ class PatternEditorProvider extends ChangeNotifier {
   /// Retrieves an active pattern by ID, or null if not found / deleted.
   Pattern? getPatternById(String id) => _repository.byId(id);
 
+  // ─────────────────────────────────────────────────────
+  //  Cloud sync (see MetronomoSyncAdapter)
+  // ─────────────────────────────────────────────────────
+
+  /// Every pattern (tombstones included) as full JSON.
+  Future<List<Map<String, dynamic>>> exportForSync() async {
+    await _loadCompleter.future;
+    return _repository.exportAll();
+  }
+
+  /// Applies patterns that came from the cloud (stored as is, see
+  /// `SyncedRepository.applyRemote`). If the pattern open in the editor was
+  /// deleted remotely, the keyboard closes (same rule as a local delete).
+  Future<void> applyRemote({
+    required List<Map<String, dynamic>> upserts,
+    required List<String> removals,
+  }) async {
+    await _loadCompleter.future;
+    await _repository.applyRemote(upserts: upserts, removals: removals);
+    final editing = _activeEditingPatternId;
+    if (editing != null && getPatternById(editing) == null) {
+      _activeEditingPatternId = null;
+      _isKeyboardVisible = false;
+    }
+    notifyListeners();
+  }
+
+  /// Purges expired, already-synced tombstones (see `SyncedRepository.purgeExpired`).
+  Future<void> purgeExpired() async {
+    await _loadCompleter.future;
+    await _repository.purgeExpired();
+  }
+
   /// Reorders patterns in the library (e.g., drag-and-drop). Local order
   /// only: doesn't change the patterns' rev.
   Future<void> reorderPatterns(int oldIndex, int newIndex) async {

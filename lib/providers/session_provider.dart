@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:fede_apps_core/fede_apps_core.dart' show SyncFields;
 import 'package:flutter/material.dart';
 import 'package:metronomo_standalone/l10n/l10n.dart';
 import '../models/pattern_model.dart';
@@ -129,6 +130,68 @@ class SessionProvider extends ChangeNotifier {
 
   /// Retrieves an active session by ID, or null if not found / deleted.
   Session? getSessionById(String id) => _repository.byId(id);
+
+  // ── Cloud sync (see MetronomoSyncAdapter) ──────────────────────────────
+
+  /// Every session (tombstones included) as full JSON.
+  Future<List<Map<String, dynamic>>> exportForSync() async {
+    await _loadCompleter.future;
+    return _repository.exportAll();
+  }
+
+  /// Applies sessions that came from the cloud (stored as is, see
+  /// `SyncedRepository.applyRemote`).
+  ///
+  /// A remote delete (tombstone, or removal) of a session that is active here
+  /// runs the same before-delete hooks as a local delete **first**, with the
+  /// local version (see [applyingRemoteDelete]): playlists refresh their
+  /// snapshot of it and keep playing exactly the same. Those snapshot
+  /// refreshes are genuine local changes (playlist rev + 1) and upload on
+  /// the next sync.
+  ///
+  /// Remote updates need nothing else: playlists resolve to the library
+  /// version (and listen to this provider).
+  Future<void> applyRemote({
+    required List<Map<String, dynamic>> upserts,
+    required List<String> removals,
+  }) async {
+    await _loadCompleter.future;
+    final gone = <String>{
+      for (final u in upserts)
+        if (SyncFields.readDeleted(u) && u[SyncFields.id] is String) u[SyncFields.id] as String,
+      ...removals,
+    };
+    for (final id in gone) {
+      final current = getSessionById(id);
+      if (current == null) continue;
+      _applyingRemoteDelete = true;
+      try {
+        for (final hook in List.of(_beforeDeleteHooks)) {
+          await hook(current);
+        }
+      } finally {
+        _applyingRemoteDelete = false;
+      }
+    }
+    await _repository.applyRemote(upserts: upserts, removals: removals);
+    notifyListeners();
+  }
+
+  bool _applyingRemoteDelete = false;
+
+  /// True while the before-delete hooks run for a delete that came from the
+  /// cloud (see [applyRemote]). Playlists then only refresh the ones with
+  /// unsynced local changes: synced ones get the deleting device's refreshed
+  /// snapshot in the same sync (refreshing them here too would create a
+  /// needless edit on both sides, or a conflict copy if this device's
+  /// version of the session was older).
+  bool get applyingRemoteDelete => _applyingRemoteDelete;
+
+  /// Purges expired, already-synced tombstones (see `SyncedRepository.purgeExpired`).
+  Future<void> purgeExpired() async {
+    await _loadCompleter.future;
+    await _repository.purgeExpired();
+  }
 
   /// One-time migration: embeds library patterns into legacy sessions so they
   /// no longer depend on the pattern library. Idempotent. Returns how many

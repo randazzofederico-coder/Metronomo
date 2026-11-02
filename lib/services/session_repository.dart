@@ -6,10 +6,13 @@ import 'synced_repository.dart';
 /// Persists to SharedPreferences (`session_library`) with sync metadata:
 /// see [SyncedRepository] (rev, tombstones, purge).
 class SessionRepository extends SyncedRepository<Session> {
-  SessionRepository({super.clock});
+  SessionRepository({super.clock, super.sync});
 
   @override
   String get storageKey => 'session_library';
+
+  @override
+  String get collection => 'sessions';
 
   @override
   Session fromJson(Map<String, dynamic> json) => Session.fromJson(json);

@@ -1100,6 +1100,18 @@ abstract class AppLocalizations {
   /// **'Más apps'**
   String get settingsMoreAppsTitle;
 
+  /// No description provided for @settingsAccountTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Cuenta'**
+  String get settingsAccountTitle;
+
+  /// Nombre de la copia que se guarda cuando el mismo ítem se editó distinto en dos dispositivos.
+  ///
+  /// In es, this message translates to:
+  /// **'{name} (otro dispositivo)'**
+  String syncConflictCopyName(String name);
+
   /// No description provided for @libraryTitle.
   ///
   /// In es, this message translates to:

@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:fede_apps_core/fede_apps_core.dart' show DeviceIdentity, SyncFields;
+import 'package:fede_apps_core/fede_apps_core.dart' show DeviceIdentity, LibrarySync, SyncFields;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/synced_item.dart';
@@ -17,16 +17,30 @@ import '../models/synced_item.dart';
 /// * Undo = going back in time ([restore] / [restoreSnapshot]): the item comes
 ///   back exactly as it was (data, `createdAt`/`updatedAt`, position); only
 ///   `rev` (+1) and `dev` move forward.
-/// * [load] purges tombstones older than [SyncFields.tombstoneRetention].
+/// * [load] purges tombstones older than [SyncFields.tombstoneRetention]
+///   that the cloud sync allows to purge ([LibrarySync.canPurgeLocally]);
+///   [purgeExpired] does the same later (e.g. after a successful sync).
 /// * The order of the list is local presentation only: [reorder] doesn't
 ///   change any item (no rev bump).
+/// * Cloud sync: every local persisted change calls
+///   [LibrarySync.notifyLocalChange]; [applyRemote] writes what came from the
+///   cloud as is (no stamping, no notification to the sync).
 abstract class SyncedRepository<T extends SyncedItem<T>> {
-  SyncedRepository({DateTime Function()? clock}) : _clock = clock ?? DateTime.now;
+  SyncedRepository({DateTime Function()? clock, LibrarySync? sync})
+      : _clock = clock ?? DateTime.now,
+        _syncOverride = sync;
 
   final DateTime Function() _clock;
+  final LibrarySync? _syncOverride;
+
+  /// The library sync engine (default: [LibrarySync.instance]).
+  LibrarySync get sync => _syncOverride ?? LibrarySync.instance;
 
   /// SharedPreferences key.
   String get storageKey;
+
+  /// Collection name in the cloud document (`patterns`, `sessions`, `playlists`).
+  String get collection;
 
   T fromJson(Map<String, dynamic> json);
 
@@ -61,17 +75,67 @@ abstract class SyncedRepository<T extends SyncedItem<T>> {
         _items = [];
       }
     }
+    await purgeExpired();
+    return active;
+  }
+
+  /// Physically removes expired tombstones ([SyncFields.shouldPurge]) that
+  /// the sync allows to purge: always without account; with account, only
+  /// once they're synced ([LibrarySync.canPurgeLocally]). Not a sync change
+  /// (no rev, no [LibrarySync.notifyLocalChange]). Returns how many.
+  Future<int> purgeExpired() async {
     final now = _clock();
     final before = _items.length;
     _items.removeWhere((e) =>
-        SyncFields.shouldPurge(deleted: e.deleted, deletedAt: e.deletedAt, now: now));
-    if (_items.length != before) await save();
-    return active;
+        SyncFields.shouldPurge(deleted: e.deleted, deletedAt: e.deletedAt, now: now) &&
+        sync.canPurgeLocally(collection, e.id, e.rev));
+    final purged = before - _items.length;
+    if (purged > 0) await save();
+    return purged;
   }
 
   Future<void> save() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(storageKey, json.encode(_items.map((e) => e.toJson()).toList()));
+  }
+
+  /// Persists a **local** change and tells the sync about it (it uploads a
+  /// few seconds later if there's an account).
+  Future<void> _saveLocalChange() async {
+    await save();
+    sync.notifyLocalChange();
+  }
+
+  /// Every item (tombstones included) as full JSON, for the sync.
+  List<Map<String, dynamic>> exportAll() => [for (final e in _items) e.toJson()];
+
+  /// Whether [item] is in the cloud exactly as stored here (its `rev` is the
+  /// one of the last successful sync). Always true without an account.
+  bool isSynced(T item) => sync.canPurgeLocally(collection, item.id, item.rev);
+
+  /// Applies what came from the cloud: [upserts] are stored **exactly** as
+  /// given (rev, updatedAt, dev, tombstones: no stamping), replacing the item
+  /// with the same id in place (keeps the library order) or appended at the
+  /// end; [removals] (purged tombstones) are removed physically. Persists,
+  /// but it's not a local change (no [LibrarySync.notifyLocalChange]).
+  Future<void> applyRemote({
+    required List<Map<String, dynamic>> upserts,
+    required List<String> removals,
+  }) async {
+    for (final raw in upserts) {
+      final item = fromJson(Map<String, dynamic>.from(raw));
+      final index = _indexOf(item.id);
+      if (index == -1) {
+        _items.add(item);
+      } else {
+        _items[index] = item;
+      }
+    }
+    if (removals.isNotEmpty) {
+      final gone = removals.toSet();
+      _items.removeWhere((e) => gone.contains(e.id));
+    }
+    await save();
   }
 
   /// Sets the sync metadata. `updatedAt` = now unless [updatedAt] is given
@@ -103,7 +167,7 @@ abstract class SyncedRepository<T extends SyncedItem<T>> {
       stored = _stamp(item, rev: _items[index].rev + 1, updatedAt: updatedAt);
       _items[index] = stored;
     }
-    await save();
+    await _saveLocalChange();
     return stored;
   }
 
@@ -122,7 +186,7 @@ abstract class SyncedRepository<T extends SyncedItem<T>> {
       updatedAt: keepUpdatedAt ? _items[index].updatedAt : null,
     );
     _items[index] = stored;
-    await save();
+    await _saveLocalChange();
     return stored;
   }
 
@@ -146,7 +210,7 @@ abstract class SyncedRepository<T extends SyncedItem<T>> {
       _items[index] = stored;
       if (activeIndex != null) _moveToActiveIndex(stored, activeIndex);
     }
-    await save();
+    await _saveLocalChange();
     return stored;
   }
 
@@ -165,7 +229,7 @@ abstract class SyncedRepository<T extends SyncedItem<T>> {
     final activeIndex = active.indexWhere((e) => e.id == id);
     final previous = _items[index];
     _items[index] = _stamp(previous, rev: previous.rev + 1, deleted: true, deletedAt: _clock());
-    await save();
+    await _saveLocalChange();
     return (previous, activeIndex);
   }
 

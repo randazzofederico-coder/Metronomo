@@ -109,6 +109,9 @@ class AppLibraries {
   Future<void> startSync() async {
     try {
       await Future.wait([patterns.ensureLoaded, sessions.ensureLoaded, playlists.ensureLoaded]);
+      // En la web Firebase restaura la sesión (la misma del sitio) de forma
+      // asíncrona: se espera para arrancar ya con la cuenta correcta.
+      await FedeAccount.instance.ready;
       adapter.purgeAfterSyncs(LibrarySync.instance);
       await LibrarySync.instance.configure(adapter);
     } catch (e) {
@@ -159,11 +162,16 @@ class MyApp extends StatelessWidget {
               L10n.current = context.l10n;
               final settings = context.watch<SettingsProvider>();
               final data = MediaQuery.of(context);
-              return MediaQuery(
-                data: data.copyWith(
-                  textScaler: TextScaler.linear(settings.uiScale),
+              // Web en teléfonos: siempre vertical (la versión apaisada no
+              // existe todavía y al rotar la interfaz se rompía).
+              return PortraitOnly(
+                backgroundColor: AppTheme.dark.scaffoldBackgroundColor,
+                child: MediaQuery(
+                  data: data.copyWith(
+                    textScaler: TextScaler.linear(settings.uiScale),
+                  ),
+                  child: child!,
                 ),
-                child: child!,
               );
             },
           );

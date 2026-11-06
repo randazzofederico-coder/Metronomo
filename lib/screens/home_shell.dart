@@ -130,18 +130,23 @@ class _HomeShellState extends State<HomeShell> {
                     selectedIndex: _index,
                     onDestinationSelected: _select,
                     labelType: NavigationRailLabelType.all,
+                    // Pestañas centradas en la altura y separadas entre sí
+                    // (antes quedaban apretadas arriba).
+                    groupAlignment: 0.0,
+                    minWidth: 96,
                     backgroundColor: AppColors.surface(context),
                     indicatorColor: AppColors.primary(context).withOpacity(0.2),
-                    selectedIconTheme: IconThemeData(color: AppColors.primary(context)),
-                    unselectedIconTheme: IconThemeData(color: AppColors.textSecondary(context)),
-                    selectedLabelTextStyle: TextStyle(color: AppColors.primary(context), fontWeight: FontWeight.bold),
-                    unselectedLabelTextStyle: TextStyle(color: AppColors.textSecondary(context)),
+                    selectedIconTheme: IconThemeData(color: AppColors.primary(context), size: 28),
+                    unselectedIconTheme: IconThemeData(color: AppColors.textSecondary(context), size: 28),
+                    selectedLabelTextStyle: TextStyle(color: AppColors.primary(context), fontWeight: FontWeight.bold, fontSize: 14),
+                    unselectedLabelTextStyle: TextStyle(color: AppColors.textSecondary(context), fontSize: 14),
                     destinations: [
                       for (final d in destinations)
                         NavigationRailDestination(
                           icon: Icon(d.icon),
                           selectedIcon: Icon(d.selected),
                           label: Text(d.label),
+                          padding: const EdgeInsets.symmetric(vertical: 20),
                         ),
                     ],
                   ),

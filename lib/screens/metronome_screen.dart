@@ -155,6 +155,8 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
       await _receiveShare(shareId);
     } finally {
       _isHandlingShare = false;
+      // Web: la URL queda en la de la app a secas (un refresco no reimporta).
+      DeepLinkService().cleanBrowserUrl();
     }
     if (_queuedShares.isNotEmpty) await _handleShareId(_queuedShares.removeAt(0));
   }

@@ -61,7 +61,9 @@ void cleanShareParamFromUrl() {
     final history = globalContext['history'] as JSObject;
     history.callMethod<JSAny?>(
       'replaceState'.toJS,
-      null,           // state
+      // Conserva el state de Flutter (si se pisa con null, el router web
+      // de Flutter puede volver a escribir la URL vieja con ?share=).
+      history['state'],
       ''.toJS,        // title
       cleanUrl.toJS,  // url
     );

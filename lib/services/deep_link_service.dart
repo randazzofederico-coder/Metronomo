@@ -131,6 +131,13 @@ class DeepLinkService {
     }
   }
 
+  /// Web: deja la URL del navegador en la de la app a secas (sin `?share=`),
+  /// así un refresco no vuelve a importar. Se llama al arrancar y otra vez al
+  /// terminar la importación (por si el router web de Flutter la reescribió).
+  void cleanBrowserUrl() {
+    if (kIsWeb) cleanShareParamFromUrl();
+  }
+
   /// Returns and clears the pending share ID (if any) — only once.
   String? consumePendingShareId() {
     final id = _pendingShareId;

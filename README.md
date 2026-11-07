@@ -355,7 +355,7 @@ packages/native_audio_engine/
 2. **Configuración de Firebase (no versionada)** — `lib/firebase_options.dart`, `android/app/google-services.json` y los `GoogleService-Info.plist` están en `.gitignore`. Se generan con `flutterfire configure` (proyecto Firebase del sitio) o se copian de una máquina que ya los tenga
 
 > [!IMPORTANT]
-> La configuración **web** de `firebase_options.dart` usa el **mismo `apiKey` y `appId` que el sitio** (`AIzaSyB-J7F5pH90Zmk5VZ1jdsoPQvrNwPgy_f4` / `1:858245145787:web:9f041f6423348bca05b59e`), para compartir la sesión de Google con federicorandazzo.com.ar. Si se regenera con `flutterfire configure`, volver a poner esos dos valores a mano.
+> La configuración **web** de `firebase_options.dart` usa el **mismo `apiKey` y `appId` que el sitio** (`PUBLIC_FIREBASE_API_KEY (ver .env del sitio)` / `PUBLIC_FIREBASE_APP_ID`), para compartir la sesión de Google con federicorandazzo.com.ar. Si se regenera con `flutterfire configure`, volver a poner esos dos valores a mano.
 >
 > La versión mínima se lee de **Remote Config** (`metronomo_min_version`, opcional `metronomo_force_update_message`): la API key web tiene que tener habilitada la *Firebase Remote Config API* (si no, la verificación falla en silencio y nunca fuerza la actualización).
 

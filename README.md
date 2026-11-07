@@ -2,6 +2,18 @@
 
 Metrónomo profesional para músicos con motor de audio nativo C++, soporte para birritmia, tuplets, subdivisiones complejas y visualización en tiempo real. Disponible como app nativa Android y como PWA instalable desde cualquier navegador moderno.
 
+**Versión actual: 1.5.0** (build 15) — web: [federicorandazzo.com.ar/metronomo](https://federicorandazzo.com.ar/metronomo/)
+
+## 🆕 Novedades 1.5.0
+
+- **Cuenta del ecosistema (opcional)** — Login con Google en *Ajustes → Cuenta* (`FedeAccount` de `fede_apps_core`). La app sigue funcionando completa sin cuenta y sin internet. En la web comparte la sesión con federicorandazzo.com.ar
+- **Sincronización local-first** — Patrones, sesiones y playlists se sincronizan entre dispositivos (`LibrarySync`, `users/{uid}/appData/metronomo`): merge por ítem con `rev` y lápidas, copias *«… (otro dispositivo)»* ante ediciones en conflicto, purga de lápidas a los 30 días; los ejemplos de fábrica sin tocar no se suben
+- **Playlists híbridas** — Cada ítem está vinculado a la sesión de la biblioteca y guarda un snapshot de respaldo. *Editar sesión* abre la sesión de la biblioteca en Tocar; si se borró, la playlist sigue sonando igual y ofrece *Restaurar en la biblioteca*
+- **Deshacer exacto** — Deshacer un borrado, una sobrescritura o quitar una sesión de una playlist restaura el estado exacto (datos, fechas y posición)
+- **Ecosistema** — Sugerencia ocasional de las otras apps y sección *Más apps* en Ajustes; medición de uso local (sin enviar datos)
+- **Web** — En teléfonos la pantalla queda siempre vertical (`PortraitOnly`); en modo PC la barra lateral tiene las pestañas centradas; después de abrir un link compartido la URL vuelve a la de la app (sin `?share=`)
+- **Login heredado eliminado** — Se quitaron AuthGate, login por email, onboarding y trial; la app abre directo
+
 ## ✨ Características
 
 ### 🔊 Motor de Audio
@@ -64,14 +76,14 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Soporte dual tema** — Colores adaptativos para dark y light mode
 - **Knob rotativo custom** — `CustomPainter` con indicador de posición, reset por doble tap y sensibilidad ajustada
 - **Escala de UI ajustable** — Zoom manual desde configuración (80% al 150%). Los controles de precisión (secuenciador, barra BPM, teclado métrico, knobs, macro ciclo) mantienen tamaño fijo vía `TextScaler.noScaling` para evitar desborde, mientras que títulos, diálogos y ajustes escalan normalmente
-- **Orientación fija** — Solo portrait para UX optimizada
+- **Orientación fija** — Solo portrait: en Android/iOS con `SystemChrome.setPreferredOrientations`; en la web de teléfonos con `PortraitOnly` (`fede_apps_core`), que mantiene la interfaz vertical aunque se gire el teléfono (escritorio y tablets no se tocan)
 
 ### ⚙️ Configuración y Persistencia
 - **Reproducción en Segundo Plano** — Activada por defecto. Gestión inteligente del ciclo de vida (`WidgetsBindingObserver` con `paused`/`hidden`/`inactive`) que permite que la app continúe sonando al minimizarla. Si el usuario desactiva la opción, el metrónomo se detiene automáticamente al perder foco
 - **Mantener Pantalla Encendida** — Activada por defecto. Integración nativa con `wakelock_plus` para evitar bloqueos del dispositivo durante ensayos y prácticas
 - **Storage persistente** — Guardado automático de configuraciones, sets y patrones vía `shared_preferences`
 - **Bibliotecas sincronizadas** — Cada patrón/sesión/playlist lleva `rev`, lápidas (borrado lógico) y purga a los 30 días; las playlists se vinculan a la biblioteca de sesiones con una copia de respaldo; *deshacer* vuelve el tiempo atrás. Con cuenta de Google se sincronizan entre dispositivos. Ver *Modelo de datos* y *Cuenta y sincronización* más abajo
-- **Orden de Ajustes** — *Cuenta* arriba de todo, luego *Idioma*, Reproducción y pantalla, Set de sonidos, Silencio aleatorio, Escala de UI, Instalar (solo web), *Comunidad* y *Acerca de*
+- **Orden de Ajustes** — *Cuenta* arriba de todo, luego *Idioma*, Reproducción y pantalla, Set de sonidos, Silencio aleatorio, Escala de UI, Instalar (solo web), *Comunidad*, *Más apps* y *Acerca de*
 - **Acceso al foro** — Sección *Comunidad* con botón *Ir al Foro* que abre [federicorandazzo.com.ar/foro](https://federicorandazzo.com.ar/foro/) en el navegador externo
 
 ### 🗃️ Modelo de datos (sincronizado con la cuenta)
@@ -92,7 +104,7 @@ Las tres bibliotecas (`pattern_library`, `session_library`, `playlist_library` e
 - **Migración de playlists viejas** — El formato `sessionIds` (referencias a la biblioteca) se sigue leyendo siempre. Al cargar, `PlaylistProvider.loadPlaylists()` espera a que estén cargadas sesiones y patrones, convierte cada id existente en un ítem vinculado con snapshot (ids faltantes o borrados se omiten; ids deterministas, UUID v5) y persiste la playlist una vez (`rev + 1`). Las playlists del formato `items` anterior ya tienen `sourceSessionId` = id de la biblioteca: no se tocan (su copia embebida, con otro id, pasa a ser el snapshot). Re-ejecutar es idempotente. Sin biblioteca conectada, la playlist queda como estaba y conserva `sessionIds` en disco
 
 ### 🔄 Cuenta y sincronización de bibliotecas
-Con `fede_apps_core` v0.4.0 (`FedeAccount`, `LibrarySync`). La app funciona **siempre** sin cuenta y sin internet; con sesión de Google, las tres bibliotecas se sincronizan con `users/{uid}/appData/metronomo` (colecciones `patterns`, `sessions`, `playlists`).
+Con `fede_apps_core` (v0.5.x: `FedeAccount`, `LibrarySync`). La app funciona **siempre** sin cuenta y sin internet; con sesión de Google, las tres bibliotecas se sincronizan con `users/{uid}/appData/metronomo` (colecciones `patterns`, `sessions`, `playlists`).
 
 - **Ajustes → Cuenta** (primera sección): `AccountSection(hasLibrary: true)`. Sin sesión: *Continuar con Google*; con sesión: email, estado (*Sincronizado hace X*), *Sincronizar ahora* y *Cerrar sesión* (la biblioteca queda en el dispositivo)
 - **Sugerencia de login** — Después de guardar una sesión nueva (*Guardar como…*) o un patrón nuevo en la librería: `EcosystemPrompts.maybeShowLoginPrompt` con el total de ítems activos (sesiones + patrones + playlists). El paquete decide (≥ 3 ítems, `PromptGate`)
@@ -105,10 +117,15 @@ Con `fede_apps_core` v0.4.0 (`FedeAccount`, `LibrarySync`). La app funciona **si
 - **Ejemplos sembrados** — Los ítems de ejemplo (`default-…`) sin tocar (`rev` 1) no se suben: cada instalación los siembra con los mismos ids, y subirlos generaría copias *(otro dispositivo)* o reviviría un ejemplo borrado en otro dispositivo. Al editarlos o borrarlos se sincronizan como cualquier ítem, y una versión editada en la nube reemplaza al ejemplo local
 - **Tests** — `test/library_cloud_sync_test.dart` (dos dispositivos simulados con `InMemoryRemoteStore`)
 
+### 🧩 Ecosistema (`fede_apps_core`)
+- **Sugerencia de otras apps** — En "momentos tranquilos" (al detener manualmente la reproducción en Tocar o en el reproductor de playlists, y al abrir Ajustes) se llama a `EcosystemPrompts.maybeShowAppsPrompt`; el paquete decide si muestra algo (normalmente no)
+- **Más apps** — Sección en Ajustes (`EcosystemSection`) con las otras apps del ecosistema
+- **Medición de uso local** — `UsageTracker` (inicializado en `main.dart`, nunca bloquea el arranque) registra el tiempo de uso mientras suena el metrónomo (`startActivity` / `stopActivity` en `MetronomeProvider`). Los datos quedan en el dispositivo y alimentan las sugerencias
+
 ### 🌍 Idiomas (i18n)
 - **Español e inglés** — Toda la interfaz está localizada con el sistema oficial de Flutter (`flutter_localizations` + `intl`, `flutter gen-l10n`). Los textos viven en `lib/l10n/app_es.arb` (plantilla) y `lib/l10n/app_en.arb`
 - **Idioma automático** — Al abrir la app se usa el idioma del sistema/navegador: español para cualquier `es_*`, inglés para cualquier otro idioma (fallback)
-- **Selector en Ajustes** — Sección *Idioma* (primera de la pantalla): *Idioma del sistema* / *Español* / *English*. Se guarda en `SettingsProvider` (`settings_language`; sin valor = seguir al sistema)
+- **Selector en Ajustes** — Sección *Idioma* (debajo de *Cuenta*): *Idioma del sistema* / *Español* / *English*. Se guarda en `SettingsProvider` (`settings_language`; sin valor = seguir al sistema)
 - **Uso en código** — En widgets `context.l10n.clave`; en providers/servicios sin `BuildContext`, `L10n.current` (se sincroniza desde el `builder` del `MaterialApp`). Plurales y variables con formato ICU
 - **Datos persistidos no se traducen** — Los IDs de los sets de sonido siguen en español (`'Clásico'`, `'Madera'`…) porque se guardan en preferencias, sesiones y links compartidos; solo se traduce la etiqueta (`soundSetLabel`). Los nombres por defecto (ej. *Patrón 1*) se crean en el idioma activo y luego quedan como dato del usuario
 - **Nombre de la app** — Android: *Metronome* (default) / *Metrónomo* (`values-es`). En web el título de la pestaña sigue el idioma (`onGenerateTitle`)
@@ -131,7 +148,7 @@ Con `fede_apps_core` v0.4.0 (`FedeAccount`, `LibrarySync`). La app funciona **si
 - **Flujo al abrir** — Se importa a la biblioteca y se pregunta *¿Abrir ahora?*. Si la sesión actual tiene cambios sin guardar ofrece Guardar / Descartar / Cancelar. Patrón → sesión nueva con ese patrón; Sesión → se carga; Playlist → abre el reproductor
 - **Android App Links** — Verificación de dominio via `assetlinks.json` con prioridad: app nativa (Play Store) → PWA instalada → versión web. Intent filter con `autoVerify="true"`; captura única del link inicial en `main.dart` + stream con deduplicación
 - **PWA de escritorio** — `launch_handler: focus-existing` + `handle_links: preferred`; el link llega a la ventana abierta vía `launchQueue` (`web/index.html`)
-- **Limpieza de URL** — Después de capturar el link, el parámetro `?share=` se elimina de la barra de direcciones con `history.replaceState` para evitar re-importaciones al refrescar
+- **Limpieza de URL** — Después de capturar el link, el parámetro `?share=` se elimina de la barra de direcciones con `history.replaceState` (conservando `history.state`, para que el router web de Flutter no vuelva a escribir la URL vieja): la URL queda en la de la app y refrescar no re-importa
 - **Firestore como backend de links** — Colección `shared_links` (schema v2: `type`, `name`, `ownerUid`, `summary`, `payload` JSON string, `createdAt`, `expiresAt`). Lectura pública por ID, creación autenticada (anónima o formal)
 - **TTL (30 días)** — `expiresAt` se renueva con cada apertura. Como el proyecto está en plan Spark (sin TTL Policies), la limpieza es lazy desde el cliente: hasta 10 links vencidos al crear uno nuevo, y cualquier link vencido que se abra. Las reglas solo permiten listar/borrar docs ya vencidos
 
@@ -190,7 +207,7 @@ Con `fede_apps_core` v0.4.0 (`FedeAccount`, `LibrarySync`). La app funciona **si
 - **Seguimiento 'Dirty State'** — Detección automática y profunda de alteraciones en vivo (BPM, estructuras, faders, mute/solo). La UI reacciona orgánicamente a los cambios pendientes marcando las sesiones y patrones en cursiva con un asterisco (`*`)
 - **Edición Dinámica de Patrones** — Renombrado in-situ de pistas con cajas delimitadas dinámicamente (`IntrinsicWidth`) y tracking visual milimétrico del asterisco de edición
 - **Dos columnas en pantallas anchas** — Desde 840px, Tocar y el reproductor de playlists muestran los patrones a la izquierda y un panel lateral con el ciclo macro, la leyenda y el transporte. Biblioteca y Ajustes se limitan a un ancho legible
-- **Navegación** — Barra inferior con *Tocar*, *Biblioteca* y *Ajustes* (riel lateral en pantallas ≥900px). Las pestañas viven en un `IndexedStack`: Tocar conserva su estado. En Android, *atrás* desde otra pestaña vuelve a Tocar
+- **Navegación** — Barra inferior con *Tocar*, *Biblioteca* y *Ajustes* (modo PC, ≥900px: barra lateral `NavigationRail` con las pestañas centradas en la altura, más grandes y separadas). Las pestañas viven en un `IndexedStack`: Tocar conserva su estado. En Android, *atrás* desde otra pestaña vuelve a Tocar
 - **Biblioteca** — Sesiones, patrones de la librería y playlists en un solo lugar, con búsqueda por nombre y el mismo menú ⋮ en cada ítem. Sesiones: tocar = abrir en Tocar (protegiendo cambios sin guardar), compartir, duplicar, renombrar, eliminar (confirmación + DESHACER); la sesión abierta se marca *En Tocar*. Patrones: tocar = agregar a la sesión, compartir, renombrar, eliminar (DESHACER). Playlists: reproducir, editar, compartir, renombrar, eliminar
 - **Guardado simplificado** — 💾 sobrescribe la sesión activa directamente (snackbar con *DESHACER*); si la sesión no existe todavía pide un nombre. *Guardar como…*, *Nueva*, *Abrir*, *Compartir sesión*, *Playlists* y *Ajustes* están en el menú ⋮ de la App Bar
 - **Sesiones independientes de la librería** — Cada sesión guarda una copia de sus patrones (`SessionPatternConfig.name/structure/pulses`). Editar o borrar un patrón de la librería nunca cambia una sesión. Guardar una sesión no toca la librería; para tener un patrón en la librería se usa *Guardar en la librería* desde el menú ⋮ del patrón (actualiza la misma entrada si ya existe). Las sesiones viejas se migran automáticamente al iniciar (`SessionProvider.embedMissingPatterns`, idempotente)
@@ -203,8 +220,8 @@ Con `fede_apps_core` v0.4.0 (`FedeAccount`, `LibrarySync`). La app funciona **si
 
 ```
 lib/
-├── main.dart                          # Entry point y Providers
-├── firebase_options.dart              # Configuración Firebase auto-generada
+├── main.dart                          # Entry point, AppLibraries (bibliotecas + sync), PortraitOnly
+├── firebase_options.dart              # Configuración Firebase (no versionada, ver Build)
 ├── audio/
 │   └── click_synth.dart               # Sintetizador procedural de los 7 sets de sonidos (biquads RBJ, modal, 808)
 ├── l10n/
@@ -231,7 +248,7 @@ lib/
 │   ├── metronome_screen.dart          # Tocar: secuenciador, controles, visualizador, edición de estructuras y atajos
 │   ├── playlists_screen.dart          # Gestión de playlists: crear, editar, eliminar, reordenar sesiones
 │   ├── playlist_player_screen.dart    # Reproductor: PageView, flechas de navegación, modo solo lectura, toggle edición
-│   └── settings_screen.dart           # Configuración (idioma primero, sonido, escala UI…) + foro
+│   └── settings_screen.dart           # Configuración (cuenta, idioma, sonido, escala UI…) + foro + más apps
 ├── theme/
 │   ├── app_theme.dart                 # ThemeData oscuro + component themes (diálogos, snackbars, bottom sheets)
 │   └── beat_colors.dart               # Colores por tipo de evento (silencio/acento/normal/suave)
@@ -250,6 +267,8 @@ lib/
 │   ├── version_check_web.dart         # JS interop: limpieza de cache y reload para actualización web
 │   ├── version_check_stub.dart        # Stub para plataformas no-web
 │   ├── synced_repository.dart         # Base de las bibliotecas: rev, lápidas, purga (SharedPreferences)
+│   ├── metronomo_sync_adapter.dart    # Adapter de LibrarySync: patrones → sesiones → playlists, copias por conflicto
+│   ├── working_state_repository.dart  # Estado de trabajo de Tocar (lo que está en pantalla, sobrevive reinicios)
 │   ├── pattern_repository.dart        # Persistencia de patrones (SyncedRepository)
 │   ├── session_repository.dart        # Persistencia de sesiones (SyncedRepository)
 │   └── playlist_repository.dart       # Persistencia de playlists (SyncedRepository)
@@ -319,12 +338,28 @@ packages/native_audio_engine/
 | FFT | KissFFT (procesamiento espectral) |
 | FFI | dart:ffi (nativo) / Web Audio API (web) |
 | Backend y Auth | Firebase Auth, Cloud Firestore, Remote Config |
+| Código compartido | [`fede_apps_core`](https://github.com/randazzofederico-coder/fede_apps_core) (cuenta, sync, sugerencias, uso local, PortraitOnly) |
 | Persistencia local | SharedPreferences (settings, patrones, sesiones, playlists) |
 | Web Build | Emscripten, JS Interop |
 | Rendering | CustomPainter (knobs), Ticker (animaciones) |
 | Plataformas | Android, iOS, Windows, Web (PWA) |
 
 ## 🚀 Build
+
+### Preparación
+1. **`fede_apps_core`** — Es una dependencia por path (`../fede_apps_core` en `pubspec.yaml`): hay que clonarlo **al lado** de este repo antes de compilar
+   ```bash
+   cd ..   # carpeta que contiene a Metronomo/
+   git clone https://github.com/randazzofederico-coder/fede_apps_core.git
+   ```
+2. **Configuración de Firebase (no versionada)** — `lib/firebase_options.dart`, `android/app/google-services.json` y los `GoogleService-Info.plist` están en `.gitignore`. Se generan con `flutterfire configure` (proyecto Firebase del sitio) o se copian de una máquina que ya los tenga
+
+> [!IMPORTANT]
+> La configuración **web** de `firebase_options.dart` usa el **mismo `apiKey` y `appId` que el sitio** (`AIzaSyB-J7F5pH90Zmk5VZ1jdsoPQvrNwPgy_f4` / `1:858245145787:web:9f041f6423348bca05b59e`), para compartir la sesión de Google con federicorandazzo.com.ar. Si se regenera con `flutterfire configure`, volver a poner esos dos valores a mano.
+>
+> La versión mínima se lee de **Remote Config** (`metronomo_min_version`, opcional `metronomo_force_update_message`): la API key web tiene que tener habilitada la *Firebase Remote Config API* (si no, la verificación falla en silencio y nunca fuerza la actualización).
+
+### Comandos
 
 ```bash
 # Desarrollo
@@ -339,10 +374,20 @@ flutter build apk --release
 # Windows
 flutter build windows --release
 
-# Web (requiere compilación WASM del engine)
-# Ver packages/native_audio_engine/build_wasm.bat
-flutter build web --release
+# Web (el engine WASM compilado está versionado en web/live_mixer.wasm;
+# para recompilarlo: packages/native_audio_engine/build_wasm.bat)
+flutter build web --wasm --base-href "/metronomo/"
 ```
+
+### Deploy web
+La web vive en el sitio ([federicorandazzo.com.ar/metronomo](https://federicorandazzo.com.ar/metronomo/)). Se publica con el script del sitio, que compila esta app (`flutter build web --wasm --base-href "/metronomo/"`), copia `build/web` → `mi-web-fede/public/metronomo/` y sube todo:
+
+```powershell
+cd C:\dev\federicorandazzo.com.ar\mi-web-fede
+.\deploy.ps1 -Opciones "3"   # 3 = Metronomo (sin argumentos muestra el menú)
+```
+
+Antes de publicar: subir `version` en `pubspec.yaml` y, si la versión anterior tiene que dejar de usarse, `metronomo_min_version` en Remote Config.
 
 ## 📋 Requisitos
 
@@ -351,7 +396,9 @@ flutter build web --release
 - Android: minSdk 24 (Android 7.0+)
 - iOS: 13.0+
 - CMake (para compilar el engine nativo C++)
-- Emscripten (solo para build web)
+- Emscripten (solo para recompilar el engine WASM)
+- [`fede_apps_core`](https://github.com/randazzofederico-coder/fede_apps_core) clonado en `../fede_apps_core`
+- Archivos de configuración de Firebase (ver *Build → Preparación*)
 
 ## 📄 Licencia
 

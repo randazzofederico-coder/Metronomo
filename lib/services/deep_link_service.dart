@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:app_links/app_links.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:crypto/crypto.dart';
+import 'package:fede_apps_core/fede_apps_core.dart' show UsageReporter;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:metronomo_standalone/l10n/l10n.dart';
@@ -275,6 +276,7 @@ class DeepLinkService {
 
     // Lazy cleanup of expired links (Spark plan has no TTL policies).
     unawaited(_cleanupExpiredLinks());
+    unawaited(UsageReporter.instance.trackEvent('share-create/${type.name}'));
 
     return SharedLink(
       id: shareId,
@@ -383,6 +385,8 @@ class DeepLinkService {
       List<Map<String, dynamic>> list(Object? v) => (v as List<dynamic>? ?? [])
           .map((e) => Map<String, dynamic>.from(e as Map))
           .toList();
+
+      unawaited(UsageReporter.instance.trackEvent('share-import/${type.name}'));
 
       return SharedBundle(
         shareId: shareId,

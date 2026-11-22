@@ -58,6 +58,15 @@ void main() async {
   } catch (e) {
     debugPrint('UsageTracker init failed: $e');
   }
+  try {
+    FedeAccount.instance.init();
+    UsageReporter.instance.configure(
+      app: FedeApp.metronomo,
+      appVersion: '1.5.0+15',
+    );
+  } catch (e) {
+    debugPrint('UsageReporter configure failed: $e');
+  }
 
   if (versionResult.updateRequired) {
     runApp(UpdateRequiredScreen(result: versionResult));

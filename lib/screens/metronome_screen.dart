@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
 import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/widgets/undo_snackbar.dart';
+import 'package:metronomo_standalone/services/midi_export_actions.dart';
 import 'package:metronomo_standalone/services/share_actions.dart';
 import 'package:metronomo_standalone/audio/click_synth.dart';
 import 'package:metronomo_standalone/providers/metronome_provider.dart';
@@ -339,12 +340,9 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
         await _showSaveSessionDialog(context);
       case _SessionMenu.share:
         // Shares what's on screen (saved or not).
-        final session = metronome.createSession(
-          metronome.activeSessionName ?? context.l10n.metronomeDefaultSessionName,
-          '',
-          settings,
-        );
-        _shareSession(metronome.activeSessionId != null ? session.copyWith(id: metronome.activeSessionId) : session);
+        _shareSession(_currentScreenSession(metronome, settings));
+      case _SessionMenu.exportMidi:
+        await exportSessionMidi(context, _currentScreenSession(metronome, settings));
       case _SessionMenu.playlists:
         _closeAllKeyboards();
         Navigator.push(context, MaterialPageRoute(builder: (_) => const PlaylistsScreen()));
@@ -418,6 +416,20 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
   }
 
   // ── Share (export) ─────────────────────────────────────────────────────
+
+  Session _currentScreenSession(
+    MetronomeProvider metronome,
+    SettingsProvider settings,
+  ) {
+    final session = metronome.createSession(
+      metronome.activeSessionName ?? context.l10n.metronomeDefaultSessionName,
+      '',
+      settings,
+    );
+    return metronome.activeSessionId != null
+        ? session.copyWith(id: metronome.activeSessionId)
+        : session;
+  }
 
   void _sharePattern(Pattern pattern) => sharePattern(context, pattern);
 
@@ -979,6 +991,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
               _menuItem(_SessionMenu.open, Icons.folder_open_rounded, context.l10n.metronomeMenuOpenSession),
               _menuItem(_SessionMenu.saveAs, Icons.save_as_rounded, context.l10n.metronomeMenuSaveAs),
               _menuItem(_SessionMenu.share, Icons.share_outlined, context.l10n.metronomeShareSession),
+              _menuItem(_SessionMenu.exportMidi, Icons.download_rounded, context.l10n.commonExportMidi),
               // Standalone only: in HomeShell these live in the bottom bar.
               if (widget.onOpenLibrary == null) ...[
                 const PopupMenuDivider(),
@@ -1327,6 +1340,7 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
             _menuItem(_PatternMenu.rename, Icons.edit_outlined, context.l10n.commonRename),
             _menuItem(_PatternMenu.saveToLibrary, Icons.library_add_outlined, context.l10n.metronomeSaveToLibrary),
             _menuItem(_PatternMenu.share, Icons.share_outlined, context.l10n.metronomeSharePattern),
+            _menuItem(_PatternMenu.exportMidi, Icons.download_rounded, context.l10n.commonExportMidi),
             _menuItem(_PatternMenu.duplicate, Icons.copy_rounded, context.l10n.metronomeDuplicate),
             const PopupMenuDivider(),
             _menuItem(_PatternMenu.remove, Icons.close_rounded, context.l10n.metronomeRemoveFromSession, color: AppColors.accentRed(context)),
@@ -1365,6 +1379,13 @@ class MetronomeScreenState extends State<MetronomeScreen> with WidgetsBindingObs
         await _savePatternToLibrary(instance);
       case _PatternMenu.share:
         _sharePattern(metronome.createPatternFromInstance(instance.id, name: instance.title));
+      case _PatternMenu.exportMidi:
+        exportPatternMidi(
+          context,
+          metronome.createPatternFromInstance(instance.id, name: instance.title),
+          initialBpm: metronome.bpm,
+          soundSet: metronome.effectiveSoundSet(instance),
+        );
       case _PatternMenu.duplicate:
         metronome.duplicateInstance(instance.id);
       case _PatternMenu.remove:
@@ -1643,7 +1664,7 @@ class _EventVolumeEdit {
 }
 
 /// Actions of the session menu (AppBar ⋮).
-enum _SessionMenu { newSession, open, saveAs, share, playlists, settings }
+enum _SessionMenu { newSession, open, saveAs, share, exportMidi, playlists, settings }
 
 /// Actions of the pattern card menu (⋮).
-enum _PatternMenu { rename, saveToLibrary, share, duplicate, remove }
+enum _PatternMenu { rename, saveToLibrary, share, exportMidi, duplicate, remove }

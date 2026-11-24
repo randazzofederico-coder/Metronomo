@@ -9,6 +9,7 @@ import 'package:metronomo_standalone/providers/metronome_provider.dart';
 import 'package:metronomo_standalone/providers/pattern_editor_provider.dart';
 import 'package:metronomo_standalone/providers/session_provider.dart';
 import 'package:metronomo_standalone/screens/playlists_screen.dart';
+import 'package:metronomo_standalone/services/midi_export_actions.dart';
 import 'package:metronomo_standalone/services/share_actions.dart';
 import 'package:metronomo_standalone/widgets/formatted_structure.dart';
 import 'package:metronomo_standalone/widgets/undo_snackbar.dart';
@@ -159,6 +160,7 @@ class LibraryScreenState extends State<LibraryScreen> with SingleTickerProviderS
                   menu: [
                     _MenuAction(Icons.play_arrow_rounded, context.l10n.libraryOpenInPlay, () => widget.onOpenSession(session)),
                     _MenuAction(Icons.share_outlined, context.l10n.commonShare, () => shareSession(context, session)),
+                    _MenuAction(Icons.download_rounded, context.l10n.commonExportMidi, () => exportSessionMidi(context, session)),
                     _MenuAction(Icons.copy_rounded, context.l10n.libraryDuplicate, () => _duplicateSession(session)),
                     _MenuAction(Icons.edit_outlined, context.l10n.commonRename, () => _renameSession(session)),
                     _MenuAction(Icons.delete_outline, context.l10n.commonDelete, () => _deleteSession(session), destructive: true),
@@ -235,6 +237,16 @@ class LibraryScreenState extends State<LibraryScreen> with SingleTickerProviderS
           menu: [
             _MenuAction(Icons.add_circle_outline, context.l10n.libraryAddToSession, () => widget.onAddPattern(pattern)),
             _MenuAction(Icons.share_outlined, context.l10n.commonShare, () => sharePattern(context, pattern)),
+            _MenuAction(
+              Icons.download_rounded,
+              context.l10n.commonExportMidi,
+              () => exportPatternMidi(
+                context,
+                pattern,
+                initialBpm: context.read<MetronomeProvider>().bpm,
+                soundSet: context.read<MetronomeProvider>().currentSoundSet,
+              ),
+            ),
             _MenuAction(Icons.edit_outlined, context.l10n.commonRename, () => _renamePattern(pattern)),
             _MenuAction(Icons.delete_outline, context.l10n.libraryRemoveFromLibrary, () => _deletePattern(pattern), destructive: true),
           ],

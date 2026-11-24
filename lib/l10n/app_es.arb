@@ -622,5 +622,68 @@
         "type": "String"
       }
     }
-  }
+  },
+  "commonExportMidi": "Exportar MIDI",
+  "midiExportTitlePattern": "Exportar patrón MIDI",
+  "midiExportTitleSession": "Exportar sesión MIDI",
+  "midiExportTitlePlaylist": "Exportar playlist MIDI",
+  "midiExportSubtitlePlaylist": "«{name}» · {count, plural, =1{1 sesión (.zip)} other{{count} sesiones (.zip)}}",
+  "@midiExportSubtitlePlaylist": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "midiExportDurationSummary": "{beats} pulsos · ~{seconds} s",
+  "@midiExportDurationSummary": {
+    "placeholders": {
+      "beats": {
+        "type": "String"
+      },
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "midiExportPlaylistSummary": "{count, plural, =1{1 archivo .mid en «{fileName}»} other{{count} archivos .mid en «{fileName}»}}",
+  "@midiExportPlaylistSummary": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "fileName": {
+        "type": "String"
+      }
+    }
+  },
+  "midiExportPlaylistEmpty": "La playlist no tiene sesiones para exportar.",
+  "midiExportSessionEmpty": "La sesión no tiene patrones para exportar.",
+  "midiExportBpmLabel": "Tempo (BPM)",
+  "midiExportCyclesLabel": "Repeticiones del ciclo",
+  "midiExportChannelModeLabel": "Formato MIDI",
+  "midiExportModeGm": "Percusión GM (Canal 10)",
+  "midiExportModeMulti": "Multicanal (Canales 1–16)",
+  "midiExportModeHelpTooltip": "¿Cuál elegir?",
+  "midiExportModeHelpTitle": "¿Por qué hay dos opciones?",
+  "midiExportModeHelpGmTitle": "Percusión GM (Canal 10)",
+  "midiExportModeHelpGmBody": "Exporta cada patrón en una pista separada (SMF Tipo 1) usando el Canal 10 estándar de percusión, mapeado al sonido de cada patrón (Bombo, Redoblante, Hi-hat, Madera, Claves). Suena como batería/percusión de inmediato en DAWs, MuseScore, Guitar Pro y reproductores MIDI.",
+  "midiExportModeHelpMultiTitle": "Multicanal (Canales 1–16)",
+  "midiExportModeHelpMultiBody": "Exporta cada patrón en una pista separada y le asigna su propio canal MIDI (Ch 1, 2, 3…) con tres notas fijas (Acento, Normal, Suave) y su volumen de mezcla. Ideal para rutear cada patrón a distintos samplers, sintetizadores o instrumentos multitímbricos.",
+  "midiExportDownloadMid": "DESCARGAR .MID",
+  "midiExportDownloadZip": "DESCARGAR .ZIP",
+  "midiExportActionMid": "EXPORTAR .MID",
+  "midiExportActionZip": "EXPORTAR .ZIP",
+  "midiExportDownloaded": "Descargado: {fileName}",
+  "@midiExportDownloaded": {
+    "placeholders": {
+      "fileName": {
+        "type": "String"
+      }
+    }
+  },
+  "midiExportFailed": "No se pudo exportar el archivo MIDI."
 }

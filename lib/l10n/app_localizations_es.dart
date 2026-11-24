@@ -897,4 +897,106 @@ class AppLocalizationsEs extends AppLocalizations {
   String playlistItemRestored(String name) {
     return '«$name» restaurada en la biblioteca';
   }
+
+  @override
+  String get commonExportMidi => 'Exportar MIDI';
+
+  @override
+  String get midiExportTitlePattern => 'Exportar patrón MIDI';
+
+  @override
+  String get midiExportTitleSession => 'Exportar sesión MIDI';
+
+  @override
+  String get midiExportTitlePlaylist => 'Exportar playlist MIDI';
+
+  @override
+  String midiExportSubtitlePlaylist(String name, int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count sesiones (.zip)',
+      one: '1 sesión (.zip)',
+    );
+    return '«$name» · $_temp0';
+  }
+
+  @override
+  String midiExportDurationSummary(String beats, String seconds) {
+    return '$beats pulsos · ~$seconds s';
+  }
+
+  @override
+  String midiExportPlaylistSummary(int count, String fileName) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count archivos .mid en «$fileName»',
+      one: '1 archivo .mid en «$fileName»',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get midiExportPlaylistEmpty =>
+      'La playlist no tiene sesiones para exportar.';
+
+  @override
+  String get midiExportSessionEmpty =>
+      'La sesión no tiene patrones para exportar.';
+
+  @override
+  String get midiExportBpmLabel => 'Tempo (BPM)';
+
+  @override
+  String get midiExportCyclesLabel => 'Repeticiones del ciclo';
+
+  @override
+  String get midiExportChannelModeLabel => 'Formato MIDI';
+
+  @override
+  String get midiExportModeGm => 'Percusión GM (Canal 10)';
+
+  @override
+  String get midiExportModeMulti => 'Multicanal (Canales 1–16)';
+
+  @override
+  String get midiExportModeHelpTooltip => '¿Cuál elegir?';
+
+  @override
+  String get midiExportModeHelpTitle => '¿Por qué hay dos opciones?';
+
+  @override
+  String get midiExportModeHelpGmTitle => 'Percusión GM (Canal 10)';
+
+  @override
+  String get midiExportModeHelpGmBody =>
+      'Exporta cada patrón en una pista separada (SMF Tipo 1) usando el Canal 10 estándar de percusión, mapeado al sonido de cada patrón (Bombo, Redoblante, Hi-hat, Madera, Claves). Suena como batería/percusión de inmediato en DAWs, MuseScore, Guitar Pro y reproductores MIDI.';
+
+  @override
+  String get midiExportModeHelpMultiTitle => 'Multicanal (Canales 1–16)';
+
+  @override
+  String get midiExportModeHelpMultiBody =>
+      'Exporta cada patrón en una pista separada y le asigna su propio canal MIDI (Ch 1, 2, 3…) con tres notas fijas (Acento, Normal, Suave) y su volumen de mezcla. Ideal para rutear cada patrón a distintos samplers, sintetizadores o instrumentos multitímbricos.';
+
+  @override
+  String get midiExportDownloadMid => 'DESCARGAR .MID';
+
+  @override
+  String get midiExportDownloadZip => 'DESCARGAR .ZIP';
+
+  @override
+  String get midiExportActionMid => 'EXPORTAR .MID';
+
+  @override
+  String get midiExportActionZip => 'EXPORTAR .ZIP';
+
+  @override
+  String midiExportDownloaded(String fileName) {
+    return 'Descargado: $fileName';
+  }
+
+  @override
+  String get midiExportFailed => 'No se pudo exportar el archivo MIDI.';
 }

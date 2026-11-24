@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:metronomo_standalone/constants/app_colors.dart';
 import 'package:metronomo_standalone/l10n/l10n.dart';
 import 'package:metronomo_standalone/widgets/undo_snackbar.dart';
+import 'package:metronomo_standalone/services/midi_export_actions.dart';
 import 'package:metronomo_standalone/services/share_actions.dart';
 import 'package:metronomo_standalone/services/playlist_item_actions.dart';
 import 'package:metronomo_standalone/models/playlist_model.dart';
@@ -311,6 +312,8 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                                       switch (action) {
                                         case 'share':
                                           _sharePlaylist(playlist);
+                                        case 'export_midi':
+                                          exportPlaylistMidi(context, playlist);
                                         case 'edit':
                                           _showCreatePlaylistDialog(existing: playlist);
                                         case 'delete':
@@ -319,6 +322,7 @@ class _PlaylistsScreenState extends State<PlaylistsScreen> {
                                     },
                                     itemBuilder: (_) => [
                                       _menuItem('share', Icons.share_outlined, context.l10n.commonShare),
+                                      _menuItem('export_midi', Icons.download_rounded, context.l10n.commonExportMidi),
                                       _menuItem('edit', Icons.edit_outlined, context.l10n.commonRename),
                                       const PopupMenuDivider(),
                                       _menuItem('delete', Icons.delete_outline, context.l10n.commonDelete, color: AppColors.accentRed(context)),
@@ -494,7 +498,12 @@ class _PlaylistDetailScreen extends StatelessWidget {
                 onPressed: () => _showAddSessionSheet(context),
                 tooltip: context.l10n.playlistsAddSession,
               ),
-              if (playlist.items.isNotEmpty)
+              if (playlist.items.isNotEmpty) ...[
+                IconButton(
+                  icon: Icon(Icons.download_rounded, color: AppColors.textSecondary(context)),
+                  onPressed: () => exportPlaylistMidi(context, playlist),
+                  tooltip: context.l10n.commonExportMidi,
+                ),
                 IconButton(
                   icon: Icon(Icons.play_circle_fill, color: AppColors.primary(context)),
                   onPressed: () {
@@ -507,6 +516,7 @@ class _PlaylistDetailScreen extends StatelessWidget {
                   },
                   tooltip: context.l10n.playlistsPlay,
                 ),
+              ],
             ],
           ),
           body: SafeArea(

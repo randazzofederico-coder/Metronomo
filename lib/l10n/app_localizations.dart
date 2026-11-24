@@ -1495,6 +1495,162 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'«{name}» restaurada en la biblioteca'**
   String playlistItemRestored(String name);
+
+  /// No description provided for @commonExportMidi.
+  ///
+  /// In es, this message translates to:
+  /// **'Exportar MIDI'**
+  String get commonExportMidi;
+
+  /// No description provided for @midiExportTitlePattern.
+  ///
+  /// In es, this message translates to:
+  /// **'Exportar patrón MIDI'**
+  String get midiExportTitlePattern;
+
+  /// No description provided for @midiExportTitleSession.
+  ///
+  /// In es, this message translates to:
+  /// **'Exportar sesión MIDI'**
+  String get midiExportTitleSession;
+
+  /// No description provided for @midiExportTitlePlaylist.
+  ///
+  /// In es, this message translates to:
+  /// **'Exportar playlist MIDI'**
+  String get midiExportTitlePlaylist;
+
+  /// No description provided for @midiExportSubtitlePlaylist.
+  ///
+  /// In es, this message translates to:
+  /// **'«{name}» · {count, plural, =1{1 sesión (.zip)} other{{count} sesiones (.zip)}}'**
+  String midiExportSubtitlePlaylist(String name, int count);
+
+  /// No description provided for @midiExportDurationSummary.
+  ///
+  /// In es, this message translates to:
+  /// **'{beats} pulsos · ~{seconds} s'**
+  String midiExportDurationSummary(String beats, String seconds);
+
+  /// No description provided for @midiExportPlaylistSummary.
+  ///
+  /// In es, this message translates to:
+  /// **'{count, plural, =1{1 archivo .mid en «{fileName}»} other{{count} archivos .mid en «{fileName}»}}'**
+  String midiExportPlaylistSummary(int count, String fileName);
+
+  /// No description provided for @midiExportPlaylistEmpty.
+  ///
+  /// In es, this message translates to:
+  /// **'La playlist no tiene sesiones para exportar.'**
+  String get midiExportPlaylistEmpty;
+
+  /// No description provided for @midiExportSessionEmpty.
+  ///
+  /// In es, this message translates to:
+  /// **'La sesión no tiene patrones para exportar.'**
+  String get midiExportSessionEmpty;
+
+  /// No description provided for @midiExportBpmLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'Tempo (BPM)'**
+  String get midiExportBpmLabel;
+
+  /// No description provided for @midiExportCyclesLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'Repeticiones del ciclo'**
+  String get midiExportCyclesLabel;
+
+  /// No description provided for @midiExportChannelModeLabel.
+  ///
+  /// In es, this message translates to:
+  /// **'Formato MIDI'**
+  String get midiExportChannelModeLabel;
+
+  /// No description provided for @midiExportModeGm.
+  ///
+  /// In es, this message translates to:
+  /// **'Percusión GM (Canal 10)'**
+  String get midiExportModeGm;
+
+  /// No description provided for @midiExportModeMulti.
+  ///
+  /// In es, this message translates to:
+  /// **'Multicanal (Canales 1–16)'**
+  String get midiExportModeMulti;
+
+  /// No description provided for @midiExportModeHelpTooltip.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Cuál elegir?'**
+  String get midiExportModeHelpTooltip;
+
+  /// No description provided for @midiExportModeHelpTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Por qué hay dos opciones?'**
+  String get midiExportModeHelpTitle;
+
+  /// No description provided for @midiExportModeHelpGmTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Percusión GM (Canal 10)'**
+  String get midiExportModeHelpGmTitle;
+
+  /// No description provided for @midiExportModeHelpGmBody.
+  ///
+  /// In es, this message translates to:
+  /// **'Exporta cada patrón en una pista separada (SMF Tipo 1) usando el Canal 10 estándar de percusión, mapeado al sonido de cada patrón (Bombo, Redoblante, Hi-hat, Madera, Claves). Suena como batería/percusión de inmediato en DAWs, MuseScore, Guitar Pro y reproductores MIDI.'**
+  String get midiExportModeHelpGmBody;
+
+  /// No description provided for @midiExportModeHelpMultiTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Multicanal (Canales 1–16)'**
+  String get midiExportModeHelpMultiTitle;
+
+  /// No description provided for @midiExportModeHelpMultiBody.
+  ///
+  /// In es, this message translates to:
+  /// **'Exporta cada patrón en una pista separada y le asigna su propio canal MIDI (Ch 1, 2, 3…) con tres notas fijas (Acento, Normal, Suave) y su volumen de mezcla. Ideal para rutear cada patrón a distintos samplers, sintetizadores o instrumentos multitímbricos.'**
+  String get midiExportModeHelpMultiBody;
+
+  /// No description provided for @midiExportDownloadMid.
+  ///
+  /// In es, this message translates to:
+  /// **'DESCARGAR .MID'**
+  String get midiExportDownloadMid;
+
+  /// No description provided for @midiExportDownloadZip.
+  ///
+  /// In es, this message translates to:
+  /// **'DESCARGAR .ZIP'**
+  String get midiExportDownloadZip;
+
+  /// No description provided for @midiExportActionMid.
+  ///
+  /// In es, this message translates to:
+  /// **'EXPORTAR .MID'**
+  String get midiExportActionMid;
+
+  /// No description provided for @midiExportActionZip.
+  ///
+  /// In es, this message translates to:
+  /// **'EXPORTAR .ZIP'**
+  String get midiExportActionZip;
+
+  /// No description provided for @midiExportDownloaded.
+  ///
+  /// In es, this message translates to:
+  /// **'Descargado: {fileName}'**
+  String midiExportDownloaded(String fileName);
+
+  /// No description provided for @midiExportFailed.
+  ///
+  /// In es, this message translates to:
+  /// **'No se pudo exportar el archivo MIDI.'**
+  String get midiExportFailed;
 }
 
 class _AppLocalizationsDelegate

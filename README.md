@@ -177,6 +177,19 @@ Con `fede_apps_core` (v0.5.x: `FedeAccount`, `LibrarySync`). La app funciona **s
 - **Preview dinámico por link** (OG tags tipo "Sesión Chacarera · 3 patrones") — Requiere render server-side (Cloud Function → plan Blaze) o resolverlo desde la web
 - **Banner "Abrir en la app"** para navegadores in-app (Instagram/Facebook), que no disparan App Links
 
+### 🎹 Exportar a MIDI (.mid / .zip)
+- **Patrones, sesiones y playlists** (`services/midi_export_service.dart`) — Genera archivos Standard MIDI File (**SMF Formato 1**, `960 PPQ`) en Dart puro, sin dependencias externas:
+  - **Patrones**: Track 0 (conductor con nombre, `Set Tempo` y `Time Signature`) + 1 pista con la estructura y subdivisiones exactas del patrón.
+  - **Sesiones (multipista)**: Track 0 conductor + una pista por cada patrón alineada al **Ciclo Macro** (MCM de sus duraciones). Exporta **todos** los patrones ignorando `Mute`/`Solo` y `randomSilencePercentage` para entregar todas las pistas deterministas al DAW.
+  - **Playlists (`.zip`)**: empaqueta un `.mid` multipista numerado por cada sesión (`01 - Nombre (120 BPM).mid`…) con `services/zip_builder.dart` (PKZIP `STORE`, CRC-32 y nombres UTF-8).
+  - **Sin deriva ni recorte de loops**: las posiciones se calculan desde el beat absoluto del ciclo (sin error acumulado en tuplets `2:3/3`, `3:2/2`, `5:4/4`, `7:4`) y el `End of Track` (`FF 2F 00`) queda fijo al final completo para conservar silencios finales.
+- **Dos modos de canal MIDI** (con explicación integrada en el botón **`?`** del sheet):
+  - **Percusión GM (Canal 10)** *(por defecto)*: todas las pistas en Canal 10 mapeando cada uno de los 7 sets de sonido (`Clásico`, `Madera`, `Claves`, `Beep`, `Hi-hat`, `Bombo`, `Redoblante`) a notas General MIDI estándar y `velocity` escalada por `volumen del patrón × volumen del evento`.
+  - **Multicanal (Canales 1–16)**: asigna un canal MIDI distinto a cada patrón (`Ch 1–9`, `11–16` y luego `10`) con `Program Change`, `CC 7` de volumen y notas fijas `C5 / G4 / C4` para Acento / Normal / Suave.
+- **Diálogo de configuración** (`widgets/midi_export_sheet.dart`) — Permite elegir repeticiones (`1x`, `2x`, `4x`, `8x`, `16x`), editar el BPM al exportar patrones sueltos (con vista previa de pulsos y duración) y consultar la guía `?` sobre el formato MIDI.
+- **Multiplataforma** (`services/file_export_service.dart`, `midi_export_actions.dart`) — En Web/PWA descarga el `.mid` o `.zip` vía `Blob` (`dart:js_interop`); en Android/iOS/Desktop abre el share sheet nativo (`share_plus` con `fileNameOverrides`). Accesible desde los menús `⋮` en *Tocar* (sesión y cada patrón), *Biblioteca* (Sesiones, Patrones y Playlists) y el detalle de playlist.
+- **Tests** — `test/midi_export_test.dart`, `test/zip_builder_test.dart` y `test/midi_export_sheet_test.dart`.
+
 ### 🎶 Playlists (Listas de Reproducción)
 - **Gestión de Playlists** — Crear, renombrar, eliminar y duplicar listas de reproducción. Cada playlist contiene una lista ordenada de sesiones **vinculadas a la biblioteca** (con copia de respaldo, ver *Modelo de datos*): editar una sesión en la biblioteca se refleja en la playlist; si se borra, la playlist sigue tocando su última versión
 - **Edición de Contenido** — Agregar sesiones desde un bottom sheet con toda la biblioteca disponible (la misma sesión puede agregarse más de una vez), *Editar sesión* (✏️: abre la sesión de la biblioteca en Tocar), eliminar sesiones individuales (con *deshacer* exacto), reordenar con drag & drop (`ReorderableListView`) y, si una sesión ya no está en la biblioteca, *Restaurar en la biblioteca*
@@ -208,10 +221,10 @@ Con `fede_apps_core` (v0.5.x: `FedeAccount`, `LibrarySync`). La app funciona **s
 - **Edición Dinámica de Patrones** — Renombrado in-situ de pistas con cajas delimitadas dinámicamente (`IntrinsicWidth`) y tracking visual milimétrico del asterisco de edición
 - **Dos columnas en pantallas anchas** — Desde 840px, Tocar y el reproductor de playlists muestran los patrones a la izquierda y un panel lateral con el ciclo macro, la leyenda y el transporte. Biblioteca y Ajustes se limitan a un ancho legible
 - **Navegación** — Barra inferior con *Tocar*, *Biblioteca* y *Ajustes* (modo PC, ≥900px: barra lateral `NavigationRail` con las pestañas centradas en la altura, más grandes y separadas). Las pestañas viven en un `IndexedStack`: Tocar conserva su estado. En Android, *atrás* desde otra pestaña vuelve a Tocar
-- **Biblioteca** — Sesiones, patrones de la librería y playlists en un solo lugar, con búsqueda por nombre y el mismo menú ⋮ en cada ítem. Sesiones: tocar = abrir en Tocar (protegiendo cambios sin guardar), compartir, duplicar, renombrar, eliminar (confirmación + DESHACER); la sesión abierta se marca *En Tocar*. Patrones: tocar = agregar a la sesión, compartir, renombrar, eliminar (DESHACER). Playlists: reproducir, editar, compartir, renombrar, eliminar
-- **Guardado simplificado** — 💾 sobrescribe la sesión activa directamente (snackbar con *DESHACER*); si la sesión no existe todavía pide un nombre. *Guardar como…*, *Nueva*, *Abrir*, *Compartir sesión*, *Playlists* y *Ajustes* están en el menú ⋮ de la App Bar
+- **Biblioteca** — Sesiones, patrones de la librería y playlists en un solo lugar, con búsqueda por nombre y el mismo menú ⋮ en cada ítem. Sesiones: tocar = abrir en Tocar (protegiendo cambios sin guardar), compartir, exportar MIDI, duplicar, renombrar, eliminar (confirmación + DESHACER); la sesión abierta se marca *En Tocar*. Patrones: tocar = agregar a la sesión, compartir, exportar MIDI, renombrar, eliminar (DESHACER). Playlists: reproducir, editar, compartir, exportar MIDI (`.zip`), renombrar, eliminar
+- **Guardado simplificado** — 💾 sobrescribe la sesión activa directamente (snackbar con *DESHACER*); si la sesión no existe todavía pide un nombre. *Guardar como…*, *Nueva*, *Abrir*, *Compartir sesión*, *Exportar MIDI*, *Playlists* y *Ajustes* están en el menú ⋮ de la App Bar
 - **Sesiones independientes de la librería** — Cada sesión guarda una copia de sus patrones (`SessionPatternConfig.name/structure/pulses`). Editar o borrar un patrón de la librería nunca cambia una sesión. Guardar una sesión no toca la librería; para tener un patrón en la librería se usa *Guardar en la librería* desde el menú ⋮ del patrón (actualiza la misma entrada si ya existe). Las sesiones viejas se migran automáticamente al iniciar (`SessionProvider.embedMissingPatterns`, idempotente)
-- **Menú por patrón (⋮)** — Renombrar (también tocando el título), Guardar en la librería, Compartir patrón, Duplicar y Quitar de la sesión (con *DESHACER*)
+- **Menú por patrón (⋮)** — Renombrar (también tocando el título), Guardar en la librería, Compartir patrón, Exportar MIDI, Duplicar y Quitar de la sesión (con *DESHACER*)
 - **Aislamiento de Periféricos (Gestos y Foco)** —
   - **Foco Seguro**: Prevención estricta de superposición de teclados (Android Nativo vs Numérico Métrico) purgando la jerarquía de foco antes de despachar diálogos modales; abrir un diálogo confirma la estructura en edición. Visibilidad garantizada vía `Scrollable.ensureVisible`
   - **Arena de Gestos de Alta Precisión**: Controladores de perillas (Knobs) con monopolio asertivo sobre los arreglos `onVerticalDragUpdate` y `onHorizontalDragUpdate`. Esto neutraliza el reconocedor nativo del `ListView`, inhibiendo el scroll inercial padre mientras se manipulan los parámetros de mezcla
@@ -258,6 +271,12 @@ lib/
 │   ├── deep_link_stub.dart            # Stub para plataformas no-web
 │   ├── share_actions.dart             # Flujos de compartir patrón / sesión / playlist (usados desde Tocar y Biblioteca)
 │   ├── share_import_service.dart      # Importación idempotente de patrones/sesiones/playlists compartidos
+│   ├── midi_export_service.dart       # Generador SMF Formato 1 (.mid multipista / multicanal) y .zip de playlists
+│   ├── midi_export_actions.dart       # Flujos de exportación MIDI para patrón / sesión / playlist
+│   ├── zip_builder.dart               # Constructor PKZIP en Dart puro (STORE, CRC-32, UTF-8)
+│   ├── file_export_service.dart       # API multiplataforma de descarga / compartido de archivos
+│   ├── file_export_web.dart           # Descarga directa en Web/PWA vía Blob + dart:js_interop
+│   ├── file_export_io.dart            # Share sheet nativo (Android/iOS/Desktop) vía share_plus
 │   ├── playlist_item_actions.dart     # Editar sesión / Restaurar en la biblioteca (editor y player de playlists)
 │   ├── session_opener.dart            # Abre una sesión de la biblioteca en Tocar desde pantallas apiladas
 │   ├── pwa_install_service.dart       # Servicio de instalación PWA
@@ -280,6 +299,7 @@ lib/
     ├── formatted_structure.dart       # Estructura en formato fracción (solo lectura)
     ├── knob_control.dart              # Control rotativo con CustomPainter
     ├── macro_cycle.dart               # Visualizador del ciclo macro con playhead (metrónomo + player)
+    ├── midi_export_sheet.dart         # Bottom sheet de exportación MIDI (BPM, repeticiones, formato GM/Multicanal y ayuda ?)
     ├── mixer_strip.dart               # Volumen + Mute + Solo por patrón
     ├── pattern_card.dart              # Contenedor de patrón: encabezado + secuenciador + mixer
     ├── playback_clock.dart            # Ticker único que publica la posición de reproducción (resaltado de golpes)

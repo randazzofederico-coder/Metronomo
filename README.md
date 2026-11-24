@@ -2,7 +2,11 @@
 
 Metrónomo profesional para músicos con motor de audio nativo C++, soporte para birritmia, tuplets, subdivisiones complejas y visualización en tiempo real. Disponible como app nativa Android y como PWA instalable desde cualquier navegador moderno.
 
-**Versión actual: 1.5.0** (build 15) — web: [federicorandazzo.com.ar/metronomo](https://federicorandazzo.com.ar/metronomo/)
+**Versión actual: 1.6.0** (build 16) — web: [federicorandazzo.com.ar/metronomo](https://federicorandazzo.com.ar/metronomo/)
+
+## 🆕 Novedades 1.6.0
+
+- **Analítica híbrida y privacidad (`fede_apps_core` v0.7.0)** — Telemetría no bloqueante vía `UsageReporter`: estadísticas agregadas anónimas (sin cookies ni IDs personales) en GoatCounter (`appstats.federicorandazzo.com.ar`), eventos `share-create/*` / `share-import/*`, y resumen de uso por cuenta en `users/{uid}/appUsage/metronomo` al iniciar sesión con Google.
 
 ## 🆕 Novedades 1.5.0
 
@@ -10,7 +14,7 @@ Metrónomo profesional para músicos con motor de audio nativo C++, soporte para
 - **Sincronización local-first** — Patrones, sesiones y playlists se sincronizan entre dispositivos (`LibrarySync`, `users/{uid}/appData/metronomo`): merge por ítem con `rev` y lápidas, copias *«… (otro dispositivo)»* ante ediciones en conflicto, purga de lápidas a los 30 días; los ejemplos de fábrica sin tocar no se suben
 - **Playlists híbridas** — Cada ítem está vinculado a la sesión de la biblioteca y guarda un snapshot de respaldo. *Editar sesión* abre la sesión de la biblioteca en Tocar; si se borró, la playlist sigue sonando igual y ofrece *Restaurar en la biblioteca*
 - **Deshacer exacto** — Deshacer un borrado, una sobrescritura o quitar una sesión de una playlist restaura el estado exacto (datos, fechas y posición)
-- **Ecosistema** — Sugerencia ocasional de las otras apps y sección *Más apps* en Ajustes; medición de uso local (sin enviar datos)
+- **Ecosistema** — Sugerencia ocasional de las otras apps y sección *Más apps* en Ajustes; medición híbrida de uso (`UsageTracker` + `UsageReporter`)
 - **Web** — En teléfonos la pantalla queda siempre vertical (`PortraitOnly`); en modo PC la barra lateral tiene las pestañas centradas; después de abrir un link compartido la URL vuelve a la de la app (sin `?share=`)
 - **Login heredado eliminado** — Se quitaron AuthGate, login por email, onboarding y trial; la app abre directo
 
@@ -104,7 +108,7 @@ Las tres bibliotecas (`pattern_library`, `session_library`, `playlist_library` e
 - **Migración de playlists viejas** — El formato `sessionIds` (referencias a la biblioteca) se sigue leyendo siempre. Al cargar, `PlaylistProvider.loadPlaylists()` espera a que estén cargadas sesiones y patrones, convierte cada id existente en un ítem vinculado con snapshot (ids faltantes o borrados se omiten; ids deterministas, UUID v5) y persiste la playlist una vez (`rev + 1`). Las playlists del formato `items` anterior ya tienen `sourceSessionId` = id de la biblioteca: no se tocan (su copia embebida, con otro id, pasa a ser el snapshot). Re-ejecutar es idempotente. Sin biblioteca conectada, la playlist queda como estaba y conserva `sessionIds` en disco
 
 ### 🔄 Cuenta y sincronización de bibliotecas
-Con `fede_apps_core` (v0.5.x: `FedeAccount`, `LibrarySync`). La app funciona **siempre** sin cuenta y sin internet; con sesión de Google, las tres bibliotecas se sincronizan con `users/{uid}/appData/metronomo` (colecciones `patterns`, `sessions`, `playlists`).
+Con `fede_apps_core` (v0.7.0: `FedeAccount`, `LibrarySync`, `UsageReporter`). La app funciona **siempre** sin cuenta y sin internet; con sesión de Google, las tres bibliotecas se sincronizan con `users/{uid}/appData/metronomo` (colecciones `patterns`, `sessions`, `playlists`).
 
 - **Ajustes → Cuenta** (primera sección): `AccountSection(hasLibrary: true)`. Sin sesión: *Continuar con Google*; con sesión: email, estado (*Sincronizado hace X*), *Sincronizar ahora* y *Cerrar sesión* (la biblioteca queda en el dispositivo)
 - **Sugerencia de login** — Después de guardar una sesión nueva (*Guardar como…*) o un patrón nuevo en la librería: `EcosystemPrompts.maybeShowLoginPrompt` con el total de ítems activos (sesiones + patrones + playlists). El paquete decide (≥ 3 ítems, `PromptGate`)
@@ -120,7 +124,7 @@ Con `fede_apps_core` (v0.5.x: `FedeAccount`, `LibrarySync`). La app funciona **s
 ### 🧩 Ecosistema (`fede_apps_core`)
 - **Sugerencia de otras apps** — En "momentos tranquilos" (al detener manualmente la reproducción en Tocar o en el reproductor de playlists, y al abrir Ajustes) se llama a `EcosystemPrompts.maybeShowAppsPrompt`; el paquete decide si muestra algo (normalmente no)
 - **Más apps** — Sección en Ajustes (`EcosystemSection`) con las otras apps del ecosistema
-- **Medición de uso local** — `UsageTracker` (inicializado en `main.dart`, nunca bloquea el arranque) registra el tiempo de uso mientras suena el metrónomo (`startActivity` / `stopActivity` en `MetronomeProvider`). Los datos quedan en el dispositivo y alimentan las sugerencias
+- **Medición híbrida de uso** — `UsageTracker` (inicializado en `main.dart`, nunca bloquea el arranque) registra el tiempo de uso mientras suena el metrónomo (`startActivity` / `stopActivity` en `MetronomeProvider`). Junto con `UsageReporter` alimenta las sugerencias locales, envía estadísticas agregadas anónimas a GoatCounter y acumula `users/{uid}/appUsage/metronomo` cuando hay sesión iniciada
 
 ### 🌍 Idiomas (i18n)
 - **Español e inglés** — Toda la interfaz está localizada con el sistema oficial de Flutter (`flutter_localizations` + `intl`, `flutter gen-l10n`). Los textos viven en `lib/l10n/app_es.arb` (plantilla) y `lib/l10n/app_en.arb`
